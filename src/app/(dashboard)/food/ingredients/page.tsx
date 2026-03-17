@@ -71,7 +71,7 @@ export default function IngredientsPage() {
     if (!form.name.trim()) return toast.error("Name required");
     if (!rid) return toast.error("Select a restaurant first");
     setSaving(true);
-    const payload = { name: form.name.trim(), unit_type: form.unit_type as Ingredient["unit_type"], default_unit: form.default_unit, unit_price: parseFloat(form.unit_price) || 0, inventory_group_id: form.inventory_group_id || null, restaurant_id: rid };
+    const payload = { name: form.name.trim(), unit_type: form.unit_type as Ingredient["unit_type"], default_unit: form.default_unit, unit_price: parseFloat(form.unit_price) || 0, inventory_group_id: form.inventory_group_id || undefined, restaurant_id: rid };
     const { error } = editing ? await update(editing.id, payload) : await create(payload);
     if (error) toast.error(error.message);
     else { toast.success(editing ? "Updated!" : "Ingredient added!"); setIngOpen(false); }
