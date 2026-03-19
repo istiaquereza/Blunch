@@ -1,0 +1,3 @@
+ALTER TABLE staff
+  ADD COLUMN IF NOT EXISTS role    text,
+  ADD COLUMN IF NOT EXISTS salary  numeric(12,2) NOT NULL DEFAULT 0;

@@ -24,7 +24,7 @@ import { format, startOfWeek, startOfMonth } from "date-fns";
 const fmt = (n: number) =>
   "৳" + n.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 
 type Preset = "today" | "this_week" | "this_month" | "custom";
 const PRESETS: { value: Preset; label: string }[] = [
@@ -36,7 +36,7 @@ const PRESETS: { value: Preset; label: string }[] = [
 
 function getPresetRange(p: Preset): { from: string; to: string } {
   const now = new Date();
-  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   switch (p) {
     case "today":      return { from: ymd(now), to: ymd(now) };
     case "this_week":  return { from: format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd"), to: ymd(now) };

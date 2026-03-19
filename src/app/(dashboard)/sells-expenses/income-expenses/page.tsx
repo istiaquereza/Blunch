@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,8 @@ import {
   type ExpenseCategory,
 } from "@/hooks/use-transactions";
 import { usePaymentMethods } from "@/hooks/use-payment-methods";
+import { useAllStaff } from "@/hooks/use-staff";
+import { createClient } from "@/lib/supabase/client";
 import {
   TrendingUp,
   TrendingDown,
@@ -25,24 +27,26 @@ import {
   ArrowDownCircle,
   Eye,
   Search,
+  Users,
 } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
   "৳" + n.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
+function localYmd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
-function fmt_date(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
+function today() { return localYmd(new Date()); }
+function fmt_date(d: Date) { return localYmd(d); }
 
-type Preset = "today" | "last7" | "this_month" | "last_month" | "custom";
+type Preset = "all_time" | "today" | "last7" | "this_month" | "last_month" | "custom";
 
 function getPresetRange(preset: Preset): { from: string; to: string } {
   const now = new Date();
   switch (preset) {
+    case "all_time":
+      return { from: "", to: "" };
     case "today":
       return { from: fmt_date(now), to: fmt_date(now) };
     case "last7": {
@@ -61,11 +65,12 @@ function getPresetRange(preset: Preset): { from: string; to: string } {
       return { from: fmt_date(first), to: fmt_date(last) };
     }
     default:
-      return { from: fmt_date(now), to: fmt_date(now) };
+      return { from: "", to: "" };
   }
 }
 
 const PRESETS: { value: Preset; label: string }[] = [
+  { value: "all_time", label: "All Time" },
   { value: "today", label: "Today" },
   { value: "last7", label: "Last 7 Days" },
   { value: "this_month", label: "This Month" },
@@ -79,12 +84,222 @@ interface TxFormProps {
   categories: ExpenseCategory[];
   paymentMethods: { id: string; name: string }[];
   restaurantId: string;
-  onSave: (payload: Omit<Transaction, "id" | "created_at" | "expense_categories" | "payment_methods">) => Promise<{ error: unknown }>;
+  restaurantIds: string[]; // all restaurants for staff lookup
+  onSave: (payload: Omit<Transaction, "id" | "created_at" | "expense_categories" | "payment_methods" | "staff">) => Promise<{ error: unknown }>;
   onClose: () => void;
 }
-function TxForm({ initial, categories, paymentMethods, restaurantId, onSave, onClose }: TxFormProps) {
+
+type TxTab = "income" | "expense" | "payroll";
+
+function PayrollForm({
+  restaurantIds,
+  restaurantId,
+  paymentMethods,
+  onSave,
+  onClose,
+}: {
+  restaurantIds: string[];
+  restaurantId: string;
+  paymentMethods: { id: string; name: string }[];
+  onSave: (payload: Omit<Transaction, "id" | "created_at" | "expense_categories" | "payment_methods" | "staff">) => Promise<{ error: unknown }>;
+  onClose: () => void;
+}) {
+  const { staff } = useAllStaff(restaurantIds);
+  const [staffId, setStaffId] = useState("");
+  const [payrollMonth, setPayrollMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [date, setDate] = useState(today());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Salary info for selected staff
+  const selectedStaff = staff.find(s => s.id === staffId);
+  const [paidThisMonth, setPaidThisMonth] = useState(0);
+
+  // Fetch how much has been paid this month for selected staff
+  useEffect(() => {
+    if (!staffId || !payrollMonth) { setPaidThisMonth(0); return; }
+    const supabase = createClient();
+    const monthStart = `${payrollMonth}-01`;
+    // Calculate end of month
+    const [yr, mo] = payrollMonth.split("-").map(Number);
+    const monthEnd = new Date(yr, mo, 0); // last day of month
+    const monthEndStr = `${yr}-${String(mo).padStart(2, "0")}-${String(monthEnd.getDate()).padStart(2, "0")}`;
+
+    supabase
+      .from("transactions")
+      .select("amount")
+      .eq("staff_id", staffId)
+      .eq("type", "expense")
+      .eq("status", "paid")
+      .gte("payroll_month", monthStart)
+      .lte("payroll_month", monthEndStr)
+      .then(({ data }) => {
+        const total = (data ?? []).reduce((s: number, r: any) => s + r.amount, 0);
+        setPaidThisMonth(total);
+      });
+  }, [staffId, payrollMonth]);
+
+  const totalSalary = selectedStaff?.salary ?? 0;
+  const due = Math.max(0, totalSalary - paidThisMonth);
+  const isFullyPaid = totalSalary > 0 && due <= 0;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffId) { setError("Please select a staff member"); return; }
+    if (!payrollMonth) { setError("Please select a month"); return; }
+    const amt = parseFloat(amount);
+    if (!amount || isNaN(amt) || amt <= 0) { setError("Valid amount is required"); return; }
+    if (amt > due) { setError(`Amount cannot exceed due amount (৳${due.toLocaleString()})`); return; }
+    setSaving(true);
+    const monthDate = `${payrollMonth}-01`;
+    const desc = description || `Salary - ${selectedStaff?.name ?? ""} (${payrollMonth})`;
+    const { error: err } = await onSave({
+      restaurant_id: restaurantId,
+      type: "expense",
+      description: desc,
+      amount: amt,
+      payment_method_id: paymentMethodId || undefined,
+      status: "paid",
+      transaction_date: date,
+      staff_id: staffId,
+      payroll_month: monthDate,
+    });
+    setSaving(false);
+    if (err) { setError(String(err)); return; }
+    onClose();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Staff selector */}
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-700">Staff Member *</label>
+        <select
+          value={staffId}
+          onChange={(e) => { setStaffId(e.target.value); setError(""); }}
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+        >
+          <option value="">Select staff…</option>
+          {staff.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}{s.restaurants?.name ? ` — ${s.restaurants.name}` : ""}{s.job_role ? ` (${s.job_role})` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Month picker */}
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-700">Payroll Month *</label>
+        <input
+          type="month"
+          value={payrollMonth}
+          onChange={(e) => setPayrollMonth(e.target.value)}
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+        />
+      </div>
+
+      {/* Salary summary banner */}
+      {selectedStaff && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${isFullyPaid ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
+          <div className="flex justify-between items-center">
+            <div className="space-y-0.5">
+              <p className="font-semibold text-gray-700">{selectedStaff.name}</p>
+              <p className="text-xs text-gray-500">{selectedStaff.job_role ?? "Staff"}</p>
+            </div>
+            <div className="text-right space-y-0.5">
+              <p className="text-xs text-gray-500">Monthly Salary</p>
+              <p className="font-bold text-gray-800">৳{totalSalary.toLocaleString()}</p>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-current/10 grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xs text-gray-500">Paid</p>
+              <p className="font-semibold text-green-600">৳{paidThisMonth.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Due</p>
+              <p className={`font-semibold ${due > 0 ? "text-amber-600" : "text-green-600"}`}>
+                ৳{due.toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Status</p>
+              <p className={`font-semibold text-xs ${isFullyPaid ? "text-green-600" : "text-amber-600"}`}>
+                {isFullyPaid ? "Fully Paid" : "Pending"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-gray-700">Amount (৳) *</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={(e) => { setAmount(e.target.value); setError(""); }}
+            disabled={isFullyPaid}
+            placeholder={isFullyPaid ? "Fully paid" : due > 0 ? `Max ৳${due.toLocaleString()}` : "0.00"}
+            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50 disabled:text-gray-400"
+          />
+          {selectedStaff && due > 0 && (
+            <p className="text-xs text-amber-600">Due: ৳{due.toLocaleString()}</p>
+          )}
+        </div>
+        <Input
+          label="Date *"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+      </div>
+
+      <Input
+        label="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder={selectedStaff ? `Salary — ${selectedStaff.name} (${payrollMonth})` : "Salary payment…"}
+      />
+
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+        <select
+          value={paymentMethodId}
+          onChange={(e) => setPaymentMethodId(e.target.value)}
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+        >
+          <option value="">Not specified</option>
+          {paymentMethods.map((pm) => (
+            <option key={pm.id} value={pm.id}>{pm.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+        <Button type="submit" loading={saving} disabled={isFullyPaid}>
+          Add Payroll
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantIds, onSave, onClose }: TxFormProps) {
+  const [tab, setTab] = useState<TxTab>(initial ? (initial.staff_id ? "payroll" : initial.type) : "expense");
   const [form, setForm] = useState({
-    type: initial?.type ?? "expense" as "expense" | "income",
+    type: (initial?.type ?? "expense") as "expense" | "income",
     description: initial?.description ?? "",
     amount: initial ? String(initial.amount) : "",
     category_id: initial?.category_id ?? "",
@@ -97,6 +312,13 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, onSave, onC
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const filteredCats = categories.filter((c) => c.type === form.type);
+
+  // Sync form.type when tab changes (income/expense tabs only)
+  useEffect(() => {
+    if (tab === "income" || tab === "expense") {
+      setForm(f => ({ ...f, type: tab }));
+    }
+  }, [tab]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,110 +342,167 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, onSave, onC
     onClose();
   };
 
+  // If editing a payroll tx, show edit form directly (no tab switching)
+  if (initial?.staff_id) {
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+          Editing payroll transaction. Use the Staff Payroll page for full payroll management.
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Amount (৳) *" type="number" min="0" step="0.01" value={form.amount}
+            onChange={(e) => { set("amount", e.target.value); setError(""); }} placeholder="0.00" />
+          <Input label="Date *" type="date" value={form.transaction_date}
+            onChange={(e) => set("transaction_date", e.target.value)} />
+        </div>
+        <Input label="Description" value={form.description} onChange={(e) => set("description", e.target.value)} />
+        {error && <p className="text-xs text-red-500">{error}</p>}
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={saving}>Save Changes</Button>
+        </div>
+      </form>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Type toggle */}
-      <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-        {(["income", "expense"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => { set("type", t); set("category_id", ""); }}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${
-              form.type === t
-                ? t === "income"
-                  ? "bg-green-500 text-white"
-                  : "bg-red-500 text-white"
-                : "bg-white text-gray-500 hover:bg-gray-50"
-            }`}
-          >
-            {t === "income" ? "Income" : "Expense"}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Input
-          label="Amount (৳) *"
-          type="number"
-          min="0"
-          step="0.01"
-          value={form.amount}
-          onChange={(e) => { set("amount", e.target.value); setError(""); }}
-          placeholder="0.00"
-        />
-        <Input
-          label="Date *"
-          type="date"
-          value={form.transaction_date}
-          onChange={(e) => set("transaction_date", e.target.value)}
-        />
-      </div>
-
-      <Input
-        label="Description"
-        value={form.description}
-        onChange={(e) => set("description", e.target.value)}
-        placeholder="What is this for?"
-      />
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-700">Category</label>
-          <select
-            value={form.category_id}
-            onChange={(e) => set("category_id", e.target.value)}
-            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">No category</option>
-            {filteredCats.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-          <select
-            value={form.payment_method_id}
-            onChange={(e) => set("payment_method_id", e.target.value)}
-            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Not specified</option>
-            {paymentMethods.map((pm) => (
-              <option key={pm.id} value={pm.id}>{pm.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="block text-sm font-medium text-gray-700">Status</label>
+    <div className="space-y-4">
+      {/* Tab selector */}
+      {!initial && (
         <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-          {(["paid", "due"] as const).map((s) => (
+          {([["income", "Income"], ["expense", "Expense"], ["payroll", "Payroll"]] as [TxTab, string][]).map(([t, label]) => (
             <button
-              key={s}
+              key={t}
               type="button"
-              onClick={() => set("status", s)}
+              onClick={() => setTab(t)}
               className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                form.status === s
-                  ? s === "paid" ? "bg-green-500 text-white" : "bg-yellow-500 text-white"
+                tab === t
+                  ? t === "income" ? "bg-green-500 text-white"
+                    : t === "expense" ? "bg-red-500 text-white"
+                    : "bg-purple-600 text-white"
                   : "bg-white text-gray-500 hover:bg-gray-50"
               }`}
             >
-              {s === "paid" ? "Paid" : "Due"}
+              {label}
             </button>
           ))}
         </div>
-      </div>
+      )}
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
-        <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-        <Button type="submit" loading={saving}>
-          {initial ? "Save Changes" : "Add Transaction"}
-        </Button>
-      </div>
-    </form>
+      {tab === "payroll" && !initial ? (
+        <PayrollForm
+          restaurantIds={restaurantIds}
+          restaurantId={restaurantId}
+          paymentMethods={paymentMethods}
+          onSave={onSave}
+          onClose={onClose}
+        />
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Type toggle for income/expense */}
+          {initial && (
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+              {(["income", "expense"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => { set("type", t); set("category_id", ""); }}
+                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                    form.type === t
+                      ? t === "income" ? "bg-green-500 text-white" : "bg-red-500 text-white"
+                      : "bg-white text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  {t === "income" ? "Income" : "Expense"}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Amount (৳) *"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.amount}
+              onChange={(e) => { set("amount", e.target.value); setError(""); }}
+              placeholder="0.00"
+            />
+            <Input
+              label="Date *"
+              type="date"
+              value={form.transaction_date}
+              onChange={(e) => set("transaction_date", e.target.value)}
+            />
+          </div>
+
+          <Input
+            label="Description"
+            value={form.description}
+            onChange={(e) => set("description", e.target.value)}
+            placeholder="What is this for?"
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-700">Category</label>
+              <select
+                value={form.category_id}
+                onChange={(e) => set("category_id", e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <option value="">No category</option>
+                {filteredCats.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+              <select
+                value={form.payment_method_id}
+                onChange={(e) => set("payment_method_id", e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <option value="">Not specified</option>
+                {paymentMethods.map((pm) => (
+                  <option key={pm.id} value={pm.id}>{pm.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-700">Status</label>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+              {(["paid", "due"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => set("status", s)}
+                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                    form.status === s
+                      ? s === "paid" ? "bg-green-500 text-white" : "bg-yellow-500 text-white"
+                      : "bg-white text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  {s === "paid" ? "Paid" : "Due"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+            <Button type="submit" loading={saving}>
+              {initial ? "Save Changes" : "Add Transaction"}
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -251,7 +530,6 @@ function CategoryManager({ categories, onCreate, onRemove }: CategoryManagerProp
 
   return (
     <div className="space-y-4">
-      {/* Add form */}
       <div className="flex gap-2">
         <input
           value={name}
@@ -273,7 +551,6 @@ function CategoryManager({ categories, onCreate, onRemove }: CategoryManagerProp
         </Button>
       </div>
 
-      {/* Lists */}
       <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto">
         {[{ label: "Income", items: incomes, color: "bg-green-50 text-green-700" }, { label: "Expense", items: expenses, color: "bg-red-50 text-red-700" }].map(({ label, items, color }) => (
           <div key={label}>
@@ -285,10 +562,7 @@ function CategoryManager({ categories, onCreate, onRemove }: CategoryManagerProp
                 {items.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-2">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${color}`}>{c.name}</span>
-                    <button
-                      onClick={() => onRemove(c.id)}
-                      className="p-0.5 text-gray-300 hover:text-red-400 transition-colors"
-                    >
+                    <button onClick={() => onRemove(c.id)} className="p-0.5 text-gray-300 hover:text-red-400 transition-colors">
                       <Trash2 size={12} />
                     </button>
                   </li>
@@ -304,13 +578,13 @@ function CategoryManager({ categories, onCreate, onRemove }: CategoryManagerProp
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function IncomeExpensesPage() {
-  const { activeRestaurant } = useRestaurant();
+  const { activeRestaurant, restaurants } = useRestaurant();
   const [dateFrom, setDateFrom] = useState(today());
   const [dateTo, setDateTo] = useState(today());
   const { transactions, loading, create, update, remove } = useTransactions(
     activeRestaurant?.id,
-    dateFrom,
-    dateTo
+    dateFrom || undefined,
+    dateTo || undefined
   );
   const { categories, create: createCat, remove: removeCat } = useExpenseCategories();
   const { methods: paymentMethods } = usePaymentMethods(activeRestaurant?.id);
@@ -339,7 +613,6 @@ export default function IncomeExpensesPage() {
   const net = totalIncome - totalExpense;
   const totalDue = transactions.filter((t) => t.type === "expense" && t.status === "due").reduce((s, t) => s + t.amount, 0);
 
-  // Extract REQ-ID prefix from description (format: "REQ-XXXXXXXX: ...")
   const reqIdFromDesc = (desc?: string | null) => {
     if (!desc) return null;
     const m = desc.match(/^(REQ-[A-Z0-9]+):/);
@@ -348,13 +621,12 @@ export default function IncomeExpensesPage() {
 
   return (
     <>
-      <Header title="Income & Expenses" subtitle="Track all financial transactions" />
+      <Header title="Income & Expenses" />
 
       <div className="p-4 md:p-6 space-y-4">
         {/* ── Toolbar ── */}
         <div className="bg-white rounded-xl border border-border px-4 py-3">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Search */}
             <div className="relative flex-1 min-w-[160px] max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
@@ -365,7 +637,6 @@ export default function IncomeExpensesPage() {
               />
             </div>
 
-            {/* Date preset */}
             <select
               value={preset}
               onChange={(e) => {
@@ -384,7 +655,6 @@ export default function IncomeExpensesPage() {
               ))}
             </select>
 
-            {/* Custom date pickers */}
             {preset === "custom" && (
               <>
                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
@@ -395,18 +665,22 @@ export default function IncomeExpensesPage() {
               </>
             )}
 
-            {/* Type filter */}
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="all">All Types</option>
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden h-9">
+              {(["all", "income", "expense"] as const).map(chip => (
+                <button
+                  key={chip}
+                  onClick={() => setTypeFilter(chip)}
+                  className={`px-3 text-xs font-medium transition-colors capitalize ${
+                    typeFilter === chip
+                      ? chip === "income" ? "bg-green-500 text-white" : chip === "expense" ? "bg-red-500 text-white" : "bg-gray-900 text-white"
+                      : "text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  {chip === "all" ? "All" : chip === "income" ? "Income" : "Expense"}
+                </button>
+              ))}
+            </div>
 
-            {/* Category filter */}
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
@@ -460,10 +734,9 @@ export default function IncomeExpensesPage() {
             </div>
             <p className={`text-2xl font-bold ${net >= 0 ? "text-blue-600" : "text-red-500"}`}>{fmt(net)}</p>
             <p className="text-xs text-gray-400 mt-1">
-              {dateFrom === dateTo ? dateFrom : `${dateFrom} → ${dateTo}`}
+              {!dateFrom && !dateTo ? "All time" : dateFrom === dateTo ? dateFrom : `${dateFrom} → ${dateTo}`}
             </p>
           </div>
-          {/* Due Expenses card */}
           <div className={`rounded-xl border p-4 ${totalDue > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${totalDue > 0 ? "bg-amber-100" : "bg-gray-50"}`}>
@@ -508,7 +781,7 @@ export default function IncomeExpensesPage() {
                 {filtered.map((t) => (
                   <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-sm text-gray-600">
-                      {new Date(t.transaction_date).toLocaleDateString("en-GB", {
+                      {new Date(t.transaction_date + "T12:00:00").toLocaleDateString("en-GB", {
                         day: "numeric", month: "short",
                       })}
                     </td>
@@ -529,10 +802,9 @@ export default function IncomeExpensesPage() {
                         const rawItems = reqId && t.description
                           ? t.description.slice(reqId.length + 1).trim()
                           : null;
-                        // Build concise label: first item name + "& N more" if multiple
                         const items = rawItems ? rawItems.split(" | ") : [];
                         const firstItem = items[0]
-                          ? items[0].replace(/ @৳.*$/, "").trim()   // strip price part
+                          ? items[0].replace(/ @৳.*$/, "").trim()
                           : null;
                         const summaryLabel = firstItem
                           ? items.length > 1
@@ -575,7 +847,6 @@ export default function IncomeExpensesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        {/* Mark as Paid — only for due expense rows */}
                         {t.type === "expense" && t.status === "due" && (
                           <button
                             onClick={() => update(t.id, { status: "paid" })}
@@ -609,7 +880,6 @@ export default function IncomeExpensesPage() {
                   </tr>
                 ))}
               </tbody>
-              {/* Totals footer */}
               {filtered.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-gray-100 bg-gray-50">
@@ -638,7 +908,6 @@ export default function IncomeExpensesPage() {
       {/* ── View Transaction Dialog ── */}
       {viewTx && (() => {
         const reqId = reqIdFromDesc(viewTx.description);
-        // Items embedded as "Name Qty Unit @৳Price | Name2..."
         const rawItems = reqId && viewTx.description
           ? viewTx.description.slice(reqId.length + 1).trim()
           : null;
@@ -650,12 +919,11 @@ export default function IncomeExpensesPage() {
             title="Transaction Details"
           >
             <div className="space-y-4">
-              {/* Meta grid */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-xs text-gray-400 uppercase mb-1">Date</p>
                   <p className="font-medium">
-                    {new Date(viewTx.transaction_date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                    {new Date(viewTx.transaction_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
                   </p>
                 </div>
                 <div>
@@ -691,7 +959,6 @@ export default function IncomeExpensesPage() {
                 )}
               </div>
 
-              {/* Bazar items breakdown */}
               {reqId && (
                 <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-gray-100 flex items-center gap-2">
@@ -703,7 +970,6 @@ export default function IncomeExpensesPage() {
                   <ul className="divide-y divide-gray-100">
                     {itemList.length > 0 && itemList[0] !== "" ? (
                       itemList.map((item, i) => {
-                        // Format: "Name Qty Unit @৳Price"
                         const atIdx = item.lastIndexOf(" @৳");
                         const namePart = atIdx >= 0 ? item.slice(0, atIdx) : item;
                         const pricePart = atIdx >= 0 ? "৳" + item.slice(atIdx + 3) : "";
@@ -725,7 +991,6 @@ export default function IncomeExpensesPage() {
                 </div>
               )}
 
-              {/* Plain description for non-bazar transactions */}
               {!reqId && viewTx.description && (
                 <div>
                   <p className="text-xs text-gray-400 uppercase mb-1">Description</p>
@@ -758,6 +1023,7 @@ export default function IncomeExpensesPage() {
             categories={categories}
             paymentMethods={paymentMethods}
             restaurantId={activeRestaurant.id}
+            restaurantIds={restaurants.map(r => r.id)}
             onSave={create}
             onClose={() => setAddOpen(false)}
           />
@@ -772,6 +1038,7 @@ export default function IncomeExpensesPage() {
             categories={categories}
             paymentMethods={paymentMethods}
             restaurantId={activeRestaurant.id}
+            restaurantIds={restaurants.map(r => r.id)}
             onSave={(payload) => update(editTarget.id, payload)}
             onClose={() => setEditTarget(null)}
           />

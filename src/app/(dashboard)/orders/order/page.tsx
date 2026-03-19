@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef, useId } from "react";
 import { Header } from "@/components/layout/header";
 import { useRestaurant } from "@/contexts/restaurant-context";
 import { useFoodItems } from "@/hooks/use-food-items";
@@ -51,6 +51,7 @@ interface OrderDraft {
   orderType: "dine_in" | "takeaway";
   tableId: string;
   cart: CartItem[];
+  printedCart: CartItem[];
   discountId: string;
   notes: string;
   stage: DraftStage;
@@ -61,16 +62,18 @@ interface OrderDraft {
   customerId?: string;
   paymentMethodId: string;
   savedTotals?: BillingTotals;
+  customDiscountType: "none" | "amount" | "percent";
+  customDiscountValue: number;
 }
 
-let draftCounter = 1;
-function newDraft(): OrderDraft {
+function newDraft(label = "New Order"): OrderDraft {
   return {
     draftId: crypto.randomUUID(),
-    label: `Order ${draftCounter++}`,
+    label,
     orderType: "dine_in",
     tableId: "",
     cart: [],
+    printedCart: [],
     discountId: "",
     notes: "",
     stage: "building",
@@ -78,6 +81,8 @@ function newDraft(): OrderDraft {
     customerPhone: "",
     customerId: undefined,
     paymentMethodId: "",
+    customDiscountType: "none",
+    customDiscountValue: 0,
   };
 }
 
@@ -89,14 +94,20 @@ function calcTotals(
   cart: CartItem[],
   discounts: { id: string; discount_type: string; discount_value: number; is_active: boolean; apply_on: string }[],
   discountId: string,
-  billing: { vat_percentage: number; service_charge_percentage: number } | null
+  billing: { vat_percentage: number; service_charge_percentage: number } | null,
+  customDiscountType: "none" | "amount" | "percent" = "none",
+  customDiscountValue: number = 0,
 ): BillingTotals {
   const subtotal = cart.reduce((s, c) => s + c.foodItem.sell_price * c.quantity, 0);
-  const discountObj = discounts.find((d) => d.id === discountId && d.is_active);
+  const discountObj = discountId ? discounts.find((d) => d.id === discountId && d.is_active) : null;
   const discountAmount = discountObj
     ? discountObj.discount_type === "percentage"
       ? (subtotal * discountObj.discount_value) / 100
       : discountObj.discount_value
+    : customDiscountType === "amount"
+    ? Math.min(customDiscountValue, subtotal)
+    : customDiscountType === "percent"
+    ? (subtotal * Math.min(customDiscountValue, 100)) / 100
     : 0;
   const afterDiscount = subtotal - discountAmount;
   const vatAmount = (afterDiscount * (billing?.vat_percentage ?? 0)) / 100;
@@ -106,14 +117,41 @@ function calcTotals(
 }
 
 // ─── Kitchen Print ────────────────────────────────────────────────────────────
-function printKitchenTicket(restaurantName: string, draft: OrderDraft, tableName: string) {
+function printKitchenTicket(restaurantName: string, draft: OrderDraft, tableName: string, prevPrintedCart: CartItem[] = []) {
   const now = new Date().toLocaleString("en-GB", {
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
-  const rows = draft.cart
-    .map((c) => `<tr><td style="font-size:15px;padding:5px 0;width:32px">${c.quantity}×</td><td style="font-size:15px;font-weight:600;padding:5px 0">${c.foodItem.name}</td></tr>`)
-    .join("");
+  const isReprint = prevPrintedCart.length > 0;
+  let rows = "";
+  for (const c of draft.cart) {
+    const prev = prevPrintedCart.find((p) => p.foodItem.id === c.foodItem.id);
+    const prevQty = prev?.quantity ?? 0;
+    const oldQty = Math.min(prevQty, c.quantity);
+    const addedQty = c.quantity - oldQty;
+    if (oldQty > 0) {
+      rows += `<tr>
+        <td style="font-size:14px;padding:3px 0;width:32px;color:#aaa">${oldQty}×</td>
+        <td style="font-size:14px;text-decoration:underline;color:#aaa;padding:3px 0">${c.foodItem.name}</td>
+      </tr>`;
+    }
+    if (addedQty > 0) {
+      rows += `<tr>
+        <td style="font-size:15px;padding:4px 0;width:32px;font-weight:700">+${addedQty}×</td>
+        <td style="font-size:15px;font-weight:700;padding:4px 0">★ ${c.foodItem.name}</td>
+      </tr>`;
+    }
+    // First print: all items are new
+    if (!isReprint) {
+      rows = ""; // clear; we'll redo
+      break;
+    }
+  }
+  if (!isReprint) {
+    rows = draft.cart.map((c) =>
+      `<tr><td style="font-size:15px;padding:5px 0;width:32px">${c.quantity}×</td><td style="font-size:15px;font-weight:600;padding:5px 0">${c.foodItem.name}</td></tr>`
+    ).join("");
+  }
   const notesHtml = draft.notes.trim()
     ? `<hr/><div style="font-size:12px;font-style:italic;color:#333;margin-top:4px">📝 ${draft.notes}</div>`
     : "";
@@ -130,20 +168,40 @@ function printKitchenTicket(restaurantName: string, draft: OrderDraft, tableName
 }
 
 // ─── Menu Item Card ───────────────────────────────────────────────────────────
-function MenuCard({ item, onAdd, disabled }: { item: FoodItem; onAdd: () => void; disabled?: boolean }) {
+function MenuCard({ item, onAdd, disabled, cartQty = 0 }: { item: FoodItem; onAdd: () => void; disabled?: boolean; cartQty?: number }) {
+  const isQty = item.availability_type === "quantity";
+  const available = item.available_quantity ?? 0;
+  const outOfStock = isQty && available === 0;
+  const maxReached = isQty && cartQty >= available;
+  const remaining = isQty ? available - cartQty : null;
+
   return (
     <button
       onClick={onAdd}
-      disabled={disabled}
-      className="bg-white rounded-xl border border-gray-100 p-3 text-left hover:border-orange-300 hover:shadow-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+      disabled={disabled || outOfStock || maxReached}
+      className="bg-white rounded-xl border border-gray-100 p-3 text-left hover:border-orange-300 hover:shadow-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed relative"
     >
-      <div className="w-full h-20 rounded-lg bg-orange-50 flex items-center justify-center mb-2 overflow-hidden">
+      <div className="w-full h-20 rounded-lg bg-orange-50 flex items-center justify-center mb-2 overflow-hidden relative">
         {item.image_url
           ? <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-lg" />
           : <span className="text-2xl">🍽️</span>}
+        {outOfStock && (
+          <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
+            <span className="text-white text-[10px] font-bold bg-red-500 px-1.5 py-0.5 rounded-full">Out of Stock</span>
+          </div>
+        )}
       </div>
       <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2">{item.name}</p>
-      <p className="text-sm font-bold text-orange-500 mt-1">{fmt(item.sell_price)}</p>
+      <div className="flex items-center justify-between mt-1">
+        <p className="text-sm font-bold text-orange-500">{fmt(item.sell_price)}</p>
+        {isQty && !outOfStock && (
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+            remaining! <= 3 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
+          }`}>
+            {remaining} left
+          </span>
+        )}
+      </div>
     </button>
   );
 }
@@ -185,12 +243,27 @@ function OrderCard({
   saving: boolean;
 }) {
   const [showCustDropdown, setShowCustDropdown] = useState(false);
+  const [customerTotalSpend, setCustomerTotalSpend] = useState<number | null>(null);
   const activeTables = tables.filter((t) => t.is_active);
   const activePayments = paymentMethods.filter((p) => p.is_active);
   const activeDiscounts = discounts.filter((d) => d.is_active && d.apply_on === "order");
 
+  const handleCustomerSelect = async (c: Customer) => {
+    onUpdate({ customerName: c.name, customerPhone: c.phone ?? "", customerId: c.id });
+    setShowCustDropdown(false);
+    setCustomerTotalSpend(null);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("orders")
+      .select("total")
+      .eq("customer_id", c.id)
+      .eq("status", "completed");
+    const total = (data ?? []).reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+    setCustomerTotalSpend(total);
+  };
+
   // Use savedTotals when in billing stage (locked & accurate), else compute live
-  const liveT = calcTotals(draft.cart, discounts, draft.discountId, billing);
+  const liveT = calcTotals(draft.cart, discounts, draft.discountId, billing, draft.customDiscountType, draft.customDiscountValue);
   const totals: BillingTotals = (draft.stage === "billing" && draft.savedTotals) ? draft.savedTotals : liveT;
 
   const tableName = (activeTables.find((t) => t.id === draft.tableId) as any)?.table_number
@@ -266,7 +339,7 @@ function OrderCard({
             disabled={locked}
             value={draft.tableId}
             onChange={(e) => onUpdate({ tableId: e.target.value })}
-            className="w-full h-7 px-2 rounded-lg border border-gray-200 text-xs disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+            className={`w-full h-7 px-2 rounded-lg border text-xs disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400 ${!draft.tableId && !locked ? "border-red-400 bg-red-50" : "border-gray-200"}`}
           >
             <option value="">Select table…</option>
             {activeTables.map((t) => (
@@ -319,9 +392,13 @@ function OrderCard({
                   </button>
                   <span className="w-5 text-center text-xs font-semibold">{c.quantity}</span>
                   <button
-                    onClick={() => onUpdate({
-                      cart: draft.cart.map((i) => i.foodItem.id === c.foodItem.id ? { ...i, quantity: i.quantity + 1 } : i),
-                    })}
+                    onClick={() => {
+                      if (c.foodItem.availability_type === "quantity") {
+                        const avail = c.foodItem.available_quantity ?? 0;
+                        if (c.quantity >= avail) { toast.error(`Only ${avail} in stock`); return; }
+                      }
+                      onUpdate({ cart: draft.cart.map((i) => i.foodItem.id === c.foodItem.id ? { ...i, quantity: i.quantity + 1 } : i) });
+                    }}
                     className="w-5 h-5 rounded bg-orange-100 flex items-center justify-center hover:bg-orange-200 transition-colors"
                   >
                     <Plus size={9} className="text-orange-600" />
@@ -358,24 +435,67 @@ function OrderCard({
       {/* Totals — building stage (live) */}
       {draft.stage === "building" && draft.cart.length > 0 && (
         <div className="border-t border-gray-100 px-3 py-2 space-y-1 text-xs" onClick={(e) => e.stopPropagation()}>
-          {activeDiscounts.length > 0 && (
-            <div className="flex items-center gap-1">
-              <select
-                value={draft.discountId}
-                onChange={(e) => onUpdate({ discountId: e.target.value })}
-                className="flex-1 h-6 px-1.5 rounded border border-gray-200 text-xs focus:outline-none"
-              >
-                <option value="">No discount</option>
-                {activeDiscounts.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name} ({d.discount_type === "percentage" ? `${d.discount_value}%` : fmt(d.discount_value)})</option>
-                ))}
-              </select>
-              {liveT.discountAmount > 0 && <span className="text-green-600 font-medium">-{fmt(liveT.discountAmount)}</span>}
-            </div>
-          )}
           <div className="flex justify-between font-bold text-sm text-gray-900">
             <span>Total</span><span className="text-orange-600">{fmt(liveT.total)}</span>
           </div>
+        </div>
+      )}
+
+      {/* Discount controls — billing stage */}
+      {draft.stage === "billing" && (
+        <div className="border-t border-orange-100 px-3 py-2 space-y-1.5 bg-orange-50/30" onClick={(e) => e.stopPropagation()}>
+          <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wide">Discount</p>
+          {/* Campaign discounts */}
+          {activeDiscounts.length > 0 && (
+            <select
+              value={draft.discountId}
+              onChange={(e) => {
+                const newId = e.target.value;
+                const newTotals = calcTotals(draft.cart, discounts, newId, billing, newId ? "none" : draft.customDiscountType, draft.customDiscountValue);
+                onUpdate({ discountId: newId, customDiscountType: newId ? "none" : draft.customDiscountType, savedTotals: newTotals });
+              }}
+              className="w-full h-7 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none"
+            >
+              <option value="">— Campaign discount —</option>
+              {activeDiscounts.map((d) => (
+                <option key={d.id} value={d.id}>{d.name} ({d.discount_type === "percentage" ? `${d.discount_value}%` : fmt(d.discount_value)})</option>
+              ))}
+            </select>
+          )}
+          {/* Custom discount (shown when no campaign selected) */}
+          {!draft.discountId && (
+            <div className="flex items-center gap-1">
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden shrink-0">
+                {(["none", "amount", "percent"] as const).map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      const newTotals = calcTotals(draft.cart, discounts, "", billing, type, draft.customDiscountValue);
+                      onUpdate({ discountId: "", customDiscountType: type, savedTotals: newTotals });
+                    }}
+                    className={`px-2 py-1 text-[10px] font-semibold transition-colors ${draft.customDiscountType === type ? "bg-orange-500 text-white" : "text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    {type === "none" ? "None" : type === "amount" ? "৳" : "%"}
+                  </button>
+                ))}
+              </div>
+              {draft.customDiscountType !== "none" && (
+                <input
+                  type="number"
+                  min="0"
+                  max={draft.customDiscountType === "percent" ? 100 : undefined}
+                  value={draft.customDiscountValue || ""}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    const newTotals = calcTotals(draft.cart, discounts, "", billing, draft.customDiscountType, val);
+                    onUpdate({ customDiscountValue: val, savedTotals: newTotals });
+                  }}
+                  placeholder={draft.customDiscountType === "amount" ? "Amount" : "0-100"}
+                  className="flex-1 h-7 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
+                />
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -423,7 +543,7 @@ function OrderCard({
                 type="text"
                 placeholder="Search or type customer name"
                 value={draft.customerName}
-                onChange={(e) => onUpdate({ customerName: e.target.value, customerId: undefined })}
+                onChange={(e) => { onUpdate({ customerName: e.target.value, customerId: undefined }); setCustomerTotalSpend(null); }}
                 onFocus={() => setShowCustDropdown(true)}
                 onBlur={() => setTimeout(() => setShowCustDropdown(false), 150)}
                 className="w-full h-7 pl-6 pr-10 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400 bg-white"
@@ -439,10 +559,7 @@ function OrderCard({
                       key={c.id}
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        onUpdate({ customerName: c.name, customerPhone: c.phone ?? "", customerId: c.id });
-                        setShowCustDropdown(false);
-                      }}
+                      onClick={() => handleCustomerSelect(c)}
                       className="w-full px-2.5 py-1.5 text-left hover:bg-orange-50 flex items-center justify-between gap-2"
                     >
                       <span className="text-xs font-medium text-gray-800 truncate">{c.name}</span>
@@ -458,6 +575,12 @@ function OrderCard({
                 onChange={(e) => onUpdate({ customerPhone: e.target.value })}
                 className="w-full h-7 pl-6 pr-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400 bg-white" />
             </div>
+            {draft.customerId && customerTotalSpend !== null && (
+              <div className="flex items-center justify-between bg-orange-100 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-orange-700 font-medium">Total spend</span>
+                <span className="text-xs font-bold text-orange-800">{fmt(customerTotalSpend)}</span>
+              </div>
+            )}
             <div className="relative">
               <CreditCard size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 z-10" />
               <select value={draft.paymentMethodId} onChange={(e) => onUpdate({ paymentMethodId: e.target.value })}
@@ -525,10 +648,20 @@ export default function NewOrderPage() {
   const { methods: paymentMethods } = usePaymentMethods(activeRestaurant?.id);
   const { settings: billing } = useBillingSettings(activeRestaurant?.id);
   const { discounts } = useDiscounts(activeRestaurant?.id);
-  const { billOrder, createKitchenOrder, billAndCreateOrder, completeOrderFull } = useOrders(activeRestaurant?.id);
+  const { billOrder, createKitchenOrder, billAndCreateOrder, completeOrderFull, cancelOrder } = useOrders(activeRestaurant?.id);
   const { customers } = useCustomers(activeRestaurant?.id);
 
-  const [init] = useState(() => { const d = newDraft(); return { draft: d, id: d.draftId }; });
+  // Per-instance counter — avoids module-level shared state that causes SSR hydration mismatches
+  const draftCounterRef = useRef(1);
+
+  // useId() returns the same value on server and client — prevents crypto.randomUUID()
+  // from causing a hydration mismatch on the initial draft
+  const initDraftId = useId();
+  const [init] = useState(() => {
+    const d = newDraft(`Order ${draftCounterRef.current++}`);
+    d.draftId = initDraftId; // stable SSR-safe ID for the first draft
+    return { draft: d, id: initDraftId };
+  });
   const [drafts, setDrafts] = useState<OrderDraft[]>([init.draft]);
   const [activeDraftId, setActiveDraftId] = useState<string>(init.id);
   const [activeCategory, setActiveCategory] = useState("all");
@@ -536,6 +669,7 @@ export default function NewOrderPage() {
   const [saving, setSaving] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
 
   // Track previous cart per draft to detect changes for DB sync
   const prevCartRef = useRef<Map<string, CartItem[]>>(new Map());
@@ -547,19 +681,17 @@ export default function NewOrderPage() {
 
     const loadOrders = async () => {
       setLoadingOrders(true);
-      const today = new Date().toISOString().slice(0, 10);
       const { data } = await supabase
         .from("orders")
         .select(`*, tables(id, table_number), customers(id, name, phone), order_items(*, food_items(id, name, sell_price))`)
         .eq("restaurant_id", activeRestaurant.id)
         .in("status", ["active", "billed"])
-        .gte("created_at", today)
         .order("created_at", { ascending: true });
 
       if (data && data.length > 0) {
         const restored: OrderDraft[] = data.map((order: any) => ({
           draftId: crypto.randomUUID(),
-          label: order.order_number ?? `Order ${draftCounter++}`,
+          label: order.order_number ?? `Order ${draftCounterRef.current++}`,
           orderType: order.type,
           tableId: order.table_id ?? "",
           cart: (order.order_items ?? []).map((item: any) => ({
@@ -589,6 +721,9 @@ export default function NewOrderPage() {
             serviceCharge: order.service_charge,
             total: order.total,
           } : undefined,
+          printedCart: [],
+          customDiscountType: "none",
+          customDiscountValue: 0,
         }));
         setDrafts(restored);
         setActiveDraftId(restored[0].draftId);
@@ -635,22 +770,49 @@ export default function NewOrderPage() {
   }, []);
 
   const addNewOrder = () => {
-    const d = newDraft();
+    const d = newDraft(`Order ${draftCounterRef.current++}`);
     setDrafts((prev) => [...prev, d]);
     setActiveDraftId(d.draftId);
   };
 
-  const closeTab = (draftId: string) => {
+  // Remove draft from UI and reset counter if it was the last one
+  const removeDraft = (draftId: string) => {
     setDrafts((prev) => {
       const remaining = prev.filter((d) => d.draftId !== draftId);
       if (remaining.length === 0) {
-        const fresh = newDraft();
+        // Reset counter so the next fresh tab starts at "Order 1" again
+        draftCounterRef.current = 1;
+        const fresh = newDraft(`Order ${draftCounterRef.current++}`);
         setActiveDraftId(fresh.draftId);
         return [fresh];
       }
       if (activeDraftId === draftId) setActiveDraftId(remaining[remaining.length - 1].draftId);
       return remaining;
     });
+  };
+
+  // X button clicked — decide whether to show confirmation or close immediately
+  const handleCloseRequest = (draftId: string) => {
+    const draft = drafts.find((d) => d.draftId === draftId);
+    if (!draft) return;
+
+    if (draft.stage === "billing" && draft.savedOrderId) {
+      // Billed orders need confirmation before cancelling
+      setCancelConfirmId(draftId);
+    } else {
+      // Building stage (or done) — cancel in DB silently if needed, then remove
+      performClose(draftId);
+    }
+  };
+
+  // Actually perform the close: cancel in DB if needed, then remove from UI
+  const performClose = async (draftId: string) => {
+    const draft = drafts.find((d) => d.draftId === draftId);
+    if (draft?.savedOrderId && draft.stage !== "done") {
+      await cancelOrder(draft.savedOrderId);
+      if (draft.stage === "billing") toast.success("Order cancelled");
+    }
+    removeDraft(draftId);
   };
 
   const menuItems = useMemo(() => {
@@ -662,6 +824,16 @@ export default function NewOrderPage() {
 
   const addToCart = async (item: FoodItem) => {
     if (!activeDraft || activeDraft.stage !== "building") return;
+
+    // Enforce stock limit for quantity-type items
+    if (item.availability_type === "quantity") {
+      const available = item.available_quantity ?? 0;
+      const inCart = activeDraft.cart.find((c) => c.foodItem.id === item.id)?.quantity ?? 0;
+      if (inCart >= available) {
+        toast.error(`Only ${available} in stock`);
+        return;
+      }
+    }
 
     const isFirstItem = activeDraft.cart.length === 0;
     const existing = activeDraft.cart.find((c) => c.foodItem.id === item.id);
@@ -693,6 +865,12 @@ export default function NewOrderPage() {
   const handleKitchenPrint = async (draftId: string) => {
     const draft = drafts.find((d) => d.draftId === draftId);
     if (!activeRestaurant || !draft || draft.cart.length === 0) return;
+    if (draft.orderType === "dine_in" && !draft.tableId) {
+      toast.error("Please select a table for dine-in orders");
+      return;
+    }
+
+    const prevPrintedCart = draft.printedCart ?? [];
 
     // If not yet saved (no auto-create happened), save to DB as active first
     if (!draft.savedOrderId) {
@@ -715,7 +893,8 @@ export default function NewOrderPage() {
       prevCartRef.current.set(draftId, draft.cart); // prevent double-sync
       const tableName = (tables as any[]).find((t) => t.id === draft.tableId)?.table_number
         ?? (tables as any[]).find((t) => t.id === draft.tableId)?.name ?? "";
-      printKitchenTicket(activeRestaurant.name, { ...draft, savedOrderId: order.id, orderNumber: order.order_number }, tableName);
+      printKitchenTicket(activeRestaurant.name, { ...draft, savedOrderId: order.id, orderNumber: order.order_number }, tableName, prevPrintedCart);
+      updateDraft(draftId, { printedCart: [...draft.cart] });
       setSaving(false);
       return;
     }
@@ -723,15 +902,20 @@ export default function NewOrderPage() {
     // Already in DB (auto-created or previously printed) — just reprint
     const tableName = (tables as any[]).find((t) => t.id === draft.tableId)?.table_number
       ?? (tables as any[]).find((t) => t.id === draft.tableId)?.name ?? "";
-    printKitchenTicket(activeRestaurant.name, draft, tableName);
+    printKitchenTicket(activeRestaurant.name, draft, tableName, prevPrintedCart);
+    updateDraft(draftId, { printedCart: [...draft.cart] });
   };
 
   const handleBill = async (draftId: string) => {
     const draft = drafts.find((d) => d.draftId === draftId);
     if (!activeRestaurant || !draft || draft.cart.length === 0) return;
+    if (draft.orderType === "dine_in" && !draft.tableId) {
+      toast.error("Please select a table for dine-in orders");
+      return;
+    }
     setSaving(true);
 
-    const t = calcTotals(draft.cart, discounts, draft.discountId, billing as any);
+    const t = calcTotals(draft.cart, discounts, draft.discountId, billing as any, draft.customDiscountType, draft.customDiscountValue);
     const dbTotals = { subtotal: t.subtotal, discount_amount: t.discountAmount, vat_amount: t.vatAmount, service_charge: t.serviceCharge, total: t.total };
 
     if (draft.savedOrderId) {
@@ -770,7 +954,7 @@ export default function NewOrderPage() {
     if (!activeRestaurant || !draft?.savedOrderId || !draft.orderNumber) return;
     setSaving(true);
 
-    const t = draft.savedTotals ?? calcTotals(draft.cart, discounts, draft.discountId, billing as any);
+    const t = draft.savedTotals ?? calcTotals(draft.cart, discounts, draft.discountId, billing as any, draft.customDiscountType, draft.customDiscountValue);
     const { error } = await completeOrderFull(
       draft.savedOrderId, draft.orderNumber,
       { subtotal: t.subtotal, discount_amount: t.discountAmount, vat_amount: t.vatAmount, service_charge: t.serviceCharge, total: t.total },
@@ -846,6 +1030,7 @@ export default function NewOrderPage() {
                     item={item}
                     onAdd={() => addToCart(item)}
                     disabled={!activeDraft || activeDraft.stage !== "building"}
+                    cartQty={activeDraft?.cart.find((c) => c.foodItem.id === item.id)?.quantity ?? 0}
                   />
                 ))}
               </div>
@@ -887,7 +1072,7 @@ export default function NewOrderPage() {
                   billing={billing as any}
                   customers={customers}
                   onActivate={() => setActiveDraftId(draft.draftId)}
-                  onClose={() => closeTab(draft.draftId)}
+                  onClose={() => handleCloseRequest(draft.draftId)}
                   onUpdate={(patch) => updateDraft(draft.draftId, patch)}
                   onKitchenPrint={() => handleKitchenPrint(draft.draftId)}
                   onBill={() => handleBill(draft.draftId)}
@@ -909,6 +1094,64 @@ export default function NewOrderPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Cancel Confirmation Modal ───────────────────────────────────────── */}
+      {cancelConfirmId && (() => {
+        const draft = drafts.find((d) => d.draftId === cancelConfirmId);
+        return (
+          <div
+            className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+            onClick={() => setCancelConfirmId(null)}
+          >
+            <div
+              className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Icon + title */}
+              <div className="px-6 pt-6 pb-4 text-center space-y-3">
+                <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+                  <Trash2 size={22} className="text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Cancel Order?</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    <span className="font-semibold text-gray-700">{draft?.orderNumber ?? draft?.label}</span>
+                    {" "}is already billed. Cancelling will mark it as cancelled and cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              {/* Totals reminder */}
+              {draft?.savedTotals && (
+                <div className="mx-6 mb-4 rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Order total</span>
+                  <span className="font-bold text-gray-800">{"৳" + draft.savedTotals.total.toLocaleString("en-BD", { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="px-6 pb-6 flex gap-3">
+                <button
+                  onClick={() => setCancelConfirmId(null)}
+                  className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  Keep Order
+                </button>
+                <button
+                  onClick={async () => {
+                    const id = cancelConfirmId;
+                    setCancelConfirmId(null);
+                    await performClose(id);
+                  }}
+                  className="flex-1 h-11 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-colors"
+                >
+                  Yes, Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Mobile full-screen menu overlay */}
       {mobileMenuOpen && (
@@ -968,6 +1211,7 @@ export default function NewOrderPage() {
                     item={item}
                     onAdd={() => addToCart(item)}
                     disabled={!activeDraft || activeDraft.stage !== "building"}
+                    cartQty={activeDraft?.cart.find((c) => c.foodItem.id === item.id)?.quantity ?? 0}
                   />
                 ))}
               </div>

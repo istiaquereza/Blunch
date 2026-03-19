@@ -74,8 +74,14 @@ export function useOrders(
       .order("created_at", { ascending: false });
 
     if (statusFilter && statusFilter !== "all") q = q.eq("status", statusFilter);
-    if (dateFrom) q = q.gte("created_at", dateFrom);
-    if (dateTo) q = q.lte("created_at", dateTo + "T23:59:59");
+    // Use local-timezone timestamps so "today" matches wall-clock day, not UTC day
+    if (dateFrom) {
+      const off = -new Date().getTimezoneOffset();
+      const sign = off >= 0 ? "+" : "-";
+      const tzSuffix = `${sign}${String(Math.floor(Math.abs(off)/60)).padStart(2,"0")}:${String(Math.abs(off)%60).padStart(2,"0")}`;
+      q = q.gte("created_at", `${dateFrom}T00:00:00${tzSuffix}`);
+      if (dateTo) q = q.lte("created_at", `${dateTo}T23:59:59${tzSuffix}`);
+    }
 
     const { data } = await q;
     setOrders((data as Order[]) ?? []);
@@ -373,9 +379,78 @@ export function useOrders(
 
     if (updateErr) return { error: updateErr };
 
-    // 3. Create income transaction in "Daily Sales" category
+    // 3. Reduce ingredient stock + available_quantity + write logs (fire-and-forget)
+    (async () => {
+      try {
+        const { data: orderItems } = await supabase
+          .from("order_items")
+          .select("food_item_id, quantity, food_items!inner(name, availability_type, available_quantity, food_item_ingredients(ingredient_id, quantity))")
+          .eq("order_id", orderId);
+
+        if (!orderItems?.length) return;
+
+        // ── a. Reduce food_items.available_quantity for "quantity" type foods ──
+        for (const oi of orderItems as any[]) {
+          const fi = oi.food_items;
+          if (fi?.availability_type === "quantity") {
+            const newAvail = Math.max(0, Number(fi.available_quantity) - Number(oi.quantity));
+            await supabase
+              .from("food_items")
+              .update({ available_quantity: newAvail })
+              .eq("id", oi.food_item_id);
+          }
+        }
+
+        // ── b. Compute total ingredient deltas across all ordered items ──
+        const deltas: Record<string, number> = {};
+        const ingredientFoodName: Record<string, string> = {}; // ingredient_id → food item name (last one wins)
+        (orderItems as any[]).forEach((oi) => {
+          const ings: any[] = oi.food_items?.food_item_ingredients ?? [];
+          ings.forEach((ing) => {
+            deltas[ing.ingredient_id] = (deltas[ing.ingredient_id] ?? 0) + ing.quantity * oi.quantity;
+            ingredientFoodName[ing.ingredient_id] = oi.food_items?.name ?? "";
+          });
+        });
+
+        const ingredientIds = Object.keys(deltas);
+        if (!ingredientIds.length) return;
+
+        const { data: stocks } = await supabase
+          .from("food_stock")
+          .select("id, ingredient_id, quantity")
+          .eq("restaurant_id", restaurantId)
+          .in("ingredient_id", ingredientIds);
+
+        for (const stock of stocks ?? []) {
+          const ingId = (stock as any).ingredient_id;
+          const delta = deltas[ingId] ?? 0;
+          const newQty = Math.max(0, Number((stock as any).quantity) - delta);
+          await supabase
+            .from("food_stock")
+            .update({ quantity: newQty, updated_at: new Date().toISOString() })
+            .eq("id", (stock as any).id);
+
+          // ── c. Write stock log entry ──
+          await supabase.from("food_stock_logs").insert({
+            restaurant_id: restaurantId,
+            ingredient_id: ingId,
+            order_id: orderId,
+            order_number: orderNumber,
+            food_item_name: ingredientFoodName[ingId] ?? null,
+            quantity_change: -delta,
+            reason: "order_completion",
+          });
+        }
+      } catch (e) {
+        console.error("[Inventory] Stock deduction failed:", e);
+      }
+    })();
+
+    // 4. Create income transaction in "Daily Sales" category
     const dailySalesId = await getDailySalesCategoryId();
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // Use LOCAL date (not UTC) so transaction_date matches the user's calendar day
+    const _now = new Date();
+    const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
 
     await supabase.from("transactions").insert({
       restaurant_id: restaurantId,

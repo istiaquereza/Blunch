@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   Plus, Search, Edit2, Trash2, BookOpen, X, Send,
   ChefHat, FlaskConical, TrendingUp, TrendingDown,
-  MessageSquare, ChevronDown, ChevronUp,
+  MessageSquare, ChevronDown, ChevronUp, Youtube, Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
@@ -46,20 +46,21 @@ interface RecipeForm {
   recipe_status: string;
   ingredients: IngRow[];
   addons: AddonRow[];
+  recipe_links: string[];
 }
 
 const emptyForm: RecipeForm = {
   name: "", food_category_id: "", restaurant_ids: [],
   sell_price: "", image_url: "", notes: "",
   is_active: true, recipe_status: "research",
-  ingredients: [], addons: [],
+  ingredients: [], addons: [], recipe_links: [],
 };
 
 // ─── Recipe Card ──────────────────────────────────────────
 function RecipeCard({
   item, onEdit, onDelete,
-  logs, logInput, logStatus, logLoading,
-  onLogInputChange, onLogStatusChange, onAddLog,
+  logs, logInput, logStatus, logLoading, logQuantity, logTrialCost,
+  onLogInputChange, onLogStatusChange, onAddLog, onLogQuantityChange, onLogTrialCostChange,
 }: {
   item: FoodItem;
   onEdit: (i: FoodItem) => void;
@@ -68,9 +69,13 @@ function RecipeCard({
   logInput: string;
   logStatus: string;
   logLoading: boolean;
+  logQuantity: string;
+  logTrialCost: string;
   onLogInputChange: (v: string) => void;
   onLogStatusChange: (v: string) => void;
   onAddLog: () => void;
+  onLogQuantityChange: (v: string) => void;
+  onLogTrialCostChange: (v: string) => void;
 }) {
   const [showLog, setShowLog] = useState(false);
 
@@ -126,6 +131,26 @@ function RecipeCard({
           <p className="text-xs text-gray-500 line-clamp-2 bg-gray-50 rounded-lg px-3 py-2 italic">
             {item.notes}
           </p>
+        )}
+
+        {/* Recipe Links */}
+        {(item.recipe_links?.length ?? 0) > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-1.5 flex items-center gap-1">
+              <Link2 size={10} /> Links
+            </p>
+            <div className="flex flex-col gap-1">
+              {item.recipe_links?.map((link, i) => (
+                <a key={i} href={link} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:text-blue-700 hover:underline truncate flex items-center gap-1">
+                  {link.includes("youtube") || link.includes("youtu.be")
+                    ? <Youtube size={10} className="text-red-500 shrink-0" />
+                    : <Link2 size={10} className="text-gray-400 shrink-0" />}
+                  <span className="truncate">{link}</span>
+                </a>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Ingredients — readable list */}
@@ -208,36 +233,74 @@ function RecipeCard({
             <div className="space-y-1.5 max-h-36 overflow-y-auto">
               {logs.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-2">No logs yet</p>
-              ) : logs.map((log) => (
-                <div key={log.id} className="text-xs flex gap-2">
-                  <span className="text-gray-300 whitespace-nowrap shrink-0 pt-0.5">
-                    {formatDate(log.logged_at)}
-                  </span>
-                  <div>
-                    {log.status && (
-                      <span className={`inline-block text-xs font-medium px-1.5 py-0 rounded mr-1 ${RECIPE_STATUSES.find((s) => s.value === log.status)?.bg ?? "bg-gray-100"} ${RECIPE_STATUSES.find((s) => s.value === log.status)?.text ?? "text-gray-500"}`}>
-                        {log.status}
+              ) : (
+                <>
+                  {/* Lifecycle cost summary */}
+                  {(() => {
+                    const totalCost = logs.reduce((s, l) => s + (l.trial_cost ?? 0), 0);
+                    const totalQty = logs.reduce((s, l) => s + (l.quantity ?? 1), 0);
+                    return totalCost > 0 ? (
+                      <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mb-2">
+                        <span className="text-xs text-amber-700 font-medium">Lifecycle Cost</span>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-amber-600">{totalQty} made</span>
+                          <span className="font-bold text-amber-800">৳{totalCost.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+                  {logs.map((log) => (
+                    <div key={log.id} className="text-xs flex gap-2">
+                      <span className="text-gray-300 whitespace-nowrap shrink-0 pt-0.5">
+                        {formatDate(log.logged_at)}
                       </span>
-                    )}
-                    <span className="text-gray-600">{log.comment}</span>
-                  </div>
-                </div>
-              ))}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1 mb-0.5">
+                          {log.status && (
+                            <span className={`inline-block text-xs font-medium px-1.5 py-0 rounded ${RECIPE_STATUSES.find((s) => s.value === log.status)?.bg ?? "bg-gray-100"} ${RECIPE_STATUSES.find((s) => s.value === log.status)?.text ?? "text-gray-500"}`}>
+                              {log.status}
+                            </span>
+                          )}
+                          {(log.quantity ?? 0) > 0 && (
+                            <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0 rounded font-medium">×{log.quantity}</span>
+                          )}
+                          {(log.trial_cost ?? 0) > 0 && (
+                            <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0 rounded font-medium">৳{Number(log.trial_cost).toFixed(0)}</span>
+                          )}
+                        </div>
+                        <span className="text-gray-600">{log.comment}</span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
-            {/* Add log */}
-            <div className="flex gap-1.5">
-              <select value={logStatus} onChange={(e) => onLogStatusChange(e.target.value)}
-                className="h-7 px-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-500">
-                <option value="">Stage</option>
-                {RECIPE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-              <input value={logInput} onChange={(e) => onLogInputChange(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && onAddLog()}
-                placeholder="Add note..." className="flex-1 h-7 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-500" />
-              <button onClick={onAddLog} disabled={logLoading}
-                className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 disabled:opacity-50">
-                <Send size={10} />
-              </button>
+            {/* Add log form */}
+            <div className="space-y-1.5">
+              <div className="flex gap-1.5">
+                <select value={logStatus} onChange={(e) => onLogStatusChange(e.target.value)}
+                  className="h-7 px-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-500">
+                  <option value="">Stage</option>
+                  {RECIPE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                <input type="number" min="1" placeholder="Qty" value={logQuantity}
+                  onChange={(e) => onLogQuantityChange(e.target.value)}
+                  className="w-14 h-7 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  title="How many made this trial" />
+                <input type="number" min="0" step="0.01" placeholder="Cost ৳" value={logTrialCost}
+                  onChange={(e) => onLogTrialCostChange(e.target.value)}
+                  className="w-20 h-7 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  title="Total cost for this trial" />
+              </div>
+              <div className="flex gap-1.5">
+                <input value={logInput} onChange={(e) => onLogInputChange(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && onAddLog()}
+                  placeholder="Add note..." className="flex-1 h-7 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-500" />
+                <button onClick={onAddLog} disabled={logLoading}
+                  className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 disabled:opacity-50">
+                  <Send size={10} />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -268,6 +331,8 @@ export default function RecipePage() {
   const [logInputMap, setLogInputMap] = useState<Record<string, string>>({});
   const [logStatusMap, setLogStatusMap] = useState<Record<string, string>>({});
   const [logLoading, setLogLoading] = useState(false);
+  const [logQuantityMap, setLogQuantityMap] = useState<Record<string, string>>({});
+  const [logTrialCostMap, setLogTrialCostMap] = useState<Record<string, string>>({});
 
   const recipeItems = useMemo(() =>
     items.filter((i) =>
@@ -292,10 +357,16 @@ export default function RecipePage() {
     const supabase = createClient();
     const logStage = logStatusMap[itemId] || null;
     const { error } = await supabase.from("recipe_logs").insert({
-      food_item_id: itemId, comment, status: logStage,
+      food_item_id: itemId,
+      comment,
+      status: logStage,
+      quantity: parseInt(logQuantityMap[itemId] || "1") || 1,
+      trial_cost: parseFloat(logTrialCostMap[itemId] || "0") || null,
     });
     if (error) { toast.error(error.message); setLogLoading(false); return; }
     setLogInputMap((p) => ({ ...p, [itemId]: "" }));
+    setLogQuantityMap((p) => ({ ...p, [itemId]: "" }));
+    setLogTrialCostMap((p) => ({ ...p, [itemId]: "" }));
     await loadLogs(itemId);
     // If logged as "launch", move item to menu
     if (logStage === "launch") {
@@ -330,6 +401,7 @@ export default function RecipePage() {
         ingredient_id: r.ingredient_id, quantity: String(r.quantity), unit: r.unit,
       })) ?? [],
       addons: item.food_item_addons?.map((a) => ({ name: a.name, price: String(a.price) })) ?? [],
+      recipe_links: item.recipe_links ?? [],
     });
     setRecipeOpen(true);
     if (!logsMap[item.id]) loadLogs(item.id);
@@ -343,13 +415,14 @@ export default function RecipePage() {
     const isLaunching = form.recipe_status === "launch";
     const itemData = {
       name: form.name.trim(),
-      food_category_id: form.food_category_id || null,
+      food_category_id: form.food_category_id || undefined,
       sell_price: parseFloat(form.sell_price) || 0,
-      image_url: form.image_url || null,
+      image_url: form.image_url || undefined,
       is_active: form.is_active,
       is_recipe: !isLaunching,
-      recipe_status: form.recipe_status || null,
-      notes: form.notes || null,
+      recipe_status: (form.recipe_status || undefined) as FoodItem["recipe_status"],
+      notes: form.notes || undefined,
+      recipe_links: form.recipe_links.filter(l => l.trim()),
       availability_type: "premade" as const,
       available_quantity: 0,
     };
@@ -484,8 +557,12 @@ export default function RecipePage() {
                 logInput={logInputMap[item.id] ?? ""}
                 logStatus={logStatusMap[item.id] ?? ""}
                 logLoading={logLoading}
+                logQuantity={logQuantityMap[item.id] ?? ""}
+                logTrialCost={logTrialCostMap[item.id] ?? ""}
                 onLogInputChange={(v) => setLogInputMap((p) => ({ ...p, [item.id]: v }))}
                 onLogStatusChange={(v) => setLogStatusMap((p) => ({ ...p, [item.id]: v }))}
+                onLogQuantityChange={(v) => setLogQuantityMap((p) => ({ ...p, [item.id]: v }))}
+                onLogTrialCostChange={(v) => setLogTrialCostMap((p) => ({ ...p, [item.id]: v }))}
                 onAddLog={async () => {
                   if (!logsMap[item.id]) await loadLogs(item.id);
                   await handleAddLog(item.id);
@@ -631,6 +708,51 @@ export default function RecipePage() {
           {/* Notes */}
           <Textarea label="Notes / Preparation Tips" placeholder="Describe the recipe, prep instructions, tips..."
             value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
+
+          {/* Recipe Links */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <Link2 size={14} className="text-gray-400" /> Recipe Links
+                <span className="text-xs text-gray-400 font-normal">(YouTube, references)</span>
+              </label>
+              <Button variant="ghost" size="sm" onClick={() => setForm((p) => ({ ...p, recipe_links: [...p.recipe_links, ""] }))}><Plus size={12} /> Add</Button>
+            </div>
+            {form.recipe_links.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-gray-200 p-3 text-center text-xs text-gray-400">No links added yet</div>
+            ) : (
+              <div className="space-y-2">
+                {form.recipe_links.map((link, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      {link.includes("youtube") || link.includes("youtu.be") ? (
+                        <Youtube size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-red-500" />
+                      ) : (
+                        <Link2 size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      )}
+                      <input
+                        type="url"
+                        placeholder="https://youtube.com/watch?v=..."
+                        value={link}
+                        onChange={(e) => {
+                          const links = [...form.recipe_links];
+                          links[idx] = e.target.value;
+                          setForm((p) => ({ ...p, recipe_links: links }));
+                        }}
+                        className="w-full h-8 pl-8 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setForm((p) => ({ ...p, recipe_links: p.recipe_links.filter((_, i) => i !== idx) }))}
+                      className="w-7 h-7 rounded-lg text-red-400 hover:bg-red-50 flex items-center justify-center shrink-0"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))}
             label={`Status: ${form.is_active ? "Active" : "Inactive"}`} />

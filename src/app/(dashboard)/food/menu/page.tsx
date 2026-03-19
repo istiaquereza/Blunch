@@ -184,6 +184,18 @@ export default function FoodMenuPage() {
 
   const [catOpen, setCatOpen] = useState(false);
   const [newCatName, setNewCatName] = useState("");
+  const [addingCatInForm, setAddingCatInForm] = useState(false);
+  const [inlineCatName, setInlineCatName] = useState("");
+
+  const handleInlineAddCat = async () => {
+    if (!inlineCatName.trim() || !rid) return;
+    const { error, data } = await createCategory(inlineCatName.trim(), rid);
+    if (error) { toast.error("Failed to add category"); return; }
+    if (data) setForm((p) => ({ ...p, food_category_id: data.id }));
+    toast.success(`Category "${inlineCatName.trim()}" added`);
+    setAddingCatInForm(false);
+    setInlineCatName("");
+  };
 
   const filtered = useMemo(() =>
     items.filter((item) =>
@@ -229,9 +241,9 @@ export default function FoodMenuPage() {
 
     const itemData = {
       name: form.name.trim(),
-      food_category_id: form.food_category_id || null,
+      food_category_id: form.food_category_id || undefined,
       sell_price: parseFloat(form.sell_price) || 0,
-      image_url: form.image_url || null,
+      image_url: form.image_url || undefined,
       is_active: form.is_active,
       is_recipe: false,
       availability_type: form.availability_type,
@@ -430,11 +442,33 @@ export default function FoodMenuPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
-              <select value={form.food_category_id} onChange={(e) => setForm((p) => ({ ...p, food_category_id: e.target.value }))}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
-                <option value="">No category</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              {addingCatInForm ? (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    value={inlineCatName}
+                    onChange={(e) => setInlineCatName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleInlineAddCat(); if (e.key === "Escape") { setAddingCatInForm(false); setInlineCatName(""); } }}
+                    placeholder="New category name…"
+                    className="flex-1 h-9 px-3 rounded-lg border border-orange-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <button type="button" onClick={handleInlineAddCat} className="px-3 h-9 rounded-lg bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600">Add</button>
+                  <button type="button" onClick={() => { setAddingCatInForm(false); setInlineCatName(""); }} className="px-3 h-9 rounded-lg border border-gray-200 text-xs text-gray-500 hover:bg-gray-50">✕</button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <select value={form.food_category_id} onChange={(e) => setForm((p) => ({ ...p, food_category_id: e.target.value }))}
+                    className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <option value="">No category</option>
+                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button type="button" onClick={() => setAddingCatInForm(true)}
+                    title="Add new category"
+                    className="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500 transition-colors shrink-0">
+                    <Plus size={14} />
+                  </button>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Sell Price (৳)</label>

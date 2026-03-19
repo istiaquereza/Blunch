@@ -29,6 +29,7 @@ interface OrderHistoryEntry {
   total: number;
   paymentMethod: string;
   itemCount: number;
+  items: { name: string; quantity: number }[];
 }
 
 interface CustomerOrderStat {
@@ -143,7 +144,7 @@ export default function CRMPage() {
     (async () => {
       const { data } = await supabase
         .from("orders")
-        .select("id, order_number, customer_id, total, created_at, payment_methods(name), order_items(id)")
+        .select("id, order_number, customer_id, total, created_at, payment_methods(name), order_items(id, quantity, food_items(name))")
         .eq("restaurant_id", activeRestaurant.id)
         .eq("status", "completed")
         .not("customer_id", "is", null)
@@ -168,6 +169,9 @@ export default function CRMPage() {
           total: order.total ?? 0,
           paymentMethod: order.payment_methods?.name ?? "—",
           itemCount: Array.isArray(order.order_items) ? order.order_items.length : 0,
+          items: Array.isArray(order.order_items)
+            ? order.order_items.map((oi: any) => ({ name: oi.food_items?.name ?? "Unknown", quantity: oi.quantity ?? 1 }))
+            : [],
         });
       });
 
@@ -374,7 +378,7 @@ export default function CRMPage() {
                                       <tr className="bg-orange-100/50">
                                         <th className="px-3 py-2 text-left font-semibold text-orange-700">Order #</th>
                                         <th className="px-3 py-2 text-left font-semibold text-orange-700">Date</th>
-                                        <th className="px-3 py-2 text-left font-semibold text-orange-700">Items</th>
+                                        <th className="px-3 py-2 text-left font-semibold text-orange-700">Food Items</th>
                                         <th className="px-3 py-2 text-left font-semibold text-orange-700">Total</th>
                                         <th className="px-3 py-2 text-left font-semibold text-orange-700">Payment</th>
                                       </tr>
@@ -386,7 +390,15 @@ export default function CRMPage() {
                                           <td className="px-3 py-2 text-gray-500">
                                             {new Date(o.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                                           </td>
-                                          <td className="px-3 py-2 text-gray-500">{o.itemCount}</td>
+                                          <td className="px-3 py-2">
+                                            <div className="flex flex-wrap gap-1">
+                                              {o.items.length > 0 ? o.items.map((item, i) => (
+                                                <span key={i} className="bg-orange-50 text-orange-700 text-[10px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                                                  {item.name} ×{item.quantity}
+                                                </span>
+                                              )) : <span className="text-gray-400">{o.itemCount} item{o.itemCount !== 1 ? "s" : ""}</span>}
+                                            </div>
+                                          </td>
                                           <td className="px-3 py-2 font-semibold text-green-600">{fmt(o.total)}</td>
                                           <td className="px-3 py-2 text-gray-500">{o.paymentMethod}</td>
                                         </tr>

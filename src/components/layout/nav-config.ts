@@ -14,6 +14,10 @@ import {
   CreditCard,
   FileText,
   ClipboardList,
+  UserCog,
+  CalendarDays,
+  BadgeCheck,
+  Banknote,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -71,6 +75,16 @@ export const navItems: NavItem[] = [
     children: [
       { title: "New Order", href: "/orders/order", icon: ShoppingCart },
       { title: "Order Details", href: "/orders/order-details", icon: ClipboardList },
+    ],
+  },
+  {
+    title: "Staff Management",
+    href: "/staff",
+    icon: UserCog,
+    children: [
+      { title: "Staff Information", href: "/staff/information", icon: BadgeCheck },
+      { title: "Leave Calendar", href: "/staff/leave-calendar", icon: CalendarDays },
+      { title: "Staff Payroll", href: "/staff/payroll", icon: Banknote },
     ],
   },
   {

@@ -21,9 +21,12 @@ export interface Transaction {
   payment_method_id?: string;
   status: "paid" | "due";
   transaction_date: string;
+  staff_id?: string;
+  payroll_month?: string;
   created_at: string;
   expense_categories?: ExpenseCategory | null;
   payment_methods?: { id: string; name: string } | null;
+  staff?: { id: string; name: string; salary: number } | null;
 }
 
 export function useExpenseCategories() {
@@ -70,7 +73,7 @@ export function useTransactions(restaurantId?: string, dateFrom?: string, dateTo
     setLoading(true);
     let q = supabase
       .from("transactions")
-      .select("*, expense_categories(id, name, type), payment_methods(id, name)")
+      .select("*, expense_categories(id, name, type), payment_methods!transactions_payment_method_id_fkey(id, name), staff(id, name, salary)")
       .eq("restaurant_id", restaurantId)
       .order("transaction_date", { ascending: false });
     if (dateFrom) q = q.gte("transaction_date", dateFrom);

@@ -73,7 +73,7 @@ function RestaurantsTab() {
   const handleSave = async () => {
     if (!form.name.trim()) return toast.error("Name is required");
     setSaving(true);
-    const payload = { name: form.name.trim(), type: form.type, parent_id: form.parent_id || null, location: form.location || null, address: form.address || null, phone: form.phone || null, logo_url: form.logo_url || null };
+    const payload = { name: form.name.trim(), type: form.type, parent_id: form.parent_id || undefined, location: form.location || undefined, address: form.address || undefined, phone: form.phone || undefined, logo_url: form.logo_url || undefined };
     const { error } = editing ? await update(editing.id, payload) : await create(payload);
     if (error) toast.error(error.message);
     else { toast.success(editing ? "Updated!" : "Restaurant added!"); setOpen(false); refresh(); }

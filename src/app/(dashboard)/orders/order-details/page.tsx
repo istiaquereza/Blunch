@@ -1,34 +1,42 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useRestaurant } from "@/contexts/restaurant-context";
 import { useOrders, type Order } from "@/hooks/use-orders";
+import { createClient } from "@/lib/supabase/client";
 import {
   ChevronRight,
   ChevronDown,
   Calendar,
   Filter,
   CheckCircle,
+  CheckCircle2,
   XCircle,
   Clock,
   ReceiptText,
   Users,
   LayoutGrid,
   Utensils,
+  MoreVertical,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
   "৳" + n.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function today() { return new Date().toISOString().slice(0, 10); }
+function localYmd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function today() { return localYmd(new Date()); }
 function weekStart() {
   const d = new Date();
   d.setDate(d.getDate() - 6);
-  return d.toISOString().slice(0, 10);
+  return localYmd(d);
 }
 
 const STATUS_CONFIG = {
@@ -39,36 +47,54 @@ const STATUS_CONFIG = {
 };
 
 // ─── Order Row ────────────────────────────────────────────────────────────────
+type OrderAction = "complete" | "cancel";
+
 interface OrderRowProps {
   order: Order;
   onComplete: (id: string) => void;
   onCancel: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
-function OrderRow({ order, onComplete, onCancel }: OrderRowProps) {
+function OrderRow({ order, onComplete, onCancel, onDelete }: OrderRowProps) {
   const [expanded, setExpanded] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<"complete" | "cancel" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<OrderAction | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutsideClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowActionMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   const cfg = STATUS_CONFIG[order.status];
-  const Icon = cfg.icon;
+  const StatusIcon = cfg.icon;
   const items = order.order_items ?? [];
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
 
-  const handleAction = async (action: "complete" | "cancel") => {
+  async function handleAction(action: OrderAction) {
     setLoading(true);
     if (action === "complete") await onComplete(order.id);
     else await onCancel(order.id);
     setLoading(false);
     setConfirmAction(null);
-  };
+  }
 
   return (
-    <div className="border border-gray-100 rounded-xl overflow-hidden">
-      {/* Header row */}
-      <button
+    <div className="border border-gray-100 rounded-xl">
+      {/* Header row — div instead of button so we can nest the action-menu button inside */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-gray-50 transition-colors text-left"
+        onKeyDown={(e) => e.key === "Enter" && setExpanded((v) => !v)}
+        className={`w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-gray-50 transition-colors text-left cursor-pointer ${expanded ? "rounded-t-xl" : "rounded-xl"}`}
       >
         {expanded ? <ChevronDown size={15} className="text-gray-400 shrink-0" /> : <ChevronRight size={15} className="text-gray-400 shrink-0" />}
 
@@ -76,7 +102,7 @@ function OrderRow({ order, onComplete, onCancel }: OrderRowProps) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-gray-900">{order.order_number}</span>
             <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>
-              <Icon size={10} />
+              <StatusIcon size={10} />
               {cfg.label}
             </span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -108,11 +134,45 @@ function OrderRow({ order, onComplete, onCancel }: OrderRowProps) {
           <p className="text-sm font-bold text-gray-900">{fmt(order.total || order.subtotal)}</p>
           <p className="text-xs text-gray-400">{itemCount} item{itemCount !== 1 ? "s" : ""}</p>
         </div>
-      </button>
+
+        <div className="relative shrink-0" ref={menuRef} onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => setShowActionMenu(v => !v)}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors"
+          >
+            <MoreVertical size={14} />
+          </button>
+          {showActionMenu && (
+            <div className="absolute right-0 top-8 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-36">
+              <button
+                onClick={() => { setShowActionMenu(false); setConfirmAction("complete"); }}
+                disabled={order.status === "completed" || order.status === "cancelled"}
+                className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <CheckCircle2 size={13} className="text-green-500" /> Complete
+              </button>
+              <button
+                onClick={() => { setShowActionMenu(false); setConfirmAction("cancel"); }}
+                disabled={order.status === "completed" || order.status === "cancelled"}
+                className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <XCircle size={13} className="text-red-400" /> Cancel
+              </button>
+              <div className="border-t border-gray-100 my-1" />
+              <button
+                onClick={() => { setShowActionMenu(false); onDelete(order.id); }}
+                className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-red-500 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={13} /> Delete
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Expanded detail */}
       {expanded && (
-        <div className="border-t border-gray-100 bg-gray-50">
+        <div className="border-t border-gray-100 bg-gray-50 rounded-b-xl">
           {/* Items table */}
           <div className="px-4 py-3">
             <p className="text-xs font-semibold text-gray-500 mb-2">Order Items</p>
@@ -219,18 +279,42 @@ function OrderRow({ order, onComplete, onCancel }: OrderRowProps) {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+type DatePreset = "today" | "week" | "month" | "all_time" | "custom";
+
 export default function OrderDetailsPage() {
   const { activeRestaurant } = useRestaurant();
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState(weekStart());
   const [dateTo, setDateTo] = useState(today());
+  const [datePreset, setDatePreset] = useState<DatePreset>("week");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const { orders, loading, completeOrder, cancelOrder } = useOrders(
+  function applyPreset(p: DatePreset) {
+    setDatePreset(p);
+    if (p === "today") { setDateFrom(today()); setDateTo(today()); }
+    else if (p === "week") { setDateFrom(weekStart()); setDateTo(today()); }
+    else if (p === "month") {
+      const d = new Date();
+      setDateFrom(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`);
+      setDateTo(today());
+    }
+    else if (p === "all_time") { setDateFrom(""); setDateTo(""); }
+    // custom: don't change dates, let user pick
+  }
+
+  const { orders, loading, completeOrder, cancelOrder, refresh } = useOrders(
     activeRestaurant?.id,
     statusFilter,
-    dateFrom,
-    dateTo
+    dateFrom || undefined,
+    dateTo || undefined
   );
+
+  const handleDeleteOrder = async (id: string) => {
+    const supabase = createClient();
+    await supabase.from("order_items").delete().eq("order_id", id);
+    await supabase.from("orders").delete().eq("id", id);
+    refresh?.();
+  };
 
   // Summary stats
   const stats = useMemo(() => ({
@@ -245,7 +329,7 @@ export default function OrderDetailsPage() {
 
   return (
     <>
-      <Header title="Order Details" subtitle="View and manage all orders" />
+      <Header title="Order Details" />
 
       <div className="p-4 md:p-6 space-y-6">
         {/* Summary cards */}
@@ -266,22 +350,27 @@ export default function OrderDetailsPage() {
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
-            <Calendar size={13} className="text-gray-400" />
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="text-sm border-none outline-none bg-transparent"
-            />
-            <span className="text-gray-300">→</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="text-sm border-none outline-none bg-transparent"
-            />
+          <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-1">
+            {(["today", "week", "month", "all_time", "custom"] as DatePreset[]).map(p => (
+              <button
+                key={p}
+                onClick={() => applyPreset(p)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                  datePreset === p ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+                }`}
+              >
+                {p === "today" ? "Today" : p === "week" ? "This Week" : p === "month" ? "This Month" : p === "all_time" ? "All Time" : "Custom"}
+              </button>
+            ))}
           </div>
+          {datePreset === "custom" && (
+            <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
+              <Calendar size={13} className="text-gray-400" />
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="text-sm border-none outline-none bg-transparent" />
+              <span className="text-gray-300">→</span>
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="text-sm border-none outline-none bg-transparent" />
+            </div>
+          )}
 
           <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-white">
             {(["all", "active", "billed", "completed", "cancelled"] as const).map((s) => (
@@ -321,11 +410,29 @@ export default function OrderDetailsPage() {
                 order={order}
                 onComplete={completeOrder}
                 onCancel={cancelOrder}
+                onDelete={id => setDeleteConfirmId(id)}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setDeleteConfirmId(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-lg text-center">Delete Order?</h3>
+            <p className="text-sm text-gray-500 text-center">This will permanently remove the order and all its items. This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">Keep</button>
+              <button
+                onClick={async () => { const id = deleteConfirmId; setDeleteConfirmId(null); await handleDeleteOrder(id); }}
+                className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold"
+              >Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -19,6 +19,19 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  const [dhakaTime, setDhakaTime] = useState("");
+  const [dhakaDate, setDhakaDate] = useState("");
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setDhakaTime(now.toLocaleTimeString("en-US", { timeZone: "Asia/Dhaka", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }));
+      setDhakaDate(now.toLocaleDateString("en-US", { timeZone: "Asia/Dhaka", weekday: "short", day: "numeric", month: "short" }));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -102,6 +115,11 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
             )}
           </div>
         )}
+
+        <div className="hidden sm:flex flex-col items-end leading-tight mr-1">
+          <span className="text-xs font-semibold text-gray-700 tabular-nums">{dhakaTime}</span>
+          <span className="text-[10px] text-gray-400">{dhakaDate} · GMT+6</span>
+        </div>
 
         <button className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors">
           <Bell size={14} />

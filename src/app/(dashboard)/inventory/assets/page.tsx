@@ -56,7 +56,7 @@ function CheckinHistory({ assetId }: { assetId: string }) {
   );
 }
 
-function CheckinDialog({ asset, open, onClose }: { asset: Asset; open: boolean; onClose: () => void }) {
+function CheckinDialog({ asset, open, onClose, onQuantityUpdate }: { asset: Asset; open: boolean; onClose: () => void; onQuantityUpdate?: (id: string, qty: number) => Promise<{ error: unknown }> }) {
   const { addCheckin } = useAssetCheckins(asset.id);
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [qtyIn, setQtyIn] = useState("0");
@@ -71,7 +71,12 @@ function CheckinDialog({ asset, open, onClose }: { asset: Asset; open: boolean; 
     setSaving(true);
     const { error } = await addCheckin({ asset_id: asset.id, checkin_date: date, quantity_in: inQty, quantity_out: outQty, note: notes });
     if (error) toast.error(error.message);
-    else { toast.success("Check-in recorded"); onClose(); }
+    else {
+      const newQty = Math.max(0, asset.quantity + inQty - outQty);
+      await onQuantityUpdate?.(asset.id, newQty);
+      toast.success(`Check-in recorded · New qty: ${newQty}`);
+      onClose();
+    }
     setSaving(false);
   };
 
@@ -370,7 +375,7 @@ export default function AssetsPage() {
       </Dialog>
 
       {/* Check-in Dialog */}
-      {checkinAsset && <CheckinDialog asset={checkinAsset} open={!!checkinAsset} onClose={() => setCheckinAsset(null)} />}
+      {checkinAsset && <CheckinDialog asset={checkinAsset} open={!!checkinAsset} onClose={() => setCheckinAsset(null)} onQuantityUpdate={async (id, qty) => update(id, { quantity: qty })} />}
     </div>
   );
 }

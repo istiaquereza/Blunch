@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type DatePreset = "today" | "week" | "month" | "custom";
+type DatePreset = "today" | "week" | "month" | "all_time" | "custom";
 
 interface Filters {
   restaurantId: string; // "all" or uuid
@@ -30,10 +30,28 @@ interface Filters {
 const fmt = (n: number) =>
   "৳" + n.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function isoDate(d: Date) { return d.toISOString().slice(0, 10); }
+// Use LOCAL date (not UTC) so "today" matches the user's wall clock
+function isoDate(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Convert a local YYYY-MM-DD to a full ISO timestamp with local tz offset
+// so Supabase timestamptz comparisons are timezone-aware
+function localTs(dateStr: string, endOfDay = false) {
+  const off = -new Date().getTimezoneOffset(); // minutes east of UTC (positive for UTC+)
+  const sign = off >= 0 ? "+" : "-";
+  const h = String(Math.floor(Math.abs(off) / 60)).padStart(2, "0");
+  const min = String(Math.abs(off) % 60).padStart(2, "0");
+  const time = endOfDay ? "T23:59:59" : "T00:00:00";
+  return `${dateStr}${time}${sign}${h}:${min}`;
+}
 
 function getRange(preset: DatePreset, from: string, to: string): [string, string] {
   const today = isoDate(new Date());
+  if (preset === "all_time") return ["", ""];
   if (preset === "today") return [today, today];
   if (preset === "week") {
     const d = new Date();
@@ -49,6 +67,7 @@ function getRange(preset: DatePreset, from: string, to: string): [string, string
 }
 
 function getPrevRange(from: string, to: string): [string, string] {
+  if (!from) return ["", ""];
   const span = Math.ceil((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
   const prevTo = new Date(from); prevTo.setDate(prevTo.getDate() - 1);
   const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - span + 1);
@@ -106,6 +125,7 @@ function TransferModal({
   onSuccess: () => void;
 }) {
   const [allMethods, setAllMethods] = useState<PaymentMethodRow[]>([]);
+  const [methodBalances, setMethodBalances] = useState<Record<string, number>>({});
   const [fromRestaurant, setFromRestaurant] = useState(restaurants[0]?.id ?? "");
   const [toRestaurant,   setToRestaurant]   = useState(restaurants[0]?.id ?? "");
   const [fromMethod, setFromMethod] = useState("");
@@ -115,17 +135,27 @@ function TransferModal({
   const [saving, setSaving]         = useState(false);
   const [error, setError]           = useState("");
 
-  // Load all payment methods once
+  // Load all payment methods + compute balances
   useEffect(() => {
     const supabase = createClient();
-    supabase.from("payment_methods").select("id,name,restaurant_id").eq("is_active", true).order("name")
-      .then(({ data }) => {
-        setAllMethods(data ?? []);
-        // Pre-select first available method for each side
-        const first = (rid: string) => (data ?? []).find(m => m.restaurant_id === rid)?.id ?? "";
-        setFromMethod(first(restaurants[0]?.id ?? ""));
-        setToMethod(first(restaurants[0]?.id ?? ""));
+    Promise.all([
+      supabase.from("payment_methods").select("id,name,restaurant_id").eq("is_active", true).order("name"),
+      supabase.from("transactions").select("payment_method_id,type,amount").eq("status", "paid"),
+    ]).then(([methodsRes, txRes]) => {
+      const methods = methodsRes.data ?? [];
+      setAllMethods(methods);
+      // Balance = sum(income) - sum(expense) per payment method
+      const balances: Record<string, number> = {};
+      (txRes.data ?? []).forEach((tx: any) => {
+        if (!tx.payment_method_id) return;
+        balances[tx.payment_method_id] = (balances[tx.payment_method_id] ?? 0)
+          + (tx.type === "income" ? tx.amount : -tx.amount);
       });
+      setMethodBalances(balances);
+      const first = (rid: string) => methods.find(m => m.restaurant_id === rid)?.id ?? "";
+      setFromMethod(first(restaurants[0]?.id ?? ""));
+      setToMethod(first(restaurants[0]?.id ?? ""));
+    });
   }, []);
 
   const fromMethods = allMethods.filter(m => m.restaurant_id === fromRestaurant);
@@ -219,6 +249,11 @@ function TransferModal({
                 <option value="">Select method…</option>
                 {fromMethods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
+              {fromMethod && (
+                <p className={`text-xs font-semibold px-1 ${(methodBalances[fromMethod] ?? 0) >= 0 ? "text-green-600" : "text-red-500"}`}>
+                  Balance: {fmt(methodBalances[fromMethod] ?? 0)}
+                </p>
+              )}
             </div>
 
             {/* Arrow */}
@@ -252,6 +287,11 @@ function TransferModal({
                 <option value="">Select method…</option>
                 {toMethods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
+              {toMethod && (
+                <p className={`text-xs font-semibold px-1 ${(methodBalances[toMethod] ?? 0) >= 0 ? "text-green-600" : "text-red-500"}`}>
+                  Balance: {fmt(methodBalances[toMethod] ?? 0)}
+                </p>
+              )}
             </div>
           </div>
 
@@ -358,6 +398,13 @@ export default function DashboardPage() {
   // Transfer modal
   const [showTransfer, setShowTransfer] = useState(false);
 
+  // Transactions chip filter
+  const [txChip, setTxChip] = useState<"all" | "income" | "expense">("all");
+
+  // Ingredient cost map for Food Cost %
+  const [ingredientCostMap, setIngredientCostMap] = useState<Map<string, number>>(new Map());
+
+
   // ── Fetch ──
   const fetchData = useCallback(async () => {
     if (!restaurants.length) return;
@@ -373,6 +420,27 @@ export default function DashboardPage() {
 
     if (!rIds.length) { setLoading(false); return; }
 
+    // Build current-period queries with optional date filters
+    let txQ = supabase.from("transactions")
+      .select("*, expense_categories(id,name,type), payment_methods!transactions_payment_method_id_fkey(id,name)")
+      .in("restaurant_id", rIds)
+      .order("transaction_date", { ascending: false });
+    if (from) txQ = txQ.gte("transaction_date", from).lte("transaction_date", to);
+
+    let orderQ = supabase.from("orders")
+      .select("*, order_items(*, food_items(id,name,sell_price))")
+      .in("restaurant_id", rIds)
+      .eq("status", "completed")
+      .order("created_at", { ascending: false });
+    if (from) orderQ = orderQ.gte("created_at", localTs(from)).lte("created_at", localTs(to, true));
+
+    // Build prev-period queries (skipped for all_time)
+    let prevTxQ = supabase.from("transactions").select("type, amount").in("restaurant_id", rIds);
+    if (pFrom) prevTxQ = prevTxQ.gte("transaction_date", pFrom).lte("transaction_date", pTo);
+
+    let prevOrderQ = supabase.from("orders").select("id, total").in("restaurant_id", rIds).eq("status", "completed");
+    if (pFrom) prevOrderQ = prevOrderQ.gte("created_at", localTs(pFrom)).lte("created_at", localTs(pTo, true));
+
     const [
       { data: txData },
       { data: orderData },
@@ -380,37 +448,13 @@ export default function DashboardPage() {
       { data: prevOrderData },
       { data: dueData },
     ] = await Promise.all([
-      supabase.from("transactions")
-        .select("*, expense_categories(id,name,type), payment_methods(id,name)")
-        .in("restaurant_id", rIds)
-        .gte("transaction_date", from)
-        .lte("transaction_date", to)
-        .order("transaction_date", { ascending: false }),
-
-      supabase.from("orders")
-        .select("*, order_items(*, food_items(id,name,sell_price))")
-        .in("restaurant_id", rIds)
-        .eq("status", "completed")
-        .gte("created_at", from)
-        .lte("created_at", to + "T23:59:59")
-        .order("created_at", { ascending: false }),
-
-      supabase.from("transactions")
-        .select("type, amount")
-        .in("restaurant_id", rIds)
-        .gte("transaction_date", pFrom)
-        .lte("transaction_date", pTo),
-
-      supabase.from("orders")
-        .select("id, total")
-        .in("restaurant_id", rIds)
-        .eq("status", "completed")
-        .gte("created_at", pFrom)
-        .lte("created_at", pTo + "T23:59:59"),
-
+      txQ,
+      orderQ,
+      from ? prevTxQ : Promise.resolve({ data: [] }),
+      from ? prevOrderQ : Promise.resolve({ data: [] }),
       // Due payments — all time, not date-filtered
       supabase.from("transactions")
-        .select("*, expense_categories(id,name,type), payment_methods(id,name)")
+        .select("*, expense_categories(id,name,type), payment_methods!transactions_payment_method_id_fkey(id,name)")
         .in("restaurant_id", rIds)
         .eq("status", "due")
         .order("transaction_date", { ascending: true }),
@@ -421,6 +465,26 @@ export default function DashboardPage() {
     setPrevTx(prevTxData ?? []);
     setPrevOrders(prevOrderData ?? []);
     setDueTx(dueData ?? []);
+
+    // Fetch ingredient costs for food items in these orders
+    let costMap = new Map<string, number>();
+    const foodItemIds = Array.from(new Set(
+      (orderData ?? []).flatMap((o: any) => (o.order_items ?? []).map((i: any) => i.food_item_id))
+    )).filter(Boolean);
+
+    if (foodItemIds.length > 0) {
+      const { data: fiiData } = await supabase
+        .from("food_item_ingredients")
+        .select("food_item_id, quantity, ingredients(unit_price)")
+        .in("food_item_id", foodItemIds);
+
+      (fiiData ?? []).forEach((fii: any) => {
+        const cost = fii.quantity * (fii.ingredients?.unit_price ?? 0);
+        costMap.set(fii.food_item_id, (costMap.get(fii.food_item_id) ?? 0) + cost);
+      });
+    }
+    setIngredientCostMap(costMap);
+
     setLoading(false);
   }, [filters.restaurantId, filters.preset, filters.customFrom, filters.customTo, restaurants]);
 
@@ -473,13 +537,38 @@ export default function DashboardPage() {
     return { revenue, expenses, pRevenue, pExpenses, totalOrders, pTotalOrders, avg, pAvg };
   }, [filteredTx, filteredOrders, prevTx, prevOrders]);
 
-  // ── Revenue chart (hourly for today, daily otherwise) ──
+  // ── Food Cost % ──
+  const foodCostPct = useMemo(() => {
+    let sellValue = 0;
+    let ingredientCost = 0;
+    filteredOrders.forEach(o => {
+      (o.order_items ?? []).forEach((item: any) => {
+        sellValue += item.unit_price * item.quantity;
+        ingredientCost += (ingredientCostMap.get(item.food_item_id) ?? 0) * item.quantity;
+      });
+    });
+    return sellValue > 0 ? (ingredientCost / sellValue) * 100 : 0;
+  }, [filteredOrders, ingredientCostMap]);
+
+  // ── Revenue chart ──
+  // today → by hour | all_time → by year | ≤30 days → by day | >30 days → by month
   const revenueChart = useMemo(() => {
     const [from, to] = getRange(filters.preset, filters.customFrom, filters.customTo);
-    const isToday = filters.preset === "today";
 
-    if (isToday) {
-      // hourly from completed orders (orders have a timestamp)
+    if (filters.preset === "all_time") {
+      const map = new Map<number, number>();
+      filteredTx.filter(t => t.type === "income").forEach(t => {
+        const yr = new Date(t.transaction_date).getFullYear();
+        map.set(yr, (map.get(yr) ?? 0) + t.amount);
+      });
+      if (!map.size) return [];
+      return Array.from(map.keys()).sort((a, b) => a - b).map(yr => ({
+        label: String(yr),
+        revenue: map.get(yr) ?? 0,
+      }));
+    }
+
+    if (filters.preset === "today") {
       const map = new Map<number, number>();
       filteredOrders.forEach(o => {
         const h = new Date(o.created_at).getHours();
@@ -492,17 +581,36 @@ export default function DashboardPage() {
       }));
     }
 
-    // daily
+    const span = from && to
+      ? Math.ceil((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1
+      : 0;
+
+    if (span > 30) {
+      // Group by calendar month
+      const map = new Map<string, number>();
+      filteredTx.filter(t => t.type === "income").forEach(t => {
+        const d = new Date(t.transaction_date);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        map.set(key, (map.get(key) ?? 0) + t.amount);
+      });
+      if (!map.size) return [];
+      return Array.from(map.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, revenue]) => {
+          const [yr, mo] = key.split("-").map(Number);
+          const label = new Date(yr, mo - 1, 1).toLocaleDateString("en-BD", { month: "short", year: "2-digit" });
+          return { label, revenue };
+        });
+    }
+
+    // ≤30 days — by day
     const days: { label: string; revenue: number }[] = [];
-    const span = Math.ceil((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
-    for (let i = 0; i < Math.min(span, 31); i++) {
+    for (let i = 0; i < span; i++) {
       const d = new Date(from); d.setDate(d.getDate() + i);
       const ds = isoDate(d);
       const label = span <= 7
         ? d.toLocaleDateString("en-BD", { weekday: "short" })
-        : span <= 31
-          ? String(d.getDate())
-          : d.toLocaleDateString("en-BD", { day: "numeric", month: "short" });
+        : String(d.getDate());
       const revenue = filteredTx
         .filter(t => t.type === "income" && t.transaction_date === ds)
         .reduce((s, t) => s + t.amount, 0);
@@ -513,13 +621,23 @@ export default function DashboardPage() {
 
   // ── Payment methods ──
   const paymentData = useMemo(() => {
-    const map = new Map<string, number>();
+    const isAll = filters.restaurantId === "all";
+    const map = new Map<string, { value: number; restaurantName?: string }>();
     filteredTx.filter(t => t.type === "income").forEach(t => {
-      const name = t.payment_methods?.name ?? "Other";
-      map.set(name, (map.get(name) ?? 0) + t.amount);
+      const methodName = t.payment_methods?.name ?? "Other";
+      const key = isAll ? `${t.restaurant_id}::${methodName}` : methodName;
+      const existing = map.get(key);
+      const restaurantName = isAll
+        ? (restaurants.find((r: any) => r.id === t.restaurant_id)?.name ?? "Unknown")
+        : undefined;
+      map.set(key, { value: (existing?.value ?? 0) + t.amount, restaurantName });
     });
-    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [filteredTx]);
+    return Array.from(map.entries()).map(([key, { value, restaurantName }]) => ({
+      name: isAll ? key.split("::").slice(1).join("::") : key,
+      value,
+      restaurantName,
+    }));
+  }, [filteredTx, filters.restaurantId, restaurants]);
 
   // ── Expenses by category ──
   const expenseCats = useMemo(() => {
@@ -569,6 +687,7 @@ export default function DashboardPage() {
   // ── Period label ──
   const [from, to] = getRange(filters.preset, filters.customFrom, filters.customTo);
   const periodLabel =
+    filters.preset === "all_time" ? "All Time" :
     from === to
       ? new Date(from).toLocaleDateString("en-BD", { day: "numeric", month: "long", year: "numeric" })
       : `${new Date(from).toLocaleDateString("en-BD", { day: "numeric", month: "short" })} – ${new Date(to).toLocaleDateString("en-BD", { day: "numeric", month: "short", year: "numeric" })}`;
@@ -590,12 +709,7 @@ export default function DashboardPage() {
       <Header
         title="Dashboard"
         hideRestaurantSelector
-        rightContent={
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            {loading && <Loader2 size={14} className="animate-spin text-gray-400" />}
-            <span className="hidden sm:inline text-xs text-gray-400">{periodLabel}</span>
-          </div>
-        }
+        rightContent={loading ? <Loader2 size={14} className="animate-spin text-gray-400" /> : undefined}
       />
 
       <div className="p-4 md:p-6 space-y-4 md:space-y-5">
@@ -641,7 +755,7 @@ export default function DashboardPage() {
 
           {/* Date preset tabs */}
           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto">
-            {(["today", "week", "month", "custom"] as DatePreset[]).map(p => (
+            {(["today", "week", "month", "all_time", "custom"] as DatePreset[]).map(p => (
               <button
                 key={p}
                 onClick={() => setFilters(f => ({ ...f, preset: p }))}
@@ -651,7 +765,7 @@ export default function DashboardPage() {
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
-                {p === "today" ? "Today" : p === "week" ? "Week" : p === "month" ? "Month" : "Custom"}
+                {p === "today" ? "Today" : p === "week" ? "Week" : p === "month" ? "Month" : p === "all_time" ? "All Time" : "Custom"}
               </button>
             ))}
           </div>
@@ -700,21 +814,39 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Stat Cards ────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
           <StatCard title="Total Revenue"    icon={DollarSign}   color="bg-green-50 text-green-600"  curr={stats.revenue}      prev={stats.pRevenue}      />
           <StatCard title="Total Expenses"   icon={TrendingDown} color="bg-red-50 text-red-600"      curr={stats.expenses}     prev={stats.pExpenses}     inverse />
           <StatCard title="Net Profit"       icon={TrendingUp}   color="bg-blue-50 text-blue-600"    curr={stats.revenue - stats.expenses} prev={stats.pRevenue - stats.pExpenses} />
           <StatCard title="Total Orders"     icon={ShoppingCart} color="bg-orange-50 text-orange-600" curr={stats.totalOrders} prev={stats.pTotalOrders}  isCount />
           <StatCard title="Avg Order Value"  icon={BarChart3}    color="bg-purple-50 text-purple-600" curr={stats.avg}         prev={stats.pAvg}          />
+          <div className="bg-white rounded-xl border border-border p-4 md:p-5 space-y-2 md:space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground font-medium leading-tight">Food Cost %</p>
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center shrink-0 bg-amber-50 text-amber-600">
+                <Tag size={14} />
+              </div>
+            </div>
+            <p className="text-xl md:text-2xl font-bold text-gray-900">{foodCostPct.toFixed(1)}%</p>
+            <p className={`text-xs font-medium ${foodCostPct > 35 ? "text-red-500" : foodCostPct > 25 ? "text-amber-500" : "text-green-600"}`}>
+              {foodCostPct > 35 ? "High — review costs" : foodCostPct > 25 ? "Moderate" : foodCostPct === 0 ? "No data" : "Healthy"}
+            </p>
+          </div>
         </div>
 
-        {/* ── Row 2: Revenue chart + Payment Methods ─────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* ── Row 2: Revenue chart + Payment Methods + Due Payments ──────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           <div className="bg-white rounded-xl border border-border p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-900">
-                {filters.preset === "today" ? "Revenue by Hour" : "Revenue by Day"}
+                {(() => {
+                  if (filters.preset === "today") return "Revenue by Hour";
+                  if (filters.preset === "all_time") return "Revenue by Year";
+                  const [f, t] = getRange(filters.preset, filters.customFrom, filters.customTo);
+                  const span = f && t ? Math.ceil((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1 : 0;
+                  return span > 30 ? "Revenue by Month" : "Revenue by Day";
+                })()}
               </h3>
               <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-full">{selectedRestaurantName}</span>
             </div>
@@ -722,7 +854,15 @@ export default function DashboardPage() {
               <div className="h-48 flex items-center justify-center text-sm text-gray-300">No revenue data</div>
             ) : (
               <ResponsiveContainer width="100%" height={192}>
-                <BarChart data={revenueChart} barSize={filters.preset === "month" ? 14 : 28}>
+                <BarChart data={revenueChart} barSize={(() => {
+                  if (filters.preset === "all_time") return 40;
+                  if (filters.preset === "today") return 28;
+                  const [f, t] = getRange(filters.preset, filters.customFrom, filters.customTo);
+                  const span = f && t ? Math.ceil((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1 : 0;
+                  if (span > 30) return 22;
+                  if (span > 7) return 14;
+                  return 28;
+                })()}>
                   <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={v => `৳${v}`} width={55} />
                   <Tooltip content={<RevTooltip />} cursor={{ fill: "#fff7ed" }} />
@@ -763,13 +903,18 @@ export default function DashboardPage() {
                     const total = paymentData.reduce((s, x) => s + x.value, 0);
                     const pct = total > 0 ? (p.value / total) * 100 : 0;
                     return (
-                      <div key={p.name}>
+                      <div key={`${p.restaurantName ?? ""}-${p.name}-${i}`}>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="font-medium text-gray-700 flex items-center gap-1.5">
+                          <span className="font-medium text-gray-700 flex items-center gap-1.5 min-w-0">
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
-                            {p.name}
+                            <span className="truncate">{p.name}</span>
+                            {p.restaurantName && (
+                              <span className="shrink-0 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full leading-none">
+                                {p.restaurantName}
+                              </span>
+                            )}
                           </span>
-                          <span className="text-gray-500">{pct.toFixed(0)}%</span>
+                          <span className="text-gray-500 shrink-0 ml-1">{pct.toFixed(0)}%</span>
                         </div>
                         <div className="w-full h-1.5 bg-gray-100 rounded-full">
                           <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: COLORS[i % COLORS.length] }} />
@@ -778,6 +923,77 @@ export default function DashboardPage() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Due Payments ── now inline in Row 2 */}
+          <div className="bg-white rounded-xl border border-border overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-500" />
+                <h3 className="font-semibold text-gray-900">Due Payments</h3>
+                {dueTx.length > 0 && (
+                  <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                    {dueTx.length}
+                  </span>
+                )}
+              </div>
+              {dueTx.length > 0 && (
+                <div className="text-right">
+                  <p className="text-xs text-gray-400">Total Due</p>
+                  <p className="text-sm font-bold text-amber-600">
+                    {fmt(dueTx.reduce((s, t) => s + t.amount, 0))}
+                  </p>
+                </div>
+              )}
+            </div>
+            {dueTx.length === 0 ? (
+              <div className="flex flex-col items-center justify-center flex-1 gap-2 text-gray-300 py-8">
+                <CheckCircle2 size={28} />
+                <p className="text-xs font-medium">All clear — no due payments</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50 overflow-y-auto" style={{ maxHeight: 232 }}>
+                {dueTx.map(tx => {
+                  const isOverdue = tx.transaction_date < isoDate(new Date());
+                  return (
+                    <div key={tx.id} className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <div className={`shrink-0 text-center w-8 ${isOverdue ? "text-red-500" : "text-gray-400"}`}>
+                          <p className="text-xs font-bold leading-none">
+                            {new Date(tx.transaction_date + "T12:00:00").toLocaleDateString("en-BD", { day: "numeric" })}
+                          </p>
+                          <p className="text-[10px] leading-none mt-0.5">
+                            {new Date(tx.transaction_date + "T12:00:00").toLocaleDateString("en-BD", { month: "short" })}
+                          </p>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-800 truncate">{tx.description || "—"}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {isOverdue && (
+                              <span className="text-[10px] font-semibold text-red-400 bg-red-50 px-1 py-0.5 rounded-full">Overdue</span>
+                            )}
+                            {tx.expense_categories?.name && (
+                              <span className="text-[10px] text-gray-400 truncate">{tx.expense_categories.name}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-gray-800">{fmt(tx.amount)}</span>
+                          <button
+                            onClick={() => markAsPaid(tx.id)}
+                            disabled={markingPaid === tx.id}
+                            className="h-6 px-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-[10px] font-semibold transition-colors disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {markingPaid === tx.id ? <Loader2 size={9} className="animate-spin" /> : <CheckCircle2 size={9} />}
+                            Paid
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -848,119 +1064,62 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Due Payments ──────────────────────────────────────────────── */}
+
+        {/* ── Transactions ───────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-border overflow-hidden">
-          {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <div className="flex items-center gap-2">
-              <AlertCircle size={16} className="text-amber-500" />
-              <h3 className="font-semibold text-gray-900">Due Payments</h3>
-              {dueTx.length > 0 && (
-                <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                  {dueTx.length}
-                </span>
-              )}
+            <div className="flex items-center gap-3">
+              <h3 className="font-semibold text-gray-900">Transactions</h3>
+              <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                {filteredTx.length}
+              </span>
             </div>
-            {dueTx.length > 0 && (
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Total Due</p>
-                <p className="text-sm font-bold text-amber-600">
-                  {fmt(dueTx.reduce((s, t) => s + t.amount, 0))}
-                </p>
-              </div>
-            )}
+            {/* Income/Expense chips */}
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+              {(["all", "income", "expense"] as const).map(chip => (
+                <button
+                  key={chip}
+                  onClick={() => setTxChip(chip)}
+                  className={`px-3 py-1.5 font-medium capitalize transition-colors ${
+                    txChip === chip ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  {chip === "all" ? "All" : chip === "income" ? "Income" : "Expense"}
+                </button>
+              ))}
+            </div>
           </div>
-
-          {/* Body */}
-          {dueTx.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-300">
-              <CheckCircle2 size={32} />
-              <p className="text-sm font-medium">All clear — no due payments</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-50">
-              {dueTx.map(tx => {
-                const isOverdue = tx.transaction_date < isoDate(new Date());
-                return (
-                  <div key={tx.id} className="px-4 md:px-5 py-3 hover:bg-gray-50 transition-colors">
-
-                    {/* Mobile layout: stacked */}
-                    <div className="flex items-start gap-3">
-
-                      {/* Date badge */}
-                      <div className={`shrink-0 text-center w-9 ${isOverdue ? "text-red-500" : "text-gray-400"}`}>
-                        <p className="text-xs font-bold leading-none">
-                          {new Date(tx.transaction_date).toLocaleDateString("en-BD", { day: "numeric" })}
-                        </p>
-                        <p className="text-xs leading-none mt-0.5">
-                          {new Date(tx.transaction_date).toLocaleDateString("en-BD", { month: "short" })}
-                        </p>
-                      </div>
-
-                      {/* Main content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium text-gray-800 truncate">
-                            {tx.description || "—"}
-                          </p>
-                          <p className="shrink-0 text-sm font-bold text-gray-800">
-                            {fmt(tx.amount)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {tx.expense_categories?.name && (
-                            <span className="flex items-center gap-1 text-xs text-gray-400">
-                              <Tag size={10} />
-                              {tx.expense_categories.name}
-                            </span>
-                          )}
-                          {tx.payment_methods?.name && (
-                            <span className="text-xs text-gray-300">· {tx.payment_methods.name}</span>
-                          )}
-                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                            tx.type === "expense" ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
-                          }`}>
-                            {tx.type}
-                          </span>
-                          {isOverdue && (
-                            <span className="text-xs font-semibold text-red-400 bg-red-50 px-1.5 py-0.5 rounded-full">
-                              Overdue
-                            </span>
-                          )}
-                        </div>
-                        {/* Mark Paid — full width on mobile */}
-                        <button
-                          onClick={() => markAsPaid(tx.id)}
-                          disabled={markingPaid === tx.id}
-                          className="mt-2 md:hidden w-full h-8 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
-                        >
-                          {markingPaid === tx.id
-                            ? <Loader2 size={11} className="animate-spin" />
-                            : <CheckCircle2 size={11} />
-                          }
-                          Mark as Paid
-                        </button>
-                      </div>
-
-                      {/* Mark Paid — inline on desktop */}
-                      <button
-                        onClick={() => markAsPaid(tx.id)}
-                        disabled={markingPaid === tx.id}
-                        className="hidden md:flex shrink-0 h-7 px-3 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-xs font-semibold transition-colors disabled:opacity-50 items-center gap-1"
-                      >
-                        {markingPaid === tx.id
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <CheckCircle2 size={11} />
-                        }
-                        Mark Paid
-                      </button>
-
+          {(() => {
+            const list = txChip === "all" ? filteredTx : filteredTx.filter(t => t.type === txChip);
+            if (list.length === 0) return (
+              <div className="py-12 text-center text-sm text-gray-300">No transactions for this period</div>
+            );
+            return (
+              <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+                {list.slice(0, 50).map((tx: any) => (
+                  <div key={tx.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${tx.type === "income" ? "bg-green-50" : "bg-red-50"}`}>
+                      {tx.type === "income"
+                        ? <TrendingUp size={12} className="text-green-600" />
+                        : <TrendingDown size={12} className="text-red-500" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{tx.description || "—"}</p>
+                      <p className="text-xs text-gray-400">
+                        {tx.expense_categories?.name ?? ""}{tx.expense_categories?.name && tx.payment_methods?.name ? " · " : ""}{tx.payment_methods?.name ?? ""}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`text-sm font-bold ${tx.type === "income" ? "text-green-600" : "text-red-500"}`}>
+                        {tx.type === "income" ? "+" : "-"}{fmt(tx.amount)}
+                      </p>
+                      <p className="text-[10px] text-gray-400">{tx.transaction_date}</p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
       </div>

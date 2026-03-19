@@ -49,6 +49,8 @@ export function useFoodItems(restaurantId?: string) {
         is_recipe: itemData.is_recipe ?? false,
         recipe_status: itemData.recipe_status || null,
         notes: itemData.notes || null,
+        availability_type: itemData.availability_type ?? "premade",
+        available_quantity: itemData.available_quantity ?? 0,
       })
       .select()
       .single();
@@ -115,6 +117,8 @@ export function useFoodItems(restaurantId?: string) {
       is_recipe: itemData.is_recipe ?? false,
       recipe_status: itemData.recipe_status || null,
       notes: itemData.notes || null,
+      availability_type: itemData.availability_type ?? "premade",
+      available_quantity: itemData.available_quantity ?? 0,
     }).eq("id", id);
 
     await supabase.from("food_item_restaurants").delete().eq("food_item_id", id);

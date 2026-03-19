@@ -10,7 +10,8 @@ import { useRestaurant } from "@/contexts/restaurant-context";
 import { useFoodStock } from "@/hooks/use-food-stock";
 import { useIngredients } from "@/hooks/use-ingredients";
 import { useInventoryGroups } from "@/hooks/use-inventory-groups";
-import { Layers, Search, Edit2, Plus, Minus, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { useFoodStockLogs } from "@/hooks/use-food-stock-logs";
+import { Layers, Search, Edit2, Plus, Minus, AlertTriangle, CheckCircle2, XCircle, History } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type { FoodStock } from "@/types";
@@ -30,6 +31,7 @@ export default function FoodInventoryPage() {
   const { stock, loading, upsert, adjustStock } = useFoodStock(rid);
   const { ingredients } = useIngredients(rid);
   const { groups } = useInventoryGroups(rid);
+  const { logs: historyLogs, loading: historyLoading, fetchLogs, clearLogs } = useFoodStockLogs(rid);
 
   const [search, setSearch] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
@@ -38,6 +40,10 @@ export default function FoodInventoryPage() {
   const [adjustItem, setAdjustItem] = useState<FoodStock | null>(null);
   const [newQty, setNewQty] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // History dialog
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyIngredientName, setHistoryIngredientName] = useState("");
 
   // Merge ingredients with their stock data
   const items = useMemo(() => {
@@ -187,8 +193,8 @@ export default function FoodInventoryPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-gray-50/60">
-                    {["Ingredient", "Group", "Unit", "Unit Price", "Current Stock", "Stock Value", "Status", "Last Updated", ""].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                    {["Ingredient", "Group", "Unit", "Unit Price", "Current Stock", "Stock Value", "Status", "Last Updated", "edit", "history"].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{["edit","history"].includes(h) ? "" : h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -231,6 +237,13 @@ export default function FoodInventoryPage() {
                             openAdjust(s ?? { ingredient_id: ingredient.id, quantity });
                           }}><Edit2 size={13} /></Button>
                         </td>
+                        <td className="px-4 py-3">
+                          <Button variant="ghost" size="sm" title="View history" onClick={() => {
+                            setHistoryIngredientName(ingredient.name);
+                            fetchLogs(ingredient.id);
+                            setHistoryOpen(true);
+                          }}><History size={13} /></Button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -239,6 +252,55 @@ export default function FoodInventoryPage() {
             )}
         </div>
       </div>
+
+      {/* Inventory History Dialog */}
+      <Dialog
+        open={historyOpen}
+        onOpenChange={(open) => { setHistoryOpen(open); if (!open) clearLogs(); }}
+        title={`Stock History — ${historyIngredientName}`}
+        footer={<Button variant="outline" onClick={() => setHistoryOpen(false)}>Close</Button>}
+      >
+        <div className="space-y-2 max-h-[420px] overflow-y-auto">
+          {historyLoading ? (
+            <p className="text-sm text-gray-400 text-center py-8">Loading history…</p>
+          ) : historyLogs.length === 0 ? (
+            <div className="text-center py-10">
+              <History size={32} className="text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">No stock changes recorded yet.</p>
+              <p className="text-xs text-gray-300 mt-1">Changes appear here after orders are completed.</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Date & Time</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Order</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Food Item</th>
+                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Change</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {historyLogs.map((log) => (
+                  <tr key={log.id}>
+                    <td className="py-2.5 pr-3 text-gray-400 text-xs whitespace-nowrap">
+                      {format(new Date(log.created_at), "dd MMM, HH:mm")}
+                    </td>
+                    <td className="py-2.5 pr-3 text-gray-600 text-xs">{log.order_number ?? "—"}</td>
+                    <td className="py-2.5 pr-3 text-gray-700 font-medium text-xs">{log.food_item_name ?? "—"}</td>
+                    <td className="py-2.5 pr-3 text-right font-semibold text-xs">
+                      <span className={log.quantity_change < 0 ? "text-red-600" : "text-green-600"}>
+                        {log.quantity_change > 0 ? "+" : ""}{Number(log.quantity_change).toFixed(3)}
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-gray-400 text-xs capitalize">{log.reason.replace(/_/g, " ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Dialog>
 
       {/* Adjust Stock Dialog */}
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen} title="Adjust Stock"

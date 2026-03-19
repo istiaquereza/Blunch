@@ -75,6 +75,8 @@ export interface RecipeLog {
   comment: string;
   status?: string;
   logged_at: string;
+  quantity?: number;
+  trial_cost?: number;
 }
 
 export interface FoodItem {
@@ -87,6 +89,7 @@ export interface FoodItem {
   is_recipe: boolean;
   recipe_status?: "research" | "trial" | "testing" | "launch";
   notes?: string;
+  recipe_links?: string[];
   availability_type?: "premade" | "quantity";
   available_quantity?: number;
   created_at: string;
