@@ -18,6 +18,8 @@ import {
   CalendarDays,
   BadgeCheck,
   Banknote,
+  History,
+  BarChart2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -52,6 +54,7 @@ export const navItems: NavItem[] = [
       { title: "Assets", href: "/inventory/assets", icon: Boxes },
       { title: "Food Inventory", href: "/inventory/food-inventory", icon: Warehouse },
       { title: "Bazar Requests", href: "/inventory/bazar-requests", icon: ShoppingBag },
+      { title: "Inventory History", href: "/inventory/history", icon: History },
     ],
   },
   {
@@ -86,6 +89,11 @@ export const navItems: NavItem[] = [
       { title: "Leave Calendar", href: "/staff/leave-calendar", icon: CalendarDays },
       { title: "Staff Payroll", href: "/staff/payroll", icon: Banknote },
     ],
+  },
+  {
+    title: "Analytics",
+    href: "/analytics",
+    icon: BarChart2,
   },
   {
     title: "Settings",

@@ -60,13 +60,13 @@ function RestaurantsTab() {
     const file = e.target.files?.[0];
     if (!file) return;
     setLogoUploading(true);
-    const supabase = createClient();
-    const ext = file.name.split(".").pop();
-    const path = `restaurant-logos/${Date.now()}.${ext}`;
-    const { error: uploadErr } = await supabase.storage.from("logos").upload(path, file, { upsert: true });
-    if (uploadErr) { toast.error("Logo upload failed"); setLogoUploading(false); return; }
-    const { data } = supabase.storage.from("logos").getPublicUrl(path);
-    f("logo_url", data.publicUrl);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("bucket", "logos");
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    const json = await res.json();
+    if (!res.ok || json.error) { toast.error("Logo upload failed: " + (json.error ?? res.statusText)); setLogoUploading(false); return; }
+    f("logo_url", json.url);
     setLogoUploading(false);
   };
 

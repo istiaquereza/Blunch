@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { ImageIcon, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,20 +25,31 @@ export function ImageUpload({ bucket, value, onChange, label = "Photo", classNam
     setPreview(localUrl);
     setUploading(true);
 
-    const supabase = createClient();
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("bucket", bucket);
 
-    const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
-    if (error) {
-      toast.error("Upload failed: " + error.message);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        toast.error("Upload failed: " + (data.error ?? res.statusText));
+        setPreview(value ?? "");
+      } else {
+        onChange(data.url);
+        setPreview(data.url);
+        toast.success("Image uploaded");
+      }
+    } catch (err) {
+      toast.error("Upload failed: " + String(err));
       setPreview(value ?? "");
-    } else {
-      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-      onChange(data.publicUrl);
-      setPreview(data.publicUrl);
-      toast.success("Image uploaded");
     }
+
     setUploading(false);
   };
 

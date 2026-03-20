@@ -12,7 +12,7 @@ import {
   TrendingUp, TrendingDown, ShoppingCart, DollarSign,
   BarChart3, CreditCard, Loader2, Search, ChevronDown, Calendar,
   Store, AlertCircle, CheckCircle2, Tag, ArrowLeftRight, X,
-  MoveRight,
+  MoveRight, Bell, Package,
 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -404,6 +404,9 @@ export default function DashboardPage() {
   // Ingredient cost map for Food Cost %
   const [ingredientCostMap, setIngredientCostMap] = useState<Map<string, number>>(new Map());
 
+  // Low stock food items (availability_type='quantity', available_quantity<=10)
+  const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+
 
   // ── Fetch ──
   const fetchData = useCallback(async () => {
@@ -447,6 +450,7 @@ export default function DashboardPage() {
       { data: prevTxData },
       { data: prevOrderData },
       { data: dueData },
+      { data: lowStockData },
     ] = await Promise.all([
       txQ,
       orderQ,
@@ -458,6 +462,13 @@ export default function DashboardPage() {
         .in("restaurant_id", rIds)
         .eq("status", "due")
         .order("transaction_date", { ascending: true }),
+      // Low stock food items (quantity-tracked, qty <= 10)
+      supabase.from("food_items")
+        .select("id, name, available_quantity, food_item_restaurants!inner(restaurant_id)")
+        .eq("availability_type", "quantity")
+        .lte("available_quantity", 10)
+        .in("food_item_restaurants.restaurant_id", rIds)
+        .order("available_quantity", { ascending: true }),
     ]);
 
     setTransactions(txData ?? []);
@@ -465,6 +476,7 @@ export default function DashboardPage() {
     setPrevTx(prevTxData ?? []);
     setPrevOrders(prevOrderData ?? []);
     setDueTx(dueData ?? []);
+    setLowStockItems(lowStockData ?? []);
 
     // Fetch ingredient costs for food items in these orders
     let costMap = new Map<string, number>();
@@ -833,6 +845,59 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
+
+        {/* ── Alert Card ──────────────────────────────────────────────────── */}
+        {(lowStockItems.length > 0 || dueTx.length > 0) && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell size={15} className="text-amber-600" />
+              <h3 className="text-sm font-semibold text-amber-800">Alerts</h3>
+              <span className="text-xs font-bold bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">
+                {lowStockItems.length + (dueTx.length > 0 ? 1 : 0)}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {lowStockItems.map(item => {
+                const qty = item.available_quantity ?? 0;
+                const isEmpty = qty === 0;
+                const isCritical = qty > 0 && qty <= 3;
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${
+                      isEmpty
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : isCritical
+                        ? "bg-orange-50 border-orange-200 text-orange-700"
+                        : "bg-yellow-50 border-yellow-200 text-yellow-700"
+                    }`}
+                  >
+                    <Package size={11} />
+                    <span className="max-w-[120px] truncate">{item.name}</span>
+                    <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
+                      isEmpty
+                        ? "bg-red-100 text-red-700"
+                        : isCritical
+                        ? "bg-orange-100 text-orange-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}>
+                      {isEmpty ? "Empty" : isCritical ? `${qty} left` : `${qty} left`}
+                    </span>
+                  </div>
+                );
+              })}
+              {dueTx.length > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-purple-50 border-purple-200 text-purple-700">
+                  <AlertCircle size={11} />
+                  <span>{dueTx.length} due payment{dueTx.length > 1 ? "s" : ""}</span>
+                  <span className="font-bold px-1.5 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700">
+                    {fmt(dueTx.reduce((s, t) => s + t.amount, 0))}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Row 2: Revenue chart + Payment Methods + Due Payments ──────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

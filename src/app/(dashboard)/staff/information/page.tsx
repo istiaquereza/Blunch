@@ -248,13 +248,13 @@ export default function StaffInformationPage() {
 
   // ── File upload ──
   const uploadFile = useCallback(async (file: File, bucket: string): Promise<string | null> => {
-    const supabase = createClient();
-    const ext  = file.name.split(".").pop();
-    const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
-    if (error) { toast.error("Upload failed: " + error.message); return null; }
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    return data.publicUrl;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("bucket", bucket);
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok || data.error) { toast.error("Upload failed: " + (data.error ?? res.statusText)); return null; }
+    return data.url as string;
   }, []);
 
   // ── Open / close staff form ──
