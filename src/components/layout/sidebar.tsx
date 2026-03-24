@@ -2,23 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { ChevronDown, LogOut, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navItems, type NavItem } from "./nav-config";
-import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { useSidebar } from "@/contexts/sidebar-context";
 
 function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
   const pathname = usePathname();
   const { closeSidebar } = useSidebar();
   const hasChildren = item.children && item.children.length > 0;
-  const isActive =
-    pathname === item.href ||
-    (item.href !== "/dashboard" && pathname.startsWith(item.href));
-  const isExpanded = pathname.startsWith(item.href) && hasChildren;
+  const isActive = hasChildren
+    ? pathname === item.href
+    : pathname === item.href ||
+      (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
+  const isExpanded = (pathname === item.href || pathname.startsWith(item.href + "/")) && hasChildren;
   const [open, setOpen] = useState(isExpanded);
 
   if (hasChildren) {
@@ -83,17 +81,29 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
   );
 }
 
-function SidebarContent({ showClose = false }: { showClose?: boolean }) {
-  const router = useRouter();
-  const { closeSidebar } = useSidebar();
+function SidebarClock() {
+  const [time, setTime] = useState("");
+  const [date, setDate] = useState("");
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setTime(now.toLocaleTimeString("en-US", { timeZone: "Asia/Dhaka", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }));
+      setDate(now.toLocaleDateString("en-US", { timeZone: "Asia/Dhaka", weekday: "short", day: "numeric", month: "short" }));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="px-4 py-3 border-t border-sidebar-border">
+      <p className="text-xs font-semibold text-sidebar-foreground tabular-nums">{time}</p>
+      <p className="text-[10px] text-sidebar-foreground/40 mt-0.5">{date} · GMT+6</p>
+    </div>
+  );
+}
 
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    toast.success("Signed out");
-    router.push("/login");
-    router.refresh();
-  };
+function SidebarContent({ showClose = false }: { showClose?: boolean }) {
+  const { closeSidebar } = useSidebar();
 
   return (
     <aside className="w-64 shrink-0 bg-sidebar h-full flex flex-col border-r border-sidebar-border">
@@ -129,16 +139,8 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
         ))}
       </nav>
 
-      {/* Bottom */}
-      <div className="p-3 border-t border-sidebar-border">
-        <button
-          onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground transition-colors group"
-        >
-          <LogOut size={18} className="shrink-0 group-hover:text-orange-400" />
-          <span>Sign out</span>
-        </button>
-      </div>
+      {/* Clock */}
+      <SidebarClock />
     </aside>
   );
 }

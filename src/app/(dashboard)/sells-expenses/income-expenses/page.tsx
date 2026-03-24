@@ -625,10 +625,56 @@ export default function IncomeExpensesPage() {
 
       <div className="p-4 md:p-6 space-y-4">
         {/* ── Toolbar ── */}
-        <div className="bg-white rounded-xl border border-border px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative flex-1 min-w-[160px] max-w-xs">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <div className="bg-white rounded-xl border border-border p-3 space-y-2.5">
+          {/* Row 1: date presets + actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            {/* Date preset pills */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto flex-shrink-0">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => {
+                    setPreset(p.value);
+                    if (p.value !== "custom") {
+                      const { from, to } = getPresetRange(p.value);
+                      setDateFrom(from);
+                      setDateTo(to);
+                    }
+                  }}
+                  className={`h-7 px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                    preset === p.value
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {preset === "custom" && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                <span className="text-gray-400 text-xs">→</span>
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                  className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500" />
+              </div>
+            )}
+            <div className="flex-1" />
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setCatOpen(true)}>
+                <Tag size={14} /> Categories
+              </Button>
+              <Button onClick={() => setAddOpen(true)} disabled={!activeRestaurant} size="sm">
+                <Plus size={14} /> Add Transaction
+              </Button>
+            </div>
+          </div>
+
+          {/* Row 2: search + type filter + category */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -636,70 +682,33 @@ export default function IncomeExpensesPage() {
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
-
-            <select
-              value={preset}
-              onChange={(e) => {
-                const p = e.target.value as Preset;
-                setPreset(p);
-                if (p !== "custom") {
-                  const { from, to } = getPresetRange(p);
-                  setDateFrom(from);
-                  setDateTo(to);
-                }
-              }}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              {PRESETS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
-
-            {preset === "custom" && (
-              <>
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                <span className="text-gray-400 text-sm">→</span>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-              </>
-            )}
-
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden h-9">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
               {(["all", "income", "expense"] as const).map(chip => (
                 <button
                   key={chip}
                   onClick={() => setTypeFilter(chip)}
-                  className={`px-3 text-xs font-medium transition-colors capitalize ${
+                  className={`h-7 px-3 rounded-md text-xs font-medium transition-all ${
                     typeFilter === chip
-                      ? chip === "income" ? "bg-green-500 text-white" : chip === "expense" ? "bg-red-500 text-white" : "bg-gray-900 text-white"
-                      : "text-gray-500 hover:bg-gray-50"
+                      ? chip === "income" ? "bg-green-500 text-white shadow-sm"
+                        : chip === "expense" ? "bg-red-500 text-white shadow-sm"
+                        : "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
                   {chip === "all" ? "All" : chip === "income" ? "Income" : "Expense"}
                 </button>
               ))}
             </div>
-
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shrink-0"
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-
-            <div className="flex-1" />
-
-            <Button variant="outline" size="sm" onClick={() => setCatOpen(true)}>
-              <Tag size={14} /> Categories
-            </Button>
-            <Button onClick={() => setAddOpen(true)} disabled={!activeRestaurant} size="sm">
-              <Plus size={14} /> Add Transaction
-            </Button>
           </div>
         </div>
 
@@ -752,7 +761,7 @@ export default function IncomeExpensesPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Loading transactions…</div>
           ) : !activeRestaurant ? (
@@ -764,17 +773,18 @@ export default function IncomeExpensesPage() {
               <p className="text-xs text-gray-400 mt-1">Try adjusting the date range or add a new transaction.</p>
             </div>
           ) : (
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Description</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Payment</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Amount</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Actions</th>
+                <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Category</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Payment</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -825,10 +835,10 @@ export default function IncomeExpensesPage() {
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-sm text-gray-500 hidden md:table-cell">
                       {t.expense_categories?.name ?? <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-sm text-gray-500 hidden md:table-cell">
                       {t.payment_methods?.name ?? <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3">
@@ -883,9 +893,10 @@ export default function IncomeExpensesPage() {
               {filtered.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-gray-100 bg-gray-50">
-                    <td colSpan={6} className="px-4 py-3 text-xs font-semibold text-gray-500">
+                    <td colSpan={4} className="px-4 py-3 text-xs font-semibold text-gray-500">
                       {filtered.length} transactions
                     </td>
+                    <td colSpan={2} className="hidden md:table-cell" />
                     <td className="px-4 py-3 text-right">
                       <div className="text-xs space-y-0.5">
                         <div className="text-green-600 font-semibold">
@@ -901,6 +912,7 @@ export default function IncomeExpensesPage() {
                 </tfoot>
               )}
             </table>
+            </div>
           )}
         </div>
       </div>

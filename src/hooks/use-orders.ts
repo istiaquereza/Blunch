@@ -23,7 +23,7 @@ export interface Order {
   customer_id?: string;
   table_id?: string;
   type: "dine_in" | "takeaway";
-  status: "active" | "billed" | "completed" | "cancelled";
+  status: "active" | "billed" | "completed" | "cancelled" | "deleted";
   payment_method_id?: string;
   subtotal: number;
   discount_amount: number;
@@ -73,7 +73,12 @@ export function useOrders(
       .eq("restaurant_id", restaurantId)
       .order("created_at", { ascending: false });
 
-    if (statusFilter && statusFilter !== "all") q = q.eq("status", statusFilter);
+    if (statusFilter && statusFilter !== "all") {
+      q = q.eq("status", statusFilter);
+    } else {
+      // "all" excludes soft-deleted orders by default
+      q = q.neq("status", "deleted");
+    }
     // Use local-timezone timestamps so "today" matches wall-clock day, not UTC day
     if (dateFrom) {
       const off = -new Date().getTimezoneOffset();
@@ -222,6 +227,13 @@ export function useOrders(
   // Cancel
   const cancelOrder = async (orderId: string) => {
     const { error } = await supabase.from("orders").update({ status: "cancelled" }).eq("id", orderId);
+    if (!error) await fetchOrders();
+    return { error };
+  };
+
+  // Soft delete (status → "deleted") — not allowed for cancelled orders
+  const deleteOrder = async (orderId: string) => {
+    const { error } = await supabase.from("orders").update({ status: "deleted" }).eq("id", orderId);
     if (!error) await fetchOrders();
     return { error };
   };
@@ -379,16 +391,14 @@ export function useOrders(
 
     if (updateErr) return { error: updateErr };
 
-    // 3. Reduce ingredient stock + available_quantity + write logs (fire-and-forget)
-    (async () => {
-      try {
-        const { data: orderItems } = await supabase
-          .from("order_items")
-          .select("food_item_id, quantity, food_items!inner(name, availability_type, available_quantity, food_item_ingredients(ingredient_id, quantity))")
-          .eq("order_id", orderId);
+    // 3. Reduce ingredient stock + available_quantity + write logs
+    try {
+      const { data: orderItems } = await supabase
+        .from("order_items")
+        .select("food_item_id, quantity, food_items!inner(name, availability_type, available_quantity, food_item_ingredients(ingredient_id, quantity))")
+        .eq("order_id", orderId);
 
-        if (!orderItems?.length) return;
-
+      if (orderItems?.length) {
         // ── a. Reduce food_items.available_quantity for "quantity" type foods ──
         for (const oi of orderItems as any[]) {
           const fi = oi.food_items;
@@ -403,7 +413,7 @@ export function useOrders(
 
         // ── b. Compute total ingredient deltas across all ordered items ──
         const deltas: Record<string, number> = {};
-        const ingredientFoodName: Record<string, string> = {}; // ingredient_id → food item name (last one wins)
+        const ingredientFoodName: Record<string, string> = {};
         (orderItems as any[]).forEach((oi) => {
           const ings: any[] = oi.food_items?.food_item_ingredients ?? [];
           ings.forEach((ing) => {
@@ -413,38 +423,38 @@ export function useOrders(
         });
 
         const ingredientIds = Object.keys(deltas);
-        if (!ingredientIds.length) return;
-
-        const { data: stocks } = await supabase
-          .from("food_stock")
-          .select("id, ingredient_id, quantity")
-          .eq("restaurant_id", restaurantId)
-          .in("ingredient_id", ingredientIds);
-
-        for (const stock of stocks ?? []) {
-          const ingId = (stock as any).ingredient_id;
-          const delta = deltas[ingId] ?? 0;
-          const newQty = Math.max(0, Number((stock as any).quantity) - delta);
-          await supabase
+        if (ingredientIds.length) {
+          const { data: stocks } = await supabase
             .from("food_stock")
-            .update({ quantity: newQty, updated_at: new Date().toISOString() })
-            .eq("id", (stock as any).id);
+            .select("id, ingredient_id, quantity")
+            .eq("restaurant_id", restaurantId)
+            .in("ingredient_id", ingredientIds);
 
-          // ── c. Write stock log entry ──
-          await supabase.from("food_stock_logs").insert({
-            restaurant_id: restaurantId,
-            ingredient_id: ingId,
-            order_id: orderId,
-            order_number: orderNumber,
-            food_item_name: ingredientFoodName[ingId] ?? null,
-            quantity_change: -delta,
-            reason: "order_completion",
-          });
+          for (const stock of stocks ?? []) {
+            const ingId = (stock as any).ingredient_id;
+            const delta = deltas[ingId] ?? 0;
+            const newQty = Math.max(0, Number((stock as any).quantity) - delta);
+            await supabase
+              .from("food_stock")
+              .update({ quantity: newQty, updated_at: new Date().toISOString() })
+              .eq("id", (stock as any).id);
+
+            // ── c. Write stock log entry ──
+            await supabase.from("food_stock_logs").insert({
+              restaurant_id: restaurantId,
+              ingredient_id: ingId,
+              order_id: orderId,
+              order_number: orderNumber,
+              food_item_name: ingredientFoodName[ingId] ?? null,
+              quantity_change: -delta,
+              reason: "order_completion",
+            });
+          }
         }
-      } catch (e) {
-        console.error("[Inventory] Stock deduction failed:", e);
       }
-    })();
+    } catch (e) {
+      console.error("[Inventory] Stock deduction failed:", e);
+    }
 
     // 4. Create income transaction in "Daily Sales" category
     const dailySalesId = await getDailySalesCategoryId();
@@ -477,6 +487,7 @@ export function useOrders(
     billOrder,
     completeOrder,
     cancelOrder,
+    deleteOrder,
     createKitchenOrder,
     billAndCreateOrder,
     completeOrderFull,

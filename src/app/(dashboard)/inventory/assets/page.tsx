@@ -184,6 +184,31 @@ export default function AssetsPage() {
     <div>
       <Header title="Asset Inventory" />
       <div className="p-4 md:p-6 space-y-4">
+        {/* Toolbar */}
+        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">All Groups</option>
+              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+            <select value={filterCondition} onChange={(e) => setFilterCondition(e.target.value)}
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">All Conditions</option>
+              <option value="good">Good</option>
+              <option value="average">Average</option>
+              <option value="low">Low</option>
+            </select>
+            <Button variant="outline" size="sm" onClick={() => setGroupOpen(true)}>Manage Groups</Button>
+            <Button size="sm" onClick={openAdd}><Plus size={14} /> Add Asset</Button>
+          </div>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assets..."
+              className="w-56 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+          </div>
+        </div>
+
         {/* Summary Cards */}
         <div className="grid grid-cols-4 gap-3">
           {[
@@ -198,33 +223,6 @@ export default function AssetsPage() {
               <p className="text-xs text-gray-400">{c.sub}</p>
             </div>
           ))}
-        </div>
-
-        {/* Toolbar */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
-            <div className="relative max-w-xs flex-1">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assets..."
-                className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
-            </div>
-            <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value="">All Groups</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-            <select value={filterCondition} onChange={(e) => setFilterCondition(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value="">All Conditions</option>
-              <option value="good">Good</option>
-              <option value="average">Average</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setGroupOpen(true)}>Manage Groups</Button>
-            <Button size="sm" onClick={openAdd}><Plus size={14} /> Add Asset</Button>
-          </div>
         </div>
 
         {/* Table */}

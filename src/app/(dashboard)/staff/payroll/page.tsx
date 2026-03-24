@@ -311,22 +311,20 @@ export default function StaffPayrollPage() {
       <div className="p-4 md:p-6 space-y-4">
 
         {/* ── Month Selector ── */}
-        <div className="bg-white rounded-xl border border-border px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
             <button
               onClick={prevMonth}
               className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
             >
               <ChevronLeft size={16} className="text-gray-600" />
             </button>
-            <div className="flex items-center gap-2">
-              <input
-                type="month"
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="h-9 px-3 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
             <button
               onClick={nextMonth}
               disabled={isCurrentMonth}
@@ -335,39 +333,35 @@ export default function StaffPayrollPage() {
               <ChevronRight size={16} className="text-gray-600" />
             </button>
             <span className="text-sm font-semibold text-gray-700">{getMonthLabel(month)}</span>
+            {/* Status filter */}
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden h-9">
+              {([["all", "All"], ["unpaid", "Unpaid"], ["partial", "Partial"], ["paid", "Paid"]] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  onClick={() => setStatusFilter(v)}
+                  className={`px-3 text-xs font-medium transition-colors ${
+                    statusFilter === v
+                      ? v === "paid" ? "bg-green-500 text-white"
+                        : v === "partial" ? "bg-amber-500 text-white"
+                        : v === "unpaid" ? "bg-red-500 text-white"
+                        : "bg-gray-900 text-white"
+                      : "text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-
-          <div className="flex-1" />
-
           {/* Search */}
-          <div className="relative w-full sm:w-auto">
+          <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search staff…"
-              className="w-full sm:w-56 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-56 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
-          </div>
-
-          {/* Status filter */}
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden h-9">
-            {([["all", "All"], ["unpaid", "Unpaid"], ["partial", "Partial"], ["paid", "Paid"]] as const).map(([v, label]) => (
-              <button
-                key={v}
-                onClick={() => setStatusFilter(v)}
-                className={`px-3 text-xs font-medium transition-colors ${
-                  statusFilter === v
-                    ? v === "paid" ? "bg-green-500 text-white"
-                      : v === "partial" ? "bg-amber-500 text-white"
-                      : v === "unpaid" ? "bg-red-500 text-white"
-                      : "bg-gray-900 text-white"
-                    : "text-gray-500 hover:bg-gray-50"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
           </div>
         </div>
 

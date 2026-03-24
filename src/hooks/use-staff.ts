@@ -51,14 +51,14 @@ export function useStaff(restaurantId?: string) {
   const [loading, setLoading] = useState(true);
 
   const fetchStaff = useCallback(async () => {
-    if (!restaurantId) { setStaff([]); setLoading(false); return; }
     setLoading(true);
     const supabase = createClient();
-    const { data } = await supabase
+    let q = supabase
       .from("staff")
       .select("*, benefit_packages(id,name,details), restaurants(name)")
-      .eq("restaurant_id", restaurantId)
       .order("created_at", { ascending: false });
+    if (restaurantId) q = q.eq("restaurant_id", restaurantId);
+    const { data } = await q;
     setStaff((data as StaffMember[]) ?? []);
     setLoading(false);
   }, [restaurantId]);
@@ -110,9 +110,9 @@ export function useBenefitPackages(restaurantId?: string) {
 
   const createPackage = async (data: { name: string; details: BenefitDetail[]; restaurant_id: string }) => {
     const supabase = createClient();
-    const { error } = await supabase.from("benefit_packages").insert(data);
+    const { data: created, error } = await supabase.from("benefit_packages").insert(data).select("id, name").single();
     if (!error) await fetchPackages();
-    return { error };
+    return { data: created, error };
   };
 
   const updatePackage = async (id: string, data: Partial<BenefitPackage>) => {

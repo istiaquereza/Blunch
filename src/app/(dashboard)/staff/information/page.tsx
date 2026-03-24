@@ -19,7 +19,9 @@ import type { StaffMember, BenefitPackage, BenefitDetail } from "@/hooks/use-sta
 function nextIncrement(joiningDate: string | null): string {
   if (!joiningDate) return "—";
   const d = new Date(joiningDate);
+  const today = new Date();
   d.setFullYear(d.getFullYear() + 1);
+  while (d <= today) d.setFullYear(d.getFullYear() + 1);
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 function fmtDate(d: string | null) {
@@ -38,7 +40,8 @@ function todayLong() {
 }
 
 // ─── Empty form ────────────────────────────────────────────────────────────────
-const emptyStaffForm = () => ({
+const emptyStaffForm = (rid?: string) => ({
+  restaurant_id: rid ?? "",
   name: "",
   job_role: "",
   staff_type: "" as "" | "kitchen" | "hall",
@@ -217,14 +220,15 @@ function printEmploymentLetter(
 export default function StaffInformationPage() {
   const { activeRestaurant, restaurants } = useRestaurant();
   const rid = activeRestaurant?.id;
-  const { staff, loading, createStaff, updateStaff, deleteStaff } = useStaff(rid);
+  // fetch all staff across restaurants; filter client-side
+  const { staff, loading, createStaff, updateStaff, deleteStaff } = useStaff();
   const { packages, createPackage, updatePackage, deletePackage } = useBenefitPackages(rid);
   const { categories } = useFoodCategories(rid);
 
   // ── Staff dialog ──
   const [staffOpen, setStaffOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
-  const [form, setForm] = useState(emptyStaffForm());
+  const [form, setForm] = useState(emptyStaffForm(rid));
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [docUploading, setDocUploading] = useState(false);
@@ -232,19 +236,24 @@ export default function StaffInformationPage() {
   const docInputRef   = useRef<HTMLInputElement>(null);
 
   // ── Package dialog ──
-  const [pkgOpen, setPkgOpen]       = useState(false);
+  const [pkgOpen, setPkgOpen]         = useState(false);
   const [pkgListOpen, setPkgListOpen] = useState(false);
-  const [editingPkg, setEditingPkg] = useState<BenefitPackage | null>(null);
-  const [pkgForm, setPkgForm]       = useState(emptyPackageForm());
-  const [pkgSaving, setPkgSaving]   = useState(false);
+  const [editingPkg, setEditingPkg]   = useState<BenefitPackage | null>(null);
+  const [pkgForm, setPkgForm]         = useState(emptyPackageForm());
+  const [pkgSaving, setPkgSaving]     = useState(false);
+  const [pkgFromStaff, setPkgFromStaff] = useState(false);
 
-  // ── Search ──
-  const [search, setSearch] = useState("");
-  const filtered = staff.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    (s.phone ?? "").includes(search) ||
-    (s.job_role ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  // ── Filter ──
+  const [search, setSearch]     = useState("");
+  const [filterRid, setFilterRid] = useState(rid ?? "");
+  const filtered = staff.filter((s) => {
+    const matchRid = !filterRid || s.restaurant_id === filterRid;
+    const matchSearch =
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      (s.phone ?? "").includes(search) ||
+      (s.job_role ?? "").toLowerCase().includes(search.toLowerCase());
+    return matchRid && matchSearch;
+  });
 
   // ── File upload ──
   const uploadFile = useCallback(async (file: File, bucket: string): Promise<string | null> => {
@@ -258,10 +267,11 @@ export default function StaffInformationPage() {
   }, []);
 
   // ── Open / close staff form ──
-  const openAdd = () => { setEditingStaff(null); setForm(emptyStaffForm()); setStaffOpen(true); };
+  const openAdd = () => { setEditingStaff(null); setForm(emptyStaffForm(rid)); setStaffOpen(true); };
   const openEdit = (s: StaffMember) => {
     setEditingStaff(s);
     setForm({
+      restaurant_id: s.restaurant_id,
       name: s.name,
       job_role: s.job_role ?? "",
       staff_type: (s.staff_type ?? "") as "" | "kitchen" | "hall",
@@ -279,11 +289,20 @@ export default function StaffInformationPage() {
 
   // ── Save staff ──
   const handleSaveStaff = async () => {
-    if (!form.name.trim()) { toast.error("Please enter a staff name"); return; }
-    if (!rid) { toast.error("No active restaurant selected"); return; }
+    if (!form.name.trim())              { toast.error("Full name is required"); return; }
+    if (!form.job_role.trim())          { toast.error("Job role is required"); return; }
+    if (!form.staff_type)               { toast.error("Staff type is required"); return; }
+    if (!form.salary || parseFloat(form.salary) <= 0) { toast.error("Monthly salary is required"); return; }
+    if (!form.phone.trim())             { toast.error("Phone number is required"); return; }
+    if (!form.joining_date)             { toast.error("Joining date is required"); return; }
+    if (!form.benefit_package_id)       { toast.error("Please select a benefit package"); return; }
+    if (form.staff_type === "kitchen" && form.food_category_ids.length === 0) {
+      toast.error("Select at least one food expertise for kitchen staff"); return;
+    }
+    if (!form.restaurant_id) { toast.error("Please select a restaurant"); return; }
     setSaving(true);
     const payload = {
-      restaurant_id:    rid,
+      restaurant_id:    form.restaurant_id,
       name:             form.name.trim(),
       job_role:         form.job_role.trim() || null,
       staff_type:       form.staff_type || null,
@@ -339,13 +358,22 @@ export default function StaffInformationPage() {
       name: pkgForm.name.trim(),
       details: pkgForm.details.filter((d) => d.label.trim()),
     };
-    const { error } = editingPkg
-      ? await updatePackage(editingPkg.id, payload)
-      : await createPackage(payload as any);
-    setPkgSaving(false);
-    if (error) { toast.error("Failed to save package"); return; }
-    toast.success(editingPkg ? "Package updated" : "Package created");
+    if (editingPkg) {
+      const { error } = await updatePackage(editingPkg.id, payload);
+      setPkgSaving(false);
+      if (error) { toast.error("Failed to save package"); return; }
+      toast.success("Package updated");
+    } else {
+      const { data, error } = await createPackage(payload as any);
+      setPkgSaving(false);
+      if (error) { toast.error("Failed to save package"); return; }
+      toast.success("Package created");
+      if (pkgFromStaff && data?.id) {
+        setForm((p) => ({ ...p, benefit_package_id: data.id }));
+      }
+    }
     setPkgOpen(false);
+    setPkgFromStaff(false);
   };
 
   return (
@@ -355,13 +383,14 @@ export default function StaffInformationPage() {
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
         {/* Toolbar */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, role or phone…"
-            className="h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 w-72"
-          />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={filterRid}
+              onChange={(e) => setFilterRid(e.target.value)}
+              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">All Restaurants</option>
+              {restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
             <Button variant="outline" size="sm" onClick={() => setPkgListOpen(true)}>
               <Package size={14} /> Benefit Packages
             </Button>
@@ -369,6 +398,12 @@ export default function StaffInformationPage() {
               <Plus size={14} /> Add Staff
             </Button>
           </div>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, role or phone…"
+            className="h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 w-64"
+          />
         </div>
 
         {/* Table */}
@@ -510,6 +545,19 @@ export default function StaffInformationPage() {
               }} />
           </div>
 
+          {/* Restaurant */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <Briefcase size={13} className="inline mr-1" />Restaurant *
+            </label>
+            <select value={form.restaurant_id}
+              onChange={(e) => setForm((p) => ({ ...p, restaurant_id: e.target.value }))}
+              className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">Select restaurant…</option>
+              {restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </div>
+
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -585,7 +633,7 @@ export default function StaffInformationPage() {
           </div>
 
           {/* Food Expertise — kitchen staff only */}
-          {form.staff_type !== "hall" && (
+          {form.staff_type === "kitchen" && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <ChefHat size={13} className="inline mr-1" />Food Expertise
@@ -612,26 +660,38 @@ export default function StaffInformationPage() {
           {/* Benefit Package */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              <Package size={13} className="inline mr-1" />Benefit Package
+              <Package size={13} className="inline mr-1" />Benefit Package *
             </label>
-            <select value={form.benefit_package_id}
-              onChange={(e) => setForm((p) => ({ ...p, benefit_package_id: e.target.value }))}
-              className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value="">No package</option>
-              {packages.map((pkg) => (
-                <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
-              ))}
-            </select>
-            {packages.length === 0 && (
-              <p className="text-xs text-gray-400 mt-1 italic">No packages yet — create one from "Benefit Packages".</p>
-            )}
+            <div className="flex gap-2">
+              <select value={form.benefit_package_id}
+                onChange={(e) => setForm((p) => ({ ...p, benefit_package_id: e.target.value }))}
+                className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                <option value="">Select package…</option>
+                {packages.map((pkg) => (
+                  <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                ))}
+              </select>
+              <button type="button"
+                onClick={() => { setEditingPkg(null); setPkgForm(emptyPackageForm()); setPkgFromStaff(true); setPkgOpen(true); }}
+                title="Create new benefit package"
+                className="h-9 px-3 rounded-lg border border-dashed border-orange-300 text-orange-500 hover:bg-orange-50 text-xs font-semibold flex items-center gap-1 shrink-0 transition-colors">
+                <Plus size={12} /> New
+              </button>
+            </div>
           </div>
 
           {/* Document Upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              <Upload size={13} className="inline mr-1" />Upload Document (NID / Contract)
-            </label>
+            <div className="flex items-center gap-2 mb-1.5">
+              <label className="block text-sm font-medium text-gray-700">
+                <Upload size={13} className="inline mr-1" />Upload Document (NID / Contract)
+              </label>
+              {!form.document_url && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                  <FileText size={9} /> Doc missing
+                </span>
+              )}
+            </div>
             <div onClick={() => docInputRef.current?.click()}
               className="flex items-center gap-3 px-4 py-3 rounded-lg border-2 border-dashed border-gray-200 cursor-pointer hover:border-orange-300 hover:bg-orange-50/30 transition-colors">
               {form.document_url ? (

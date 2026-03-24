@@ -12,13 +12,24 @@ import { useRestaurant } from "@/contexts/restaurant-context";
 import { useFoodCategories } from "@/hooks/use-food-categories";
 import { useIngredients } from "@/hooks/use-ingredients";
 import { useFoodItems } from "@/hooks/use-food-items";
+import { createClient } from "@/lib/supabase/client";
 import {
   Plus, Search, Edit2, Trash2, LayoutGrid, List,
   ChefHat, X, TrendingUp, TrendingDown, FlaskConical,
-  Package, Zap,
+  Package, Zap, ScrollText, Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { FoodItem } from "@/types";
+
+// ─── Recipe Log Types ──────────────────────────────────────
+interface RecipeLog {
+  id: string;
+  status: string;
+  quantity: number;
+  trial_cost: number | null;
+  comment: string | null;
+  logged_at: string;
+}
 
 // ─── Types ────────────────────────────────────────────────
 interface IngRow { ingredient_id: string; quantity: string; unit: string; }
@@ -54,11 +65,13 @@ function calcCost(ingredients: IngRow[], list: { id: string; unit_price: number 
 }
 
 // ─── Food Card ────────────────────────────────────────────
-function FoodCard({ item, onEdit, onDelete, onToggle }: {
+function FoodCard({ item, onEdit, onDelete, onToggle, onViewHistory, onViewIngredients }: {
   item: FoodItem;
   onEdit: (i: FoodItem) => void;
   onDelete: (i: FoodItem) => void;
   onToggle: (i: FoodItem, v: boolean) => void;
+  onViewHistory: (i: FoodItem) => void;
+  onViewIngredients: (i: FoodItem) => void;
 }) {
   const cost = item.food_item_ingredients?.reduce((s, r) => s + (r.ingredients?.unit_price ?? 0) * r.quantity, 0) ?? 0;
   const profit = item.sell_price - cost;
@@ -66,98 +79,92 @@ function FoodCard({ item, onEdit, onDelete, onToggle }: {
   const isQuantity = item.availability_type === "quantity";
   const qty = item.available_quantity ?? 0;
   const isEmpty = isQuantity && qty <= 0;
+  const ings = item.food_item_ingredients ?? [];
 
   return (
-    <div className={`bg-white rounded-xl border overflow-hidden hover:shadow-sm transition-shadow ${isEmpty ? "border-red-200" : "border-border"}`}>
+    <div className={`bg-white rounded-xl border overflow-hidden hover:shadow-sm transition-shadow flex flex-col ${isEmpty ? "border-red-200" : "border-border"}`}>
       {/* Image */}
-      <div className="relative h-36 bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center overflow-hidden">
+      <div className="relative h-20 bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center overflow-hidden shrink-0">
         {item.image_url ? (
           <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
         ) : (
-          <ChefHat size={32} className="text-orange-300" />
+          <ChefHat size={22} className="text-orange-300" />
         )}
-        {/* Availability badge */}
         {isQuantity && (
-          <div className={`absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full ${
+          <div className={`absolute top-1.5 right-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
             isEmpty ? "bg-red-500 text-white" : qty <= 3 ? "bg-orange-500 text-white" : "bg-green-500 text-white"
           }`}>
-            {isEmpty ? "Empty" : `${qty} left`}
+            {isEmpty ? "Empty" : `${qty}`}
           </div>
         )}
         {!isQuantity && (
-          <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
-            <Zap size={9} /> Premade
+          <div className="absolute top-1.5 right-1.5 bg-blue-500 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            <Zap size={8} /> Premade
+          </div>
+        )}
+        {item.recipe_status === "launch" && (
+          <div className="absolute bottom-1.5 left-1.5 bg-purple-600 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            <ScrollText size={8} /> Recipe
           </div>
         )}
       </div>
 
-      <div className="p-3 space-y-2.5">
+      <div className="p-2 flex flex-col flex-1 gap-1.5">
         {/* Title + toggle */}
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify-between gap-1.5">
           <div className="min-w-0">
-            <p className="font-semibold text-gray-900 text-sm leading-tight truncate">{item.name}</p>
+            <p className="font-semibold text-gray-900 text-xs leading-tight truncate">{item.name}</p>
             {item.food_categories && (
-              <Badge variant="info" className="mt-1">{item.food_categories.name}</Badge>
+              <Badge variant="info" className="mt-0.5 text-[9px]">{item.food_categories.name}</Badge>
             )}
           </div>
           <Switch checked={item.is_active} onCheckedChange={(v) => onToggle(item, v)} />
         </div>
 
-        {/* Ingredients — readable list */}
-        {(item.food_item_ingredients?.length ?? 0) > 0 && (
-          <div className="flex-1">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2 flex items-center gap-1">
-              <FlaskConical size={10} /> Ingredients
-            </p>
-            <div className="space-y-1">
-              {item.food_item_ingredients?.map((r, i) => {
-                const lineTotal = (r.ingredients?.unit_price ?? 0) * r.quantity;
-                return (
-                  <div key={i} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                      <span className="text-gray-700 font-medium truncate">{r.ingredients?.name ?? "—"}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      <span className="text-gray-400">{r.quantity} {r.unit}</span>
-                      {lineTotal > 0 && (
-                        <span className="text-gray-500 font-medium">৳{lineTotal.toFixed(0)}</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* Spacer */}
+        <div className="flex-1" />
 
         {/* Cost / Price / Margin */}
-        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100 text-xs">
+        <div className="grid grid-cols-3 gap-0.5 pt-1.5 border-t border-gray-100 text-xs">
           <div className="text-center">
-            <p className="text-gray-400">Cost</p>
-            <p className="font-semibold text-gray-700 mt-0.5">৳{cost.toFixed(2)}</p>
+            <p className="text-[9px] text-gray-400">Cost</p>
+            <p className="font-semibold text-gray-700 text-[10px]">৳{cost.toFixed(0)}</p>
           </div>
           <div className="text-center border-x border-gray-100">
-            <p className="text-gray-400">Price</p>
-            <p className="font-semibold text-gray-700 mt-0.5">৳{Number(item.sell_price).toFixed(2)}</p>
+            <p className="text-[9px] text-gray-400">Price</p>
+            <p className="font-semibold text-gray-700 text-[10px]">৳{Number(item.sell_price).toFixed(0)}</p>
           </div>
           <div className="text-center">
-            <p className="text-gray-400">Margin</p>
-            <p className={`font-semibold mt-0.5 flex items-center justify-center gap-0.5 ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
-              {profit >= 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
-              {pct.toFixed(1)}%
+            <p className="text-[9px] text-gray-400">Margin</p>
+            <p className={`font-semibold text-[10px] flex items-center justify-center gap-0.5 ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
+              {profit >= 0 ? <TrendingUp size={7} /> : <TrendingDown size={7} />}
+              {pct.toFixed(0)}%
             </p>
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1 pt-1 border-t border-gray-100">
-          <Button variant="outline" size="sm" className="flex-1" onClick={() => onEdit(item)}>
-            <Edit2 size={12} /> Edit
-          </Button>
-          <Button variant="danger" size="sm" onClick={() => onDelete(item)}>
+        <div className="flex items-center justify-end gap-0.5 pt-1 border-t border-gray-100">
+          {item.recipe_status === "launch" && (
+            <button onClick={() => onViewHistory(item)} title="Recipe research history"
+              className="w-6 h-6 rounded-md flex items-center justify-center text-purple-500 hover:bg-purple-50 transition-colors">
+              <ScrollText size={12} />
+            </button>
+          )}
+          {ings.length > 0 && (
+            <button onClick={() => onViewIngredients(item)} title="View ingredients"
+              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-500 transition-colors">
+              <Layers size={12} />
+            </button>
+          )}
+          <button onClick={() => onEdit(item)} title="Edit"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
+            <Edit2 size={12} />
+          </button>
+          <button onClick={() => onDelete(item)} title="Delete"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors">
             <Trash2 size={12} />
-          </Button>
+          </button>
         </div>
       </div>
     </div>
@@ -186,6 +193,27 @@ export default function FoodMenuPage() {
   const [newCatName, setNewCatName] = useState("");
   const [addingCatInForm, setAddingCatInForm] = useState(false);
   const [inlineCatName, setInlineCatName] = useState("");
+
+  const [historyItem, setHistoryItem] = useState<FoodItem | null>(null);
+  const [historyLogs, setHistoryLogs] = useState<RecipeLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const [ingItem, setIngItem] = useState<FoodItem | null>(null);
+
+  const openHistory = async (item: FoodItem) => {
+    setHistoryItem(item);
+    setHistoryLogs([]);
+    setHistoryLoading(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("recipe_logs")
+      .select("*")
+      .eq("food_item_id", item.id)
+      .order("created_at", { ascending: false });
+    if (error) console.error("Recipe logs error:", error);
+    setHistoryLogs(data ?? []);
+    setHistoryLoading(false);
+  };
 
   const handleInlineAddCat = async () => {
     if (!inlineCatName.trim() || !rid) return;
@@ -235,7 +263,13 @@ export default function FoodMenuPage() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) return toast.error("Food name required");
+    if (!form.name.trim()) return toast.error("Food name is required");
+    if (!form.food_category_id) return toast.error("Please select a category");
+    if (!form.sell_price || parseFloat(form.sell_price) <= 0) return toast.error("Sell price must be greater than 0");
+    const validIngs = form.ingredients.filter((r) => r.ingredient_id);
+    if (validIngs.length === 0) return toast.error("Add at least one ingredient");
+    const restaurantIds = form.restaurant_ids.length ? form.restaurant_ids : rid ? [rid] : [];
+    if (restaurantIds.length === 0) return toast.error("Select at least one restaurant");
     if (!rid) return toast.error("Select a restaurant first");
     setSaving(true);
 
@@ -249,7 +283,6 @@ export default function FoodMenuPage() {
       availability_type: form.availability_type,
       available_quantity: form.availability_type === "quantity" ? parseInt(form.available_quantity) || 0 : 0,
     };
-    const restaurantIds = form.restaurant_ids.length ? form.restaurant_ids : [rid];
     const ings = form.ingredients.filter((r) => r.ingredient_id).map((r) => ({
       ingredient_id: r.ingredient_id, quantity: parseFloat(r.quantity) || 0, unit: r.unit,
     }));
@@ -314,32 +347,30 @@ export default function FoodMenuPage() {
     <div>
       <Header title="Food Menu" />
       <div className="p-4 md:p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
-            <div className="relative max-w-xs flex-1">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search food..."
-                className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
-            </div>
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
               <option value="">All Status</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
             <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
               <option value="">All Categories</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-          </div>
-          <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-gray-200 overflow-hidden">
               <button onClick={() => setView("grid")} className={`px-3 py-2 ${view === "grid" ? "bg-orange-500 text-white" : "text-gray-500 hover:bg-gray-50"}`}><LayoutGrid size={14} /></button>
               <button onClick={() => setView("list")} className={`px-3 py-2 ${view === "list" ? "bg-orange-500 text-white" : "text-gray-500 hover:bg-gray-50"}`}><List size={14} /></button>
             </div>
             <Button variant="outline" size="sm" onClick={() => setCatOpen(true)}>Categories</Button>
             <Button size="sm" onClick={openAdd}><Plus size={14} /> Add Food</Button>
+          </div>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search food..."
+              className="w-56 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
           </div>
         </div>
 
@@ -355,11 +386,13 @@ export default function FoodMenuPage() {
             <p className="text-sm text-gray-400">{search || filterStatus || filterCat ? "No results" : "No food items yet"}</p>
           </div>
         ) : view === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {filtered.map((item) => (
               <FoodCard key={item.id} item={item} onEdit={openEdit}
                 onDelete={async (i) => { if (!confirm(`Delete "${i.name}"?`)) return; await remove(i.id); toast.success("Deleted"); }}
-                onToggle={(i, v) => toggleStatus(i.id, v)} />
+                onToggle={(i, v) => toggleStatus(i.id, v)}
+                onViewHistory={openHistory}
+                onViewIngredients={(i) => setIngItem(i)} />
             ))}
           </div>
         ) : (
@@ -408,7 +441,12 @@ export default function FoodMenuPage() {
                       </td>
                       <td className="px-4 py-3"><Switch checked={item.is_active} onCheckedChange={(v) => toggleStatus(item.id, v)} /></td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 items-center">
+                          {item.recipe_status === "launch" && (
+                            <Button variant="ghost" size="sm" className="text-purple-600 hover:bg-purple-50" onClick={() => openHistory(item)} title="Recipe history">
+                              <ScrollText size={13} />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="sm" onClick={() => openEdit(item)}><Edit2 size={13} /></Button>
                           <Button variant="danger" size="sm" onClick={async () => { if (!confirm(`Delete?`)) return; await remove(item.id); }}><Trash2 size={13} /></Button>
                         </div>
@@ -634,6 +672,106 @@ export default function FoodMenuPage() {
           <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} label={`Status: ${form.is_active ? "Active" : "Inactive"}`} />
         </div>
       </Dialog>
+
+      {/* ── Recipe Research History ── */}
+      {historyItem && (
+        <Dialog open={!!historyItem} onOpenChange={(open) => { if (!open) setHistoryItem(null); }} title={`Recipe History — ${historyItem.name}`} className="max-w-lg">
+          <div className="space-y-4">
+            {historyLoading ? (
+              <p className="text-sm text-gray-400 text-center py-6">Loading logs…</p>
+            ) : historyLogs.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No research logs found.</p>
+            ) : (
+              <>
+                {/* Summary */}
+                {(() => {
+                  const totalQty = historyLogs.reduce((s, l) => s + (l.quantity ?? 0), 0);
+                  const totalCost = historyLogs.reduce((s, l) => s + (l.trial_cost ?? 0), 0);
+                  return (
+                    <div className="grid grid-cols-3 gap-3 p-3 bg-purple-50 rounded-xl border border-purple-100 text-center text-sm">
+                      <div>
+                        <p className="text-xs text-purple-500 font-medium">Trials</p>
+                        <p className="font-bold text-purple-800 mt-0.5">{historyLogs.length}</p>
+                      </div>
+                      <div className="border-x border-purple-200">
+                        <p className="text-xs text-purple-500 font-medium">Units Tested</p>
+                        <p className="font-bold text-purple-800 mt-0.5">{totalQty}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-purple-500 font-medium">Total R&D Cost</p>
+                        <p className="font-bold text-purple-800 mt-0.5">৳{totalCost.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Log entries */}
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {historyLogs.map((log) => (
+                    <div key={log.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                          {log.status}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {new Date((log as any).logged_at ?? (log as any).created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-gray-600 mt-1.5">
+                        <span>Qty: <strong>{log.quantity}</strong></span>
+                        {log.trial_cost != null && log.trial_cost > 0 && (
+                          <span>Cost: <strong className="text-orange-600">৳{log.trial_cost.toFixed(2)}</strong></span>
+                        )}
+                      </div>
+                      {log.comment && (
+                        <p className="text-xs text-gray-500 mt-1.5 italic">"{log.comment}"</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </Dialog>
+      )}
+
+      {/* ── Ingredients Modal ── */}
+      {ingItem && (() => {
+        const ings = ingItem.food_item_ingredients ?? [];
+        const totalCost = ings.reduce((s, r) => s + (r.ingredients?.unit_price ?? 0) * r.quantity, 0);
+        return (
+          <Dialog open={!!ingItem} onOpenChange={(open) => { if (!open) setIngItem(null); }}
+            title={`Ingredients — ${ingItem.name}`} className="max-w-sm">
+            <div className="space-y-2">
+              {ings.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No ingredients linked.</p>
+              ) : (
+                <>
+                  {ings.map((r, i) => {
+                    const lineTotal = (r.ingredients?.unit_price ?? 0) * r.quantity;
+                    return (
+                      <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                          <span className="text-sm text-gray-700 truncate">{r.ingredients?.name ?? "—"}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 ml-3 text-xs text-gray-500">
+                          <span>{r.quantity} {r.unit}</span>
+                          {lineTotal > 0 && <span className="font-medium text-orange-600">৳{lineTotal.toFixed(0)}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center justify-between pt-2 text-sm font-semibold border-t border-gray-200">
+                    <span className="text-gray-500">Total cost</span>
+                    <span className="text-orange-700">৳{totalCost.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </Dialog>
+        );
+      })()}
 
       {/* ── Categories ── */}
       <Dialog open={catOpen} onOpenChange={setCatOpen} title="Food Categories">

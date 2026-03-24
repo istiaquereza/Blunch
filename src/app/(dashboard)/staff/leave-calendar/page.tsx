@@ -171,21 +171,18 @@ export default function LeaveCalendarPage() {
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
         {/* ── Toolbar ── */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
+        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
             <button onClick={prev} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors">
               <ChevronLeft size={16} />
             </button>
-            <span className="font-semibold text-gray-800 min-w-[220px] text-center text-sm">{headerLabel}</span>
+            <span className="font-semibold text-gray-800 min-w-[180px] text-center text-sm">{headerLabel}</span>
             <button onClick={next} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors">
               <ChevronRight size={16} />
             </button>
             <button onClick={() => setAnchor(new Date())} className="h-8 px-3 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
               Today
             </button>
-          </div>
-
-          <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-gray-200 overflow-hidden">
               <button
                 onClick={() => setView("week")}

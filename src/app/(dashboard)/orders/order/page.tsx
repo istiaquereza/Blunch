@@ -10,6 +10,7 @@ import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useBillingSettings, useDiscounts } from "@/hooks/use-billing-settings";
 import { useOrders, type CreateOrderItemPayload } from "@/hooks/use-orders";
 import { useCustomers, type Customer } from "@/hooks/use-customers";
+import { useFoodStock } from "@/hooks/use-food-stock";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import type { FoodItem } from "@/types";
@@ -168,26 +169,40 @@ function printKitchenTicket(restaurantName: string, draft: OrderDraft, tableName
 }
 
 // ─── Menu Item Card ───────────────────────────────────────────────────────────
-function MenuCard({ item, onAdd, disabled, cartQty = 0 }: { item: FoodItem; onAdd: () => void; disabled?: boolean; cartQty?: number }) {
+interface IngredientStockInfo { canMake: boolean; maxQty: number; missingIngredients: string[] }
+
+function MenuCard({ item, onAdd, disabled, cartQty = 0, stockInfo }: {
+  item: FoodItem; onAdd: () => void; disabled?: boolean; cartQty?: number;
+  stockInfo?: IngredientStockInfo;
+}) {
   const isQty = item.availability_type === "quantity";
   const available = item.available_quantity ?? 0;
   const outOfStock = isQty && available === 0;
   const maxReached = isQty && cartQty >= available;
   const remaining = isQty ? available - cartQty : null;
 
+  // Ingredient-based availability (only applies if recipe is configured)
+  const hasRecipe = stockInfo !== undefined;
+  const ingredientMissing = hasRecipe && !stockInfo!.canMake;
+  const ingredientMaxReached = hasRecipe && stockInfo!.canMake && cartQty >= stockInfo!.maxQty;
+
+  const isBlocked = outOfStock || maxReached || ingredientMissing || ingredientMaxReached;
+
   return (
     <button
       onClick={onAdd}
-      disabled={disabled || outOfStock || maxReached}
+      disabled={disabled || isBlocked}
       className="bg-white rounded-xl border border-gray-100 p-3 text-left hover:border-orange-300 hover:shadow-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed relative"
     >
       <div className="w-full h-20 rounded-lg bg-orange-50 flex items-center justify-center mb-2 overflow-hidden relative">
         {item.image_url
           ? <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-lg" />
           : <span className="text-2xl">🍽️</span>}
-        {outOfStock && (
+        {(outOfStock || ingredientMissing) && (
           <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
-            <span className="text-white text-[10px] font-bold bg-red-500 px-1.5 py-0.5 rounded-full">Out of Stock</span>
+            <span className="text-white text-[10px] font-bold bg-red-500 px-1.5 py-0.5 rounded-full">
+              {ingredientMissing ? "Missing Ingredient" : "Out of Stock"}
+            </span>
           </div>
         )}
       </div>
@@ -201,6 +216,11 @@ function MenuCard({ item, onAdd, disabled, cartQty = 0 }: { item: FoodItem; onAd
             {remaining} left
           </span>
         )}
+        {!isQty && hasRecipe && stockInfo!.canMake && stockInfo!.maxQty < 10 && (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+            {stockInfo!.maxQty} left
+          </span>
+        )}
       </div>
     </button>
   );
@@ -212,6 +232,7 @@ function OrderCard({
   isActive,
   restaurantName,
   tables,
+  usedTableIds,
   paymentMethods,
   discounts,
   billing,
@@ -229,6 +250,7 @@ function OrderCard({
   isActive: boolean;
   restaurantName: string;
   tables: { id: string; table_number?: string; name?: string; is_active: boolean }[];
+  usedTableIds: Set<string>;
   paymentMethods: { id: string; name: string; is_active: boolean }[];
   discounts: { id: string; name: string; discount_type: string; discount_value: number; is_active: boolean; apply_on: string }[];
   billing: { vat_percentage: number; service_charge_percentage: number } | null;
@@ -245,6 +267,7 @@ function OrderCard({
   const [showCustDropdown, setShowCustDropdown] = useState(false);
   const [customerTotalSpend, setCustomerTotalSpend] = useState<number | null>(null);
   const activeTables = tables.filter((t) => t.is_active);
+  // Tables used by other order cards (excluding the current draft's own table)
   const activePayments = paymentMethods.filter((p) => p.is_active);
   const activeDiscounts = discounts.filter((d) => d.is_active && d.apply_on === "order");
 
@@ -342,9 +365,14 @@ function OrderCard({
             className={`w-full h-7 px-2 rounded-lg border text-xs disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400 ${!draft.tableId && !locked ? "border-red-400 bg-red-50" : "border-gray-200"}`}
           >
             <option value="">Select table…</option>
-            {activeTables.map((t) => (
-              <option key={t.id} value={t.id}>{(t as any).table_number ?? (t as any).name ?? t.id}</option>
-            ))}
+            {activeTables.map((t) => {
+              const taken = usedTableIds.has(t.id);
+              return (
+                <option key={t.id} value={t.id} disabled={taken}>
+                  {(t as any).table_number ?? (t as any).name ?? t.id}{taken ? " (in use)" : ""}
+                </option>
+              );
+            })}
           </select>
         )}
       </div>
@@ -650,6 +678,7 @@ export default function NewOrderPage() {
   const { discounts } = useDiscounts(activeRestaurant?.id);
   const { billOrder, createKitchenOrder, billAndCreateOrder, completeOrderFull, cancelOrder } = useOrders(activeRestaurant?.id);
   const { customers } = useCustomers(activeRestaurant?.id);
+  const { stock } = useFoodStock(activeRestaurant?.id);
 
   // Per-instance counter — avoids module-level shared state that causes SSR hydration mismatches
   const draftCounterRef = useRef(1);
@@ -815,6 +844,48 @@ export default function NewOrderPage() {
     removeDraft(draftId);
   };
 
+  // Build ingredient stock map: ingredient_id → qty in food_stock
+  const stockMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of stock) map.set((s as any).ingredient_id, (s as any).quantity ?? 0);
+    return map;
+  }, [stock]);
+
+  // How much of each ingredient is already reserved in all active (non-done) carts
+  const cartReservations = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const draft of drafts) {
+      if (draft.stage === "done") continue;
+      for (const cartItem of draft.cart) {
+        const ings: any[] = (cartItem.foodItem as any).food_item_ingredients ?? [];
+        for (const ing of ings) {
+          map.set(ing.ingredient_id, (map.get(ing.ingredient_id) ?? 0) + ing.quantity * cartItem.quantity);
+        }
+      }
+    }
+    return map;
+  }, [drafts]);
+
+  // Per food item: can it be made given current stock minus cart reservations?
+  const itemStockInfo = useMemo(() => {
+    const result = new Map<string, IngredientStockInfo>();
+    for (const item of foodItems) {
+      const ings: any[] = (item as any).food_item_ingredients ?? [];
+      if (ings.length === 0) continue; // no recipe configured — skip validation
+      let maxQty = Infinity;
+      const missingIngredients: string[] = [];
+      for (const ing of ings) {
+        const available = (stockMap.get(ing.ingredient_id) ?? 0) - (cartReservations.get(ing.ingredient_id) ?? 0);
+        const canMakeFromThis = ing.quantity > 0 ? available / ing.quantity : Infinity;
+        if (canMakeFromThis < 1) missingIngredients.push(ing.ingredients?.name ?? "ingredient");
+        if (canMakeFromThis < maxQty) maxQty = canMakeFromThis;
+      }
+      const maxQtyFloor = maxQty === Infinity ? 999 : Math.floor(maxQty);
+      result.set(item.id, { canMake: maxQtyFloor >= 1, maxQty: maxQtyFloor, missingIngredients });
+    }
+    return result;
+  }, [foodItems, stockMap, cartReservations]);
+
   const menuItems = useMemo(() => {
     let list = foodItems.filter((i) => i.is_active && !i.is_recipe);
     if (activeCategory !== "all") list = list.filter((i) => i.food_category_id === activeCategory);
@@ -825,12 +896,34 @@ export default function NewOrderPage() {
   const addToCart = async (item: FoodItem) => {
     if (!activeDraft || activeDraft.stage !== "building") return;
 
-    // Enforce stock limit for quantity-type items
+    // Enforce stock limit across ALL active drafts (quantity-type food items)
     if (item.availability_type === "quantity") {
       const available = item.available_quantity ?? 0;
-      const inCart = activeDraft.cart.find((c) => c.foodItem.id === item.id)?.quantity ?? 0;
-      if (inCart >= available) {
+      const totalInAllDrafts = drafts
+        .filter((d) => d.stage !== "done")
+        .reduce((sum, d) => sum + (d.cart.find((c) => c.foodItem.id === item.id)?.quantity ?? 0), 0);
+      if (totalInAllDrafts >= available) {
         toast.error(`Only ${available} in stock`);
+        return;
+      }
+    }
+
+    // Check ingredient availability (only if recipe is configured)
+    const info = itemStockInfo.get(item.id);
+    if (info) {
+      if (!info.canMake) {
+        const missing = info.missingIngredients.length > 0
+          ? info.missingIngredients.join(", ")
+          : "required ingredients";
+        toast.error(`Cannot add "${item.name}" — insufficient stock: ${missing}`);
+        return;
+      }
+      // Check if adding one more would exceed what ingredients can support
+      const currentQtyInAllDrafts = drafts
+        .filter((d) => d.stage !== "done")
+        .reduce((sum, d) => sum + (d.cart.find((c) => c.foodItem.id === item.id)?.quantity ?? 0), 0);
+      if (currentQtyInAllDrafts >= info.maxQty) {
+        toast.error(`Only ${info.maxQty} of "${item.name}" can be made with current stock`);
         return;
       }
     }
@@ -1000,14 +1093,14 @@ export default function NewOrderPage() {
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search menu…"
                 className="w-full h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
             </div>
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+            <div className="flex flex-wrap gap-1.5">
               <button onClick={() => setActiveCategory("all")}
-                className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === "all" ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === "all" ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
                 All
               </button>
               {categories.map((cat) => (
                 <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
-                  className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat.id ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat.id ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
                   {cat.name}
                 </button>
               ))}
@@ -1030,7 +1123,8 @@ export default function NewOrderPage() {
                     item={item}
                     onAdd={() => addToCart(item)}
                     disabled={!activeDraft || activeDraft.stage !== "building"}
-                    cartQty={activeDraft?.cart.find((c) => c.foodItem.id === item.id)?.quantity ?? 0}
+                    cartQty={drafts.filter(d => d.stage !== "done").reduce((sum, d) => sum + (d.cart.find(c => c.foodItem.id === item.id)?.quantity ?? 0), 0)}
+                    stockInfo={itemStockInfo.get(item.id)}
                   />
                 ))}
               </div>
@@ -1067,6 +1161,7 @@ export default function NewOrderPage() {
                   isActive={draft.draftId === activeDraftId}
                   restaurantName={activeRestaurant?.name ?? "Restaurant"}
                   tables={tables as any}
+                  usedTableIds={new Set(drafts.filter(d => d.draftId !== draft.draftId && d.tableId && d.stage !== "done").map(d => d.tableId))}
                   paymentMethods={paymentMethods as any}
                   discounts={discounts as any}
                   billing={billing as any}
@@ -1211,7 +1306,8 @@ export default function NewOrderPage() {
                     item={item}
                     onAdd={() => addToCart(item)}
                     disabled={!activeDraft || activeDraft.stage !== "building"}
-                    cartQty={activeDraft?.cart.find((c) => c.foodItem.id === item.id)?.quantity ?? 0}
+                    cartQty={drafts.filter(d => d.stage !== "done").reduce((sum, d) => sum + (d.cart.find(c => c.foodItem.id === item.id)?.quantity ?? 0), 0)}
+                    stockInfo={itemStockInfo.get(item.id)}
                   />
                 ))}
               </div>

@@ -151,9 +151,22 @@ export interface ProductRequisition {
   status: "submitted" | "approved" | "rejected";
   payment_status: "paid" | "due";
   notes?: string;
+  memo_url?: string;
+  vendor_id?: string;
   created_at: string;
   updated_at: string;
   product_requisition_items?: ProductRequisitionItem[];
+  vendors?: Vendor | null;
+}
+
+export interface Vendor {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  phone: string;
+  address: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ProductRequisitionItem {

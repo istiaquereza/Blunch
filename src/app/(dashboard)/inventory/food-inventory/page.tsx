@@ -11,9 +11,13 @@ import { useFoodStock } from "@/hooks/use-food-stock";
 import { useIngredients } from "@/hooks/use-ingredients";
 import { useInventoryGroups } from "@/hooks/use-inventory-groups";
 import { useFoodStockLogs } from "@/hooks/use-food-stock-logs";
-import { Layers, Search, Edit2, Plus, Minus, AlertTriangle, CheckCircle2, XCircle, History } from "lucide-react";
+import { useRestockTransactions } from "@/hooks/use-restock-transactions";
+import { usePaymentMethods } from "@/hooks/use-payment-methods";
+import { useVendors } from "@/hooks/use-vendors";
+import { useTransactions, useExpenseCategories } from "@/hooks/use-transactions";
+import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import type { FoodStock } from "@/types";
 
 const LOW_THRESHOLD = 5;
@@ -25,25 +29,118 @@ function stockStatus(qty: number): { label: string; variant: "danger" | "warning
   return { label: "Sufficient", variant: "success", icon: <CheckCircle2 size={12} /> };
 }
 
+type DatePreset = "today" | "week" | "month" | "all" | "custom";
+
+const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "This Week" },
+  { value: "month", label: "This Month" },
+  { value: "all", label: "All Time" },
+  { value: "custom", label: "Custom" },
+];
+
+function getDateRange(preset: DatePreset, customFrom: string, customTo: string): { from?: string; to?: string } {
+  const now = new Date();
+  switch (preset) {
+    case "today":
+      return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
+    case "week":
+      return { from: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), to: endOfWeek(now, { weekStartsOn: 1 }).toISOString() };
+    case "month":
+      return { from: startOfMonth(now).toISOString(), to: endOfMonth(now).toISOString() };
+    case "all":
+      return {};
+    case "custom":
+      return {
+        from: customFrom ? new Date(customFrom).toISOString() : undefined,
+        to: customTo ? endOfDay(new Date(customTo)).toISOString() : undefined,
+      };
+  }
+}
+
+// Reusable date filter bar component
+function DateFilterBar({
+  preset, setPreset, customFrom, setCustomFrom, customTo, setCustomTo, onApplyCustom,
+}: {
+  preset: DatePreset; setPreset: (p: DatePreset) => void;
+  customFrom: string; setCustomFrom: (v: string) => void;
+  customTo: string; setCustomTo: (v: string) => void;
+  onApplyCustom: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        {DATE_PRESETS.map((p) => (
+          <button key={p.value} onClick={() => setPreset(p.value)}
+            className={`h-7 px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+              preset === p.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {preset === "custom" && (
+        <div className="flex items-center gap-2">
+          <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+            className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+          <span className="text-xs text-gray-400">to</span>
+          <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+            className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+          <Button size="sm" onClick={onApplyCustom}>Apply</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FoodInventoryPage() {
   const { activeRestaurant } = useRestaurant();
   const rid = activeRestaurant?.id;
-  const { stock, loading, upsert, adjustStock } = useFoodStock(rid);
+  const { stock, loading, upsert } = useFoodStock(rid);
   const { ingredients } = useIngredients(rid);
   const { groups } = useInventoryGroups(rid);
-  const { logs: historyLogs, loading: historyLoading, fetchLogs, clearLogs } = useFoodStockLogs(rid);
+  // Movements: food_stock_logs (both in/out from orders + manual)
+  const { logs: movementLogs, loading: movementsLoading, fetchLogs: fetchMovements, createLog, clearLogs: clearMovements } = useFoodStockLogs(rid);
+  // Stock In Summary: transactions table (source of truth for all restocks including older ones)
+  const { entries: stockInEntries, loading: stockInLoading, fetchEntries: fetchStockIn, clear: clearStockIn } = useRestockTransactions(rid);
+  const { methods: paymentMethods } = usePaymentMethods(rid);
+  const { vendors } = useVendors(rid);
+  const { create: createTransaction } = useTransactions(rid);
+  const { categories: expenseCategories, create: createExpenseCategory } = useExpenseCategories();
 
   const [search, setSearch] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [activeTab, setActiveTab] = useState<"group" | "stock">("stock");
+
+  // Add stock dialog
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustItem, setAdjustItem] = useState<FoodStock | null>(null);
-  const [newQty, setNewQty] = useState("");
+  const [addQty, setAddQty] = useState("");
+  const [restockDate, setRestockDate] = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState<"paid" | "due">("paid");
+  const [restockVendorId, setRestockVendorId] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // History dialog
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyIngredientName, setHistoryIngredientName] = useState("");
+  // Stock Movements dialog
+  const [movementsOpen, setMovementsOpen] = useState(false);
+  const [movementsIngredientId, setMovementsIngredientId] = useState("");
+  const [movementsIngredientName, setMovementsIngredientName] = useState("");
+  const [movementsPreset, setMovementsPreset] = useState<DatePreset>("all");
+  const [movementsCustomFrom, setMovementsCustomFrom] = useState("");
+  const [movementsCustomTo, setMovementsCustomTo] = useState("");
+
+  // Stock In Summary dialog
+  const [stockInOpen, setStockInOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [stockInIngredientId, setStockInIngredientId] = useState("");
+  const [stockInIngredientName, setStockInIngredientName] = useState("");
+  const [stockInUnit, setStockInUnit] = useState("");
+  const [stockInUnitPrice, setStockInUnitPrice] = useState(0);
+  const [stockInPreset, setStockInPreset] = useState<DatePreset>("all");
+  const [stockInCustomFrom, setStockInCustomFrom] = useState("");
+  const [stockInCustomTo, setStockInCustomTo] = useState("");
 
   // Merge ingredients with their stock data
   const items = useMemo(() => {
@@ -57,7 +154,6 @@ export default function FoodInventoryPage() {
     return items.filter((item) => {
       const matchSearch = item.ingredient.name.toLowerCase().includes(search.toLowerCase());
       const matchGroup = filterGroup ? item.ingredient.inventory_group_id === filterGroup : true;
-      const status = stockStatus(item.quantity);
       const matchStatus = filterStatus
         ? (filterStatus === "empty" && item.quantity <= 0) ||
           (filterStatus === "low" && item.quantity > 0 && item.quantity <= LOW_THRESHOLD) ||
@@ -72,32 +168,124 @@ export default function FoodInventoryPage() {
   const lowCount = items.filter((i) => i.quantity > 0 && i.quantity <= LOW_THRESHOLD).length;
   const totalValue = items.reduce((s, i) => s + i.quantity * i.ingredient.unit_price, 0);
 
-  const openAdjust = (item: FoodStock | { ingredient_id: string; quantity: number; updated_at?: string; id?: string }) => {
-    const stockItem = stock.find((s) => s.ingredient_id === (item as { ingredient_id: string }).ingredient_id);
-    if (stockItem) {
-      setAdjustItem(stockItem);
-    } else {
-      // No stock record yet — create a pseudo one
-      setAdjustItem({
-        id: "",
-        ingredient_id: (item as { ingredient_id: string }).ingredient_id,
-        restaurant_id: rid!,
-        quantity: 0,
-        updated_at: new Date().toISOString(),
-      });
-    }
-    setNewQty(String((item as { quantity: number }).quantity));
+  // ── Open handlers ──
+  const openAddStock = (ingredientId: string) => {
+    const stockItem = stock.find((s) => s.ingredient_id === ingredientId);
+    setAdjustItem(stockItem ?? {
+      id: "", ingredient_id: ingredientId, restaurant_id: rid!, quantity: 0,
+      updated_at: new Date().toISOString(),
+    });
+    setAddQty("");
+    const today = new Date();
+    setRestockDate(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`);
+    setPaymentMethodId("");
+    setPaymentStatus("paid");
+    setRestockVendorId("");
     setAdjustOpen(true);
   };
 
-  const handleAdjust = async () => {
-    if (!adjustItem) return;
-    const qty = parseFloat(newQty);
-    if (isNaN(qty) || qty < 0) return toast.error("Enter a valid quantity");
+  const openMovements = (ingredientId: string, ingredientName: string) => {
+    setMovementsIngredientId(ingredientId);
+    setMovementsIngredientName(ingredientName);
+    setMovementsPreset("all");
+    setMovementsCustomFrom("");
+    setMovementsCustomTo("");
+    fetchMovements(ingredientId);
+    setMovementsOpen(true);
+  };
+
+  const applyMovementsPreset = (preset: DatePreset) => {
+    setMovementsPreset(preset);
+    if (preset !== "custom") {
+      const { from, to } = getDateRange(preset, movementsCustomFrom, movementsCustomTo);
+      fetchMovements(movementsIngredientId, from, to);
+    }
+  };
+
+  const openStockIn = (ingredientId: string, ingredientName: string, unit: string, unitPrice: number) => {
+    setStockInIngredientId(ingredientId);
+    setStockInIngredientName(ingredientName);
+    setStockInUnit(unit);
+    setStockInUnitPrice(unitPrice);
+    setStockInPreset("all");
+    setStockInCustomFrom("");
+    setStockInCustomTo("");
+    fetchStockIn(ingredientName); // fetch all-time by default
+    setStockInOpen(true);
+  };
+
+  const applyStockInPreset = (preset: DatePreset) => {
+    setStockInPreset(preset);
+    if (preset !== "custom") {
+      const { from, to } = getDateRange(preset, stockInCustomFrom, stockInCustomTo);
+      fetchStockIn(stockInIngredientName, from, to);
+    }
+  };
+
+  // ── Kitchen Expenses category helper ──
+  const getKitchenExpensesCategoryId = async (): Promise<string | null> => {
+    const existing = expenseCategories.find(
+      (c) => c.type === "expense" && c.name.toLowerCase() === "kitchen expenses"
+    );
+    if (existing) return existing.id;
+    const { error } = await createExpenseCategory("Kitchen Expenses", "expense");
+    if (error) return null;
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase
+      .from("expense_categories").select("id").eq("user_id", user.id)
+      .ilike("name", "kitchen expenses").limit(1);
+    return data?.[0]?.id ?? null;
+  };
+
+  // ── Add Stock handler ──
+  const handleAddStock = async () => {
+    if (!adjustItem || !rid) return;
+    const qty = parseFloat(addQty);
+    if (isNaN(qty) || qty <= 0) return toast.error("Enter a quantity greater than 0");
     setSaving(true);
-    const { error } = await upsert(adjustItem.ingredient_id, qty);
-    if (error) toast.error(error.message);
-    else { toast.success("Stock updated!"); setAdjustOpen(false); }
+
+    const currentQty = adjustItem.quantity ?? 0;
+    const newTotal = currentQty + qty;
+    const ingredient = ingredients.find((i) => i.id === adjustItem.ingredient_id);
+
+    const { error } = await upsert(adjustItem.ingredient_id, newTotal);
+    if (error) { toast.error(error.message); setSaving(false); return; }
+
+    // Write stock log entry so Stock In Summary can show this restock
+    // Use restockDate (may be backdated) as the created_at timestamp
+    const logCreatedAt = restockDate ? new Date(restockDate).toISOString() : new Date().toISOString();
+    await createLog({
+      ingredient_id: adjustItem.ingredient_id,
+      quantity_change: qty,
+      reason: "manual_restock",
+      created_at: logCreatedAt,
+    });
+
+    if (ingredient) {
+      const amount = qty * (ingredient.unit_price ?? 0);
+      if (amount > 0) {
+        const categoryId = await getKitchenExpensesCategoryId();
+        const txDate = restockDate || (() => {
+          const now = new Date();
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        })();
+        const { error: txError } = await createTransaction({
+          restaurant_id: rid, type: "expense", amount,
+          description: `Stock restock: ${ingredient.name} +${qty.toFixed(2)} ${ingredient.default_unit}`,
+          category_id: categoryId ?? undefined,
+          payment_method_id: paymentMethodId || undefined,
+          status: paymentStatus,
+          transaction_date: txDate,
+        });
+        if (txError) toast.warning("Stock updated but expense could not be recorded");
+      }
+    }
+
+    toast.success("Stock updated!");
+    setAdjustOpen(false);
     setSaving(false);
   };
 
@@ -112,12 +300,44 @@ export default function FoodInventoryPage() {
   );
 
   const adjustIngredient = adjustItem ? ingredients.find((i) => i.id === adjustItem.ingredient_id) : null;
+  const addQtyNum = parseFloat(addQty);
+  const addedAmount = !isNaN(addQtyNum) && addQtyNum > 0 && adjustIngredient
+    ? addQtyNum * adjustIngredient.unit_price : 0;
+  const activePayments = paymentMethods.filter((p) => p.is_active);
+
+  // Stock In summary stats — sourced from transactions table
+  const totalStockIn = stockInEntries.reduce((s, e) => s + e.qty, 0);
+  const totalStockInCost = stockInEntries.reduce((s, e) => s + e.amount, 0);
 
   return (
     <div>
       <Header title="Food Inventory" />
       <div className="p-4 md:p-6 space-y-4">
-        {/* Summary Cards */}
+
+        {/* ── Toolbar ── */}
+        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">All Groups</option>
+              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">All Status</option>
+              <option value="empty">Empty</option>
+              <option value="low">Low Stock</option>
+              <option value="sufficient">Sufficient</option>
+            </select>
+          </div>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ingredients..."
+              className="w-56 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+          </div>
+        </div>
+
+        {/* ── Summary Cards ── */}
         <div className="grid grid-cols-4 gap-3">
           {[
             { label: "Total Ingredients", value: items.length, sub: "tracked", color: "text-gray-900" },
@@ -133,194 +353,354 @@ export default function FoodInventoryPage() {
           ))}
         </div>
 
-        {/* Toolbar */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
-            <div className="relative max-w-xs flex-1">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ingredients..."
-                className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
-            </div>
-            <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value="">All Groups</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value="">All Status</option>
-              <option value="empty">Empty</option>
-              <option value="low">Low Stock</option>
-              <option value="sufficient">Sufficient</option>
-            </select>
+        {/* ── Tabs ── */}
+        <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="flex border-b border-border">
+            {([
+              { key: "group", label: "Group Level Inventory" },
+              { key: "stock", label: "Stock Level" },
+            ] as { key: "group" | "stock"; label: string }[]).map((tab) => (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.key ? "border-orange-500 text-orange-600" : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}>
+                {tab.label}
+              </button>
+            ))}
           </div>
-        </div>
 
-        {/* Group-wise breakdown */}
-        {groups.length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
-            {groups.map((g) => {
-              const groupItems = items.filter((i) => i.ingredient.inventory_group_id === g.id);
-              const groupValue = groupItems.reduce((s, i) => s + i.quantity * i.ingredient.unit_price, 0);
-              const groupLow = groupItems.filter((i) => i.quantity <= LOW_THRESHOLD).length;
-              return (
-                <div key={g.id} className="bg-white rounded-xl border border-border p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-800 text-sm">{g.name}</p>
-                    <p className="text-xs text-gray-400">{groupItems.length} items · ৳{groupValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                  </div>
-                  {groupLow > 0 && (
-                    <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 rounded-full px-2 py-0.5">{groupLow} low</span>
-                  )}
+          {/* ── Group Level ── */}
+          {activeTab === "group" && (
+            <div className="overflow-x-auto">
+              {groups.length === 0 ? (
+                <div className="p-12 text-center">
+                  <Layers size={36} className="text-gray-200 mx-auto mb-3" />
+                  <p className="text-sm text-gray-400">No groups defined yet</p>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-100">
+                      {["Group", "Total Items", "Total Value", "Low Stock"].map((h) => (
+                        <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {groups.map((g) => {
+                      const groupItems = items.filter((i) => i.ingredient.inventory_group_id === g.id);
+                      const groupValue = groupItems.reduce((s, i) => s + i.quantity * i.ingredient.unit_price, 0);
+                      const groupLow = groupItems.filter((i) => i.quantity > 0 && i.quantity <= LOW_THRESHOLD).length;
+                      const groupEmpty = groupItems.filter((i) => i.quantity <= 0).length;
+                      return (
+                        <tr key={g.id} className="hover:bg-gray-50/50">
+                          <td className="px-5 py-3 font-medium text-gray-900">{g.name}</td>
+                          <td className="px-5 py-3 text-gray-600">{groupItems.length}</td>
+                          <td className="px-5 py-3 text-gray-600">৳{groupValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-1.5">
+                              {groupLow > 0 && <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 rounded-full px-2 py-0.5">{groupLow} low</span>}
+                              {groupEmpty > 0 && <span className="text-xs bg-red-50 text-red-600 border border-red-200 rounded-full px-2 py-0.5">{groupEmpty} empty</span>}
+                              {groupLow === 0 && groupEmpty === 0 && <span className="text-xs text-gray-400">—</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-border overflow-hidden overflow-x-auto">
-          <div className="px-5 py-3.5 border-b border-border">
-            <h3 className="font-semibold text-gray-900 text-sm">Stock Levels <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
-          </div>
-          {loading ? <div className="p-8 text-center text-sm text-gray-400">Loading...</div>
-            : filtered.length === 0 ? (
-              <div className="p-12 text-center">
-                <Layers size={36} className="text-gray-200 mx-auto mb-3" />
-                <p className="text-sm text-gray-400">No ingredients found</p>
+          {/* ── Stock Level ── */}
+          {activeTab === "stock" && (
+            <>
+              <div className="px-5 py-3 border-b border-border">
+                <h3 className="font-semibold text-gray-900 text-sm">Stock Levels <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
+              </div>
+              {loading ? (
+                <div className="p-8 text-center text-sm text-gray-400">Loading...</div>
+              ) : filtered.length === 0 ? (
+                <div className="p-12 text-center">
+                  <Layers size={36} className="text-gray-200 mx-auto mb-3" />
+                  <p className="text-sm text-gray-400">No ingredients found</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-100">
+                        {["Ingredient", "Group", "Unit", "Unit Price", "Current Stock", "Stock Value", "Status", "Last Updated", "", "", ""].map((h, i) => (
+                          <th key={i} className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {filtered.map(({ ingredient, quantity, last_updated }) => {
+                        const status = stockStatus(quantity);
+                        return (
+                          <tr key={ingredient.id} className="hover:bg-gray-50/50">
+                            <td className="px-4 py-3 font-medium text-gray-900">{ingredient.name}</td>
+                            <td className="px-4 py-3">{ingredient.inventory_groups ? <Badge variant="purple">{ingredient.inventory_groups.name}</Badge> : <span className="text-gray-300 text-xs">—</span>}</td>
+                            <td className="px-4 py-3 text-gray-500">{ingredient.default_unit}</td>
+                            <td className="px-4 py-3 text-gray-600">৳{Number(ingredient.unit_price).toFixed(2)}</td>
+                            <td className="px-4 py-3 font-semibold text-gray-900">{quantity}</td>
+                            <td className="px-4 py-3 text-gray-600">৳{(quantity * ingredient.unit_price).toFixed(2)}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${status.variant === "success" ? "bg-green-50 text-green-700" : status.variant === "warning" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                                {status.icon}{status.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-400 text-xs">{last_updated ? format(new Date(last_updated), "dd MMM, HH:mm") : "—"}</td>
+                            {/* Add Stock */}
+                            <td className="px-2 py-3">
+                              <Button variant="ghost" size="sm" title="Add stock" onClick={() => openAddStock(ingredient.id)}>
+                                <Plus size={13} />
+                              </Button>
+                            </td>
+                            {/* Stock Movements */}
+                            <td className="px-2 py-3">
+                              <Button variant="ghost" size="sm" title="Stock movements" onClick={() => openMovements(ingredient.id, ingredient.name)}>
+                                <History size={13} />
+                              </Button>
+                            </td>
+                            {/* Stock In Summary */}
+                            <td className="px-2 py-3">
+                              <Button variant="ghost" size="sm" title="Stock in summary" onClick={() => openStockIn(ingredient.id, ingredient.name, ingredient.default_unit, ingredient.unit_price)}>
+                                <PackagePlus size={13} />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Stock Movements Dialog ── */}
+      <Dialog
+        open={movementsOpen}
+        onOpenChange={(open) => { setMovementsOpen(open); if (!open) clearMovements(); }}
+        title={`Stock Movements — ${movementsIngredientName}`}
+        footer={<Button variant="outline" onClick={() => setMovementsOpen(false)}>Close</Button>}
+      >
+        <div className="space-y-3">
+          <DateFilterBar
+            preset={movementsPreset} setPreset={applyMovementsPreset}
+            customFrom={movementsCustomFrom} setCustomFrom={setMovementsCustomFrom}
+            customTo={movementsCustomTo} setCustomTo={setMovementsCustomTo}
+            onApplyCustom={() => {
+              const { from, to } = getDateRange("custom", movementsCustomFrom, movementsCustomTo);
+              fetchMovements(movementsIngredientId, from, to);
+            }}
+          />
+          <div className="max-h-[400px] overflow-y-auto">
+            {movementsLoading ? (
+              <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
+            ) : movementLogs.length === 0 ? (
+              <div className="text-center py-10">
+                <History size={32} className="text-gray-200 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">No stock changes in this period.</p>
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-gray-50/60">
-                    {["Ingredient", "Group", "Unit", "Unit Price", "Current Stock", "Stock Value", "Status", "Last Updated", "edit", "history"].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{["edit","history"].includes(h) ? "" : h}</th>
-                    ))}
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Date & Time</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Order</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Food Item</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Change</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Reason</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
-                  {filtered.map(({ ingredient, quantity, last_updated }) => {
-                    const status = stockStatus(quantity);
-                    return (
-                      <tr key={ingredient.id} className="hover:bg-gray-50/50">
-                        <td className="px-4 py-3 font-medium text-gray-900">{ingredient.name}</td>
-                        <td className="px-4 py-3">{ingredient.inventory_groups ? <Badge variant="purple">{ingredient.inventory_groups.name}</Badge> : <span className="text-gray-300 text-xs">—</span>}</td>
-                        <td className="px-4 py-3 text-gray-500">{ingredient.default_unit}</td>
-                        <td className="px-4 py-3 text-gray-600">৳{Number(ingredient.unit_price).toFixed(2)}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button onClick={async () => {
-                              const { error } = await adjustStock(ingredient.id, -1);
-                              if (error) toast.error("Failed to update");
-                            }} className="w-6 h-6 rounded-md border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors">
-                              <Minus size={11} />
-                            </button>
-                            <span className="font-semibold text-gray-900 min-w-[2.5rem] text-center">{quantity}</span>
-                            <button onClick={async () => {
-                              const { error } = await adjustStock(ingredient.id, 1);
-                              if (error) toast.error("Failed to update");
-                            }} className="w-6 h-6 rounded-md border border-gray-200 text-gray-500 hover:bg-green-50 hover:text-green-500 flex items-center justify-center transition-colors">
-                              <Plus size={11} />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600">৳{(quantity * ingredient.unit_price).toFixed(2)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${status.variant === "success" ? "bg-green-50 text-green-700" : status.variant === "warning" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
-                            {status.icon}{status.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-400 text-xs">{last_updated ? format(new Date(last_updated), "dd MMM, HH:mm") : "—"}</td>
-                        <td className="px-4 py-3">
-                          <Button variant="ghost" size="sm" onClick={() => {
-                            const s = stock.find((st) => st.ingredient_id === ingredient.id);
-                            openAdjust(s ?? { ingredient_id: ingredient.id, quantity });
-                          }}><Edit2 size={13} /></Button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Button variant="ghost" size="sm" title="View history" onClick={() => {
-                            setHistoryIngredientName(ingredient.name);
-                            fetchLogs(ingredient.id);
-                            setHistoryOpen(true);
-                          }}><History size={13} /></Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                <tbody className="divide-y divide-gray-50">
+                  {movementLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td className="py-2.5 pr-3 text-gray-400 text-xs whitespace-nowrap">{format(new Date(log.created_at), "dd MMM, HH:mm")}</td>
+                      <td className="py-2.5 pr-3 text-gray-600 text-xs">{log.order_number ?? "—"}</td>
+                      <td className="py-2.5 pr-3 text-gray-700 font-medium text-xs">{log.food_item_name ?? "—"}</td>
+                      <td className="py-2.5 pr-3 text-right font-semibold text-xs">
+                        <span className={log.quantity_change < 0 ? "text-red-600" : "text-green-600"}>
+                          {log.quantity_change > 0 ? "+" : ""}{Number(log.quantity_change).toFixed(3)}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-gray-400 text-xs capitalize">{log.reason.replace(/_/g, " ")}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}
+          </div>
         </div>
-      </div>
+      </Dialog>
 
-      {/* Inventory History Dialog */}
+      {/* ── Stock In Summary Dialog ── */}
       <Dialog
-        open={historyOpen}
-        onOpenChange={(open) => { setHistoryOpen(open); if (!open) clearLogs(); }}
-        title={`Stock History — ${historyIngredientName}`}
-        footer={<Button variant="outline" onClick={() => setHistoryOpen(false)}>Close</Button>}
+        open={stockInOpen}
+        onOpenChange={(open) => { setStockInOpen(open); if (!open) clearStockIn(); }}
+        title={`Stock In Summary — ${stockInIngredientName}`}
+        footer={<Button variant="outline" onClick={() => setStockInOpen(false)}>Close</Button>}
       >
-        <div className="space-y-2 max-h-[420px] overflow-y-auto">
-          {historyLoading ? (
-            <p className="text-sm text-gray-400 text-center py-8">Loading history…</p>
-          ) : historyLogs.length === 0 ? (
-            <div className="text-center py-10">
-              <History size={32} className="text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">No stock changes recorded yet.</p>
-              <p className="text-xs text-gray-300 mt-1">Changes appear here after orders are completed.</p>
-            </div>
+        <div className="space-y-3">
+          <DateFilterBar
+            preset={stockInPreset} setPreset={applyStockInPreset}
+            customFrom={stockInCustomFrom} setCustomFrom={setStockInCustomFrom}
+            customTo={stockInCustomTo} setCustomTo={setStockInCustomTo}
+            onApplyCustom={() => {
+              const { from, to } = getDateRange("custom", stockInCustomFrom, stockInCustomTo);
+              fetchStockIn(stockInIngredientName, from, to);
+            }}
+          />
+
+          {stockInLoading ? (
+            <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Date & Time</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Order</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Food Item</th>
-                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Change</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Reason</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {historyLogs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="py-2.5 pr-3 text-gray-400 text-xs whitespace-nowrap">
-                      {format(new Date(log.created_at), "dd MMM, HH:mm")}
-                    </td>
-                    <td className="py-2.5 pr-3 text-gray-600 text-xs">{log.order_number ?? "—"}</td>
-                    <td className="py-2.5 pr-3 text-gray-700 font-medium text-xs">{log.food_item_name ?? "—"}</td>
-                    <td className="py-2.5 pr-3 text-right font-semibold text-xs">
-                      <span className={log.quantity_change < 0 ? "text-red-600" : "text-green-600"}>
-                        {log.quantity_change > 0 ? "+" : ""}{Number(log.quantity_change).toFixed(3)}
-                      </span>
-                    </td>
-                    <td className="py-2.5 text-gray-400 text-xs capitalize">{log.reason.replace(/_/g, " ")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <>
+              {/* Summary totals */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+                  <p className="text-xs text-green-600 font-semibold uppercase tracking-wide mb-1">Total Quantity In</p>
+                  <p className="text-xl font-bold text-green-700">{totalStockIn.toFixed(2)} <span className="text-sm font-normal">{stockInUnit}</span></p>
+                  <p className="text-xs text-green-500 mt-0.5">{stockInEntries.length} restock entries</p>
+                </div>
+                <div className="bg-orange-50 border border-orange-100 rounded-xl px-4 py-3">
+                  <p className="text-xs text-orange-600 font-semibold uppercase tracking-wide mb-1">Total Cost</p>
+                  <p className="text-xl font-bold text-orange-700">৳{totalStockInCost.toFixed(2)}</p>
+                  <p className="text-xs text-orange-500 mt-0.5">৳{stockInUnitPrice.toFixed(2)} / {stockInUnit}</p>
+                </div>
+              </div>
+
+              {/* Restock entries table */}
+              {stockInEntries.length === 0 ? (
+                <div className="text-center py-8">
+                  <PackagePlus size={32} className="text-gray-200 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">No stock added in this period.</p>
+                </div>
+              ) : (
+                <div className="max-h-[300px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Date & Time</th>
+                        <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Qty Added</th>
+                        <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Cost</th>
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {stockInEntries.map((entry) => (
+                        <tr key={entry.id}>
+                          <td className="py-2.5 pr-3 text-gray-400 text-xs whitespace-nowrap">{format(new Date(entry.date), "dd MMM yyyy")}</td>
+                          <td className="py-2.5 pr-3 text-right font-semibold text-xs text-green-600">
+                            +{entry.qty.toFixed(2)} {stockInUnit}
+                          </td>
+                          <td className="py-2.5 pr-3 text-right text-xs text-gray-700 font-medium">
+                            ৳{entry.amount.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 text-gray-400 text-xs">Manual restock</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </div>
       </Dialog>
 
-      {/* Adjust Stock Dialog */}
-      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen} title="Adjust Stock"
-        footer={<><Button variant="outline" onClick={() => setAdjustOpen(false)}>Cancel</Button><Button onClick={handleAdjust} loading={saving}>Save</Button></>}>
+      {/* ── Add Stock Dialog ── */}
+      <Dialog
+        open={adjustOpen}
+        onOpenChange={setAdjustOpen}
+        title="Add Stock"
+        footer={
+          <><Button variant="outline" onClick={() => setAdjustOpen(false)}>Cancel</Button>
+          <Button onClick={handleAddStock} loading={saving}>Add Stock</Button></>
+        }
+      >
         {adjustIngredient && (
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-lg px-4 py-3">
               <p className="font-medium text-gray-800">{adjustIngredient.name}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Current stock: <strong>{adjustItem?.quantity ?? 0} {adjustIngredient.default_unit}</strong></p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Current stock: <strong>{adjustItem?.quantity ?? 0} {adjustIngredient.default_unit}</strong>
+              </p>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-700">Date</label>
+              <input
+                type="date"
+                value={restockDate}
+                max={(() => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; })()}
+                onChange={(e) => setRestockDate(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+              {restockDate !== (() => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; })() && (
+                <p className="text-xs text-amber-600">Backdated entry — recording for a previous date</p>
+              )}
+            </div>
+
             <Input
-              label={`New Quantity (${adjustIngredient.default_unit})`}
-              type="number" min="0" step="0.01"
-              value={newQty}
-              onChange={(e) => setNewQty(e.target.value)}
+              label={`Quantity to Add (${adjustIngredient.default_unit})`}
+              type="number" min="0.01" step="0.01" placeholder="0"
+              value={addQty}
+              onChange={(e) => setAddQty(e.target.value)}
               hint={`Unit price: ৳${adjustIngredient.unit_price} / ${adjustIngredient.default_unit}`}
             />
-            {newQty !== "" && !isNaN(parseFloat(newQty)) && (
-              <div className="bg-orange-50 rounded-lg px-4 py-3">
-                <p className="text-sm text-orange-700">New stock value: <strong>৳{(parseFloat(newQty) * adjustIngredient.unit_price).toFixed(2)}</strong></p>
+
+            {addQtyNum > 0 && !isNaN(addQtyNum) && (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5">
+                <p className="text-xs text-blue-700">
+                  New total: <strong>{((adjustItem?.quantity ?? 0) + addQtyNum).toFixed(2)} {adjustIngredient.default_unit}</strong>
+                </p>
+              </div>
+            )}
+
+            {addedAmount > 0 && (
+              <div className="bg-orange-50 border border-orange-100 rounded-lg px-4 py-3 space-y-3">
+                <p className="text-sm font-medium text-orange-700">
+                  Cost: <strong>৳{addedAmount.toFixed(2)}</strong> — will be logged as a Kitchen Expense
+                </p>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">Payment Status</p>
+                  <div className="flex rounded-lg border border-gray-200 overflow-hidden w-fit">
+                    {([
+                      { value: "paid", label: "Paid" },
+                      { value: "due", label: "Unpaid / Due" },
+                    ] as { value: "paid" | "due"; label: string }[]).map((s) => (
+                      <button key={s.value} onClick={() => setPaymentStatus(s.value)}
+                        className={`px-4 py-1.5 text-xs font-semibold transition-colors ${
+                          paymentStatus === s.value ? "bg-orange-500 text-white" : "text-gray-500 hover:bg-gray-50"
+                        }`}>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">Payment Method</p>
+                  <select value={paymentMethodId} onChange={(e) => setPaymentMethodId(e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <option value="">Select payment method…</option>
+                    {activePayments.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">Vendor <span className="text-gray-400">(optional)</span></p>
+                  <select value={restockVendorId} onChange={(e) => setRestockVendorId(e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <option value="">Select vendor…</option>
+                    {vendors.map((v: any) => <option key={v.id} value={v.id}>{v.name}{v.phone ? ` · ${v.phone}` : ""}</option>)}
+                  </select>
+                </div>
               </div>
             )}
           </div>

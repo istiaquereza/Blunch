@@ -406,6 +406,8 @@ export default function DashboardPage() {
 
   // Low stock food items (availability_type='quantity', available_quantity<=10)
   const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+  // Low stock ingredients from food_stock (quantity <= 5)
+  const [lowStockIngredients, setLowStockIngredients] = useState<any[]>([]);
 
 
   // ── Fetch ──
@@ -451,6 +453,7 @@ export default function DashboardPage() {
       { data: prevOrderData },
       { data: dueData },
       { data: lowStockData },
+      { data: lowIngData },
     ] = await Promise.all([
       txQ,
       orderQ,
@@ -469,6 +472,12 @@ export default function DashboardPage() {
         .lte("available_quantity", 10)
         .in("food_item_restaurants.restaurant_id", rIds)
         .order("available_quantity", { ascending: true }),
+      // Low stock ingredients from food_stock (qty <= 5)
+      supabase.from("food_stock")
+        .select("id, quantity, ingredient_id, ingredients(id, name, default_unit)")
+        .in("restaurant_id", rIds)
+        .lte("quantity", 5)
+        .order("quantity", { ascending: true }),
     ]);
 
     setTransactions(txData ?? []);
@@ -477,6 +486,7 @@ export default function DashboardPage() {
     setPrevOrders(prevOrderData ?? []);
     setDueTx(dueData ?? []);
     setLowStockItems(lowStockData ?? []);
+    setLowStockIngredients((lowIngData ?? []).filter((s: any) => s.ingredients));
 
     // Fetch ingredient costs for food items in these orders
     let costMap = new Map<string, number>();
@@ -847,23 +857,24 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Alert Card ──────────────────────────────────────────────────── */}
-        {(lowStockItems.length > 0 || dueTx.length > 0) && (
+        {(lowStockItems.length > 0 || lowStockIngredients.length > 0 || dueTx.length > 0) && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
               <Bell size={15} className="text-amber-600" />
               <h3 className="text-sm font-semibold text-amber-800">Alerts</h3>
               <span className="text-xs font-bold bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">
-                {lowStockItems.length + (dueTx.length > 0 ? 1 : 0)}
+                {lowStockItems.length + lowStockIngredients.length + (dueTx.length > 0 ? 1 : 0)}
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
+              {/* Food menu items with low quantity */}
               {lowStockItems.map(item => {
                 const qty = item.available_quantity ?? 0;
                 const isEmpty = qty === 0;
                 const isCritical = qty > 0 && qty <= 3;
                 return (
                   <div
-                    key={item.id}
+                    key={`fi-${item.id}`}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${
                       isEmpty
                         ? "bg-red-50 border-red-200 text-red-700"
@@ -875,17 +886,38 @@ export default function DashboardPage() {
                     <Package size={11} />
                     <span className="max-w-[120px] truncate">{item.name}</span>
                     <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
-                      isEmpty
-                        ? "bg-red-100 text-red-700"
-                        : isCritical
-                        ? "bg-orange-100 text-orange-700"
-                        : "bg-yellow-100 text-yellow-700"
+                      isEmpty ? "bg-red-100 text-red-700" : isCritical ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"
                     }`}>
-                      {isEmpty ? "Empty" : isCritical ? `${qty} left` : `${qty} left`}
+                      {isEmpty ? "Empty" : `${qty} left`}
                     </span>
                   </div>
                 );
               })}
+              {/* Ingredients with low stock */}
+              {lowStockIngredients.map(stock => {
+                const qty = stock.quantity ?? 0;
+                const isEmpty = qty <= 0;
+                const unit = stock.ingredients?.default_unit ?? "";
+                return (
+                  <div
+                    key={`ing-${stock.id}`}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${
+                      isEmpty
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : "bg-yellow-50 border-yellow-200 text-yellow-700"
+                    }`}
+                  >
+                    <Package size={11} />
+                    <span className="max-w-[120px] truncate">{stock.ingredients?.name}</span>
+                    <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
+                      isEmpty ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
+                    }`}>
+                      {isEmpty ? "Empty" : `${qty} ${unit}`}
+                    </span>
+                  </div>
+                );
+              })}
+              {/* Due payments */}
               {dueTx.length > 0 && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-purple-50 border-purple-200 text-purple-700">
                   <AlertCircle size={11} />

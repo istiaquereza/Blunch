@@ -20,6 +20,8 @@ import {
   Banknote,
   History,
   BarChart2,
+  ShieldCheck,
+  Truck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -81,13 +83,15 @@ export const navItems: NavItem[] = [
     ],
   },
   {
-    title: "Staff Management",
+    title: "User Management",
     href: "/staff",
     icon: UserCog,
     children: [
       { title: "Staff Information", href: "/staff/information", icon: BadgeCheck },
       { title: "Leave Calendar", href: "/staff/leave-calendar", icon: CalendarDays },
       { title: "Staff Payroll", href: "/staff/payroll", icon: Banknote },
+      { title: "Roles & Access", href: "/staff/app-users", icon: ShieldCheck },
+      { title: "Vendors", href: "/staff/vendors", icon: Truck },
     ],
   },
   {

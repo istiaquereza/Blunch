@@ -17,18 +17,40 @@ export function useProductRequisitions(restaurantId?: string) {
   const fetch = useCallback(async () => {
     if (!restaurantId) { setRequisitions([]); return; }
     setLoading(true);
-    const { data } = await supabase
+
+    // Try with payment_methods join first (requires migration 20260324_bazar_payment_method)
+    const { data, error } = await supabase
       .from("product_requisitions")
       .select(`
         *,
+        vendors(id, name, phone),
+        payment_methods(id, name),
         product_requisition_items(
           *,
           ingredients(id, name, default_unit, unit_price, unit_type)
         )
       `)
       .eq("restaurant_id", restaurantId)
-      .order("requisition_date", { ascending: false });
-    setRequisitions(data ?? []);
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      // Fallback: fetch without payment_methods join (migration not yet applied)
+      const { data: fallback } = await supabase
+        .from("product_requisitions")
+        .select(`
+          *,
+          vendors(id, name, phone),
+          product_requisition_items(
+            *,
+            ingredients(id, name, default_unit, unit_price, unit_type)
+          )
+        `)
+        .eq("restaurant_id", restaurantId)
+        .order("created_at", { ascending: false });
+      setRequisitions(fallback ?? []);
+    } else {
+      setRequisitions(data ?? []);
+    }
     setLoading(false);
   }, [restaurantId]);
 
@@ -63,14 +85,20 @@ export function useProductRequisitions(restaurantId?: string) {
     notes: string,
     items: { ingredient_id: string; quantity: number; unit_price: number; total_price?: number; unit?: string }[],
     targetRestaurantId?: string,
-    payment_status: "paid" | "due" = "paid"
+    payment_status: "paid" | "due" = "paid",
+    vendor_id?: string,
+    payment_method_id?: string
   ) => {
     const rid = targetRestaurantId ?? restaurantId;
     if (!rid) return { error: new Error("No restaurant") };
 
+    const insertPayload: Record<string, unknown> = { restaurant_id: rid, requisition_date: date, notes, status: "submitted", payment_status };
+    if (vendor_id) insertPayload.vendor_id = vendor_id;
+    if (payment_method_id) insertPayload.payment_method_id = payment_method_id;
+
     const { data: req, error: reqErr } = await supabase
       .from("product_requisitions")
-      .insert({ restaurant_id: rid, requisition_date: date, notes, status: "submitted", payment_status })
+      .insert(insertPayload)
       .select()
       .single();
     if (reqErr) return { error: reqErr };
@@ -89,12 +117,16 @@ export function useProductRequisitions(restaurantId?: string) {
     date: string,
     notes: string,
     items: { ingredient_id: string; quantity: number; unit_price: number; total_price?: number; unit?: string }[],
-    payment_status?: "paid" | "due"
+    payment_status?: "paid" | "due",
+    vendor_id?: string,
+    payment_method_id?: string
   ) => {
     const updatePayload: Record<string, unknown> = {
       requisition_date: date,
       notes,
       updated_at: new Date().toISOString(),
+      vendor_id: vendor_id ?? null,
+      payment_method_id: payment_method_id ?? null,
     };
     if (payment_status) updatePayload.payment_status = payment_status;
 
@@ -119,11 +151,33 @@ export function useProductRequisitions(restaurantId?: string) {
     return { error: null };
   };
 
-  const approve = async (id: string) => {
-    // Update requisition status
+  const approve = async (id: string, memoFile?: File) => {
+    // Upload memo document if provided
+    let memoUrl: string | undefined;
+    if (memoFile) {
+      const ext = memoFile.name.split(".").pop() ?? "bin";
+      const path = `${id}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("bazar-memos")
+        .upload(path, memoFile, { upsert: true });
+      if (uploadErr) {
+        console.error("Memo upload error:", uploadErr);
+        return { error: new Error(`Memo upload failed: ${uploadErr.message}`) };
+      }
+      const { data: urlData } = supabase.storage.from("bazar-memos").getPublicUrl(path);
+      memoUrl = urlData.publicUrl;
+    }
+
+    // Update requisition status (+ memo_url if uploaded)
+    const updatePayload: Record<string, unknown> = {
+      status: "approved",
+      updated_at: new Date().toISOString(),
+    };
+    if (memoUrl) updatePayload.memo_url = memoUrl;
+
     const { error } = await supabase
       .from("product_requisitions")
-      .update({ status: "approved", updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq("id", id);
 
     if (!error) {

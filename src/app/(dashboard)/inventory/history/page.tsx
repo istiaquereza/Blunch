@@ -382,60 +382,60 @@ export default function InventoryHistoryPage() {
       <div className="p-4 md:p-6 space-y-4">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white rounded-xl border border-border px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={preset}
-              onChange={(e) => handlePreset(e.target.value as DatePreset)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              {PRESETS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
-
-            {preset === "custom" && (
-              <>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-                <span className="text-gray-400 text-sm">→</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </>
-            )}
-
-            <div className="flex-1" />
-
-            {/* Search */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search ingredient…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-sm text-gray-700 w-44 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <svg
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-                width={13}
-                height={13}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
+        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-2 flex-wrap">
+          {/* Date preset tabs */}
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            {PRESETS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => handlePreset(p.value)}
+                className={`h-7 px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                  preset === p.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
               >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {preset === "custom" && (
+            <div className="flex items-center gap-1.5">
+              <Calendar size={13} className="text-gray-400" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <span className="text-gray-400 text-xs">→</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
             </div>
+          )}
+
+          <div className="flex-1" />
+
+          {/* Search */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search ingredient…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+            <svg
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+              width={13} height={13} viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth={2}
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
           </div>
         </div>
 
@@ -505,13 +505,13 @@ export default function InventoryHistoryPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[700px]">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Ingredient</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Unit</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Consumed</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Opening Stock</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Current Stock</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Status</th>
+                  <tr className="border-b border-gray-200 bg-gray-100">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Ingredient</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Unit</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Consumed</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Opening Stock</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Current Stock</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -585,7 +585,6 @@ function DailyBreakdownRow({
             <p className="text-xs text-gray-400">{entries.length} ingredients consumed</p>
           </div>
         </div>
-        <span className="text-sm font-semibold text-orange-600">{totalQty.toFixed(2)} units total</span>
       </button>
 
       {expanded && (
