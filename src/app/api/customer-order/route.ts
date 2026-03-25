@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { registerCustomerOrder } from "@/lib/customer-order-store";
 
 export async function POST(req: Request) {
   const supabase = createAdminClient();
@@ -34,8 +33,10 @@ export async function POST(req: Request) {
   const calcSubtotal: number = subtotal ??
     items.reduce((s: number, i: { unit_price: number; quantity: number }) => s + i.unit_price * i.quantity, 0);
 
-  // Base payload — only columns that are guaranteed to exist in the orders table
-  const payload: Record<string, unknown> = {
+  // 2. Insert order — try with `source` column (post-migration), fall back to base payload
+  let order: Record<string, unknown> | null = null;
+
+  const basePayload = {
     restaurant_id,
     type: "dine_in",
     status: "active",
@@ -48,17 +49,14 @@ export async function POST(req: Request) {
     total: total ?? calcSubtotal,
   };
 
-  // Try with `source` column first (available after migration), fall back to base payload
-  let order: Record<string, unknown> | null = null;
-
   const { data: withSrc, error: srcErr } = await supabase
-    .from("orders").insert({ ...payload, source: "customer" }).select().single();
+    .from("orders").insert({ ...basePayload, source: "customer" }).select().single();
 
   if (!srcErr && withSrc) {
     order = withSrc;
   } else {
     const { data: withoutSrc, error: fallbackErr } = await supabase
-      .from("orders").insert(payload).select().single();
+      .from("orders").insert(basePayload).select().single();
     if (fallbackErr || !withoutSrc) {
       console.error("[customer-order] insert error:", JSON.stringify(fallbackErr));
       return NextResponse.json(
@@ -69,13 +67,10 @@ export async function POST(req: Request) {
     order = withoutSrc;
   }
 
-  if (!order) {
-    return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
-  }
+  const orderId = (order as Record<string, unknown>).id as string;
+  const orderNumber = (order as Record<string, unknown>).order_number;
 
-  const orderId = order.id as string;
-
-  // 2. Insert order items
+  // 3. Insert order items
   const { error: itemsErr } = await supabase.from("order_items").insert(
     items.map((i: { food_item_id: string; quantity: number; unit_price: number }) => ({
       order_id: orderId,
@@ -92,8 +87,5 @@ export async function POST(req: Request) {
     // Order was created — return it anyway so customer sees confirmation
   }
 
-  // 3. Register in in-memory store so admin page can detect it as a customer order
-  registerCustomerOrder(orderId);
-
-  return NextResponse.json({ orderId, orderNumber: order.order_number });
+  return NextResponse.json({ orderId, orderNumber });
 }

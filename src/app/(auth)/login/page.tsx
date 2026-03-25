@@ -55,17 +55,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex bg-white p-3 gap-3 overflow-hidden">
 
-      {/* ── Left panel: full height gradient + quote ── */}
+      {/* ── Left panel: padded + rounded, scales with viewport ── */}
       <div
-        className="hidden lg:flex lg:w-[45%] xl:w-1/2 relative flex-col justify-between p-12"
+        className="hidden lg:flex lg:w-[45%] xl:w-1/2 relative flex-col justify-between p-8 xl:p-12 rounded-3xl shrink-0 overflow-hidden"
         style={{
           background: "linear-gradient(145deg, #0d0400 0%, #3a0d00 25%, #7a1a00 55%, #c42800 80%, #fd2400 100%)",
         }}
       >
         {/* Decorative circles */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-3xl">
           <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-10"
             style={{ background: "radial-gradient(circle, #ff8c00, transparent)" }} />
           <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full opacity-10"
@@ -86,7 +86,7 @@ export default function LoginPage() {
 
         {/* Bottom quote */}
         <div className="relative z-10">
-          <h2 className="text-white text-5xl xl:text-6xl font-bold leading-tight mb-5">
+          <h2 className="text-white text-3xl xl:text-5xl 2xl:text-6xl font-bold leading-tight mb-4">
             Great Food<br />
             Starts With<br />
             Great Systems
@@ -98,10 +98,10 @@ export default function LoginPage() {
       </div>
 
       {/* ── Right panel: form ── */}
-      <div className="flex-1 bg-white flex flex-col min-h-screen">
+      <div className="flex-1 bg-white flex flex-col h-full overflow-y-auto">
 
         {/* Logo */}
-        <div className="px-8 sm:px-12 pt-8 sm:pt-10">
+        <div className="px-8 sm:px-12 pt-6 sm:pt-8 shrink-0">
           <div className="inline-flex items-center gap-2">
             <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">B</span>
@@ -111,7 +111,7 @@ export default function LoginPage() {
         </div>
 
         {/* Form area — centred vertically */}
-        <div className="flex-1 flex items-center justify-center px-8 sm:px-12 py-10">
+        <div className="flex-1 flex items-center justify-center px-8 sm:px-12 py-6">
           <div className="w-full max-w-sm">
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">Welcome Back</h1>
             <p className="text-gray-500 text-sm mb-8">
@@ -189,7 +189,7 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <div className="px-8 sm:px-12 pb-8 text-center">
+        <div className="px-8 sm:px-12 pb-6 text-center shrink-0">
           <p className="text-sm text-gray-500">
             Don&apos;t have an account?{" "}
             <Link

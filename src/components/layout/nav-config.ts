@@ -81,6 +81,7 @@ export const navItems: NavItem[] = [
     children: [
       { title: "New Order", href: "/orders/order", icon: ShoppingCart },
       { title: "Order Details", href: "/orders/order-details", icon: ClipboardList },
+      { title: "Customer Order", href: "/customer-order", icon: QrCode },
     ],
   },
   {
@@ -94,11 +95,6 @@ export const navItems: NavItem[] = [
       { title: "Roles & Access", href: "/staff/app-users", icon: ShieldCheck },
       { title: "Vendors", href: "/staff/vendors", icon: Truck },
     ],
-  },
-  {
-    title: "Customer Order",
-    href: "/customer-order",
-    icon: QrCode,
   },
   {
     title: "Analytics",

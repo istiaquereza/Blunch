@@ -94,7 +94,19 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
   const displayStatus = isDeleted ? "deleted" : order.status;
   const cfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG.active;
   const StatusIcon = cfg.icon;
-  const items = order.order_items ?? [];
+  // Deduplicate items with same food_item_id (can occur from sync race conditions)
+  const rawItems = order.order_items ?? [];
+  const items = Object.values(
+    rawItems.reduce((acc: Record<string, typeof rawItems[0]>, item) => {
+      const key = item.food_item_id;
+      if (!acc[key]) {
+        acc[key] = { ...item };
+      } else {
+        acc[key] = { ...acc[key], quantity: acc[key].quantity + item.quantity };
+      }
+      return acc;
+    }, {})
+  );
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
   const isCancelled = order.status === "cancelled";
   const canDelete = !isCancelled && !isDeleted;
@@ -132,6 +144,11 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
             }`}>
               {order.type === "dine_in" ? "Dine In" : "Takeaway"}
             </span>
+            {order.source === "customer" && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-700 border border-orange-200">
+                📱 QR
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
             {order.tables && (
@@ -140,7 +157,7 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
               </span>
             )}
             {order.customers && (
-              <span className="text-xs text-gray-400 flex items-center gap-1">
+              <span className="text-xs text-gray-500 flex items-center gap-1 font-medium">
                 <Users size={10} /> {order.customers.name}
               </span>
             )}
@@ -312,8 +329,181 @@ const STATUS_OPTIONS = [
   { value: "deleted",   label: "Deleted" },
 ];
 
+type PageView = "orders" | "time-logs";
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+}
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+function diffMins(a: string, b: string): number | null {
+  const ms = new Date(b).getTime() - new Date(a).getTime();
+  if (ms <= 0) return null;
+  return Math.max(1, Math.round(ms / 60000));
+}
+
+function fmtDur(mins: number) {
+  return mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+}
+
+const STATUS_CHIP: Record<string, { label: string; cls: string }> = {
+  active:    { label: "Active",    cls: "bg-blue-50 text-blue-600" },
+  billed:    { label: "Billed",    cls: "bg-yellow-50 text-yellow-700" },
+  cancelled: { label: "Cancelled", cls: "bg-red-50 text-red-500" },
+  completed: { label: "Completed", cls: "bg-green-50 text-green-700" },
+};
+
+function TimeLogCard({ order }: { order: Order }) {
+  const started = order.created_at;
+  const isCompleted = order.status === "completed";
+  const closed = isCompleted ? order.updated_at : null;
+  const durationMins = closed ? diffMins(started, closed) : null;
+
+  // Kitchen time: read from localStorage (set when Kitchen/Reprint is hit in New Order page)
+  // Also fall back to confirmed_at if the DB migration has been run
+  const kitchenAt: string | null = (() => {
+    try { return localStorage.getItem(`kitchen_${order.id}`) || ((order as any).confirmed_at ?? null); } catch { return null; }
+  })();
+  const billedAtStored: string | null = (() => {
+    try { return localStorage.getItem(`billed_${order.id}`) || null; } catch { return null; }
+  })();
+  const kitchenDuration = kitchenAt && closed ? diffMins(kitchenAt, closed) : null;
+
+  // QR order = customer order via QR link — requires source column (run migration 20260325_order_confirm.sql)
+  const isQrOrder = order.source === "customer";
+  const guestName = order.customers?.name;
+  const statusChip = STATUS_CHIP[order.status] ?? STATUS_CHIP.active;
+  const fmt = (n: number) => "৳" + n.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-sm font-bold text-gray-900">{order.order_number}</p>
+            {isQrOrder ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-700 border border-orange-200">
+                📱 QR Order
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 border border-gray-200">
+                🧑‍🍳 Staff
+              </span>
+            )}
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${statusChip.cls}`}>
+              {statusChip.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <p className="text-xs text-gray-400">{fmtDate(order.created_at)}</p>
+            {order.tables && (
+              <p className="text-xs text-gray-400">· Table {(order.tables as any).table_number}</p>
+            )}
+            {guestName && (
+              <p className="text-xs text-gray-500 font-medium">· 👤 {guestName}</p>
+            )}
+          </div>
+        </div>
+        <p className="text-sm font-bold text-gray-900 shrink-0">{fmt(order.total || order.subtotal)}</p>
+      </div>
+
+      {/* Timeline */}
+      <div className="flex flex-col gap-0">
+        {/* Start */}
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex flex-col items-center shrink-0">
+            <span className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-sm">🕐</span>
+            <div className="w-px h-4 bg-gray-200 mt-0.5" />
+          </div>
+          <div className="pb-2">
+            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Order Started</p>
+            <p className="text-gray-800 font-semibold">{fmtTime(started)}</p>
+          </div>
+        </div>
+
+        {/* Kitchen */}
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex flex-col items-center shrink-0">
+            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm ${kitchenAt ? "bg-orange-100" : "bg-gray-50 border border-dashed border-gray-200"}`}>
+              🍳
+            </span>
+            <div className="w-px h-4 bg-gray-200 mt-0.5" />
+          </div>
+          <div className="pb-2">
+            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Kitchen Start</p>
+            {kitchenAt ? (
+              <p className="text-gray-800 font-semibold">{fmtTime(kitchenAt)}</p>
+            ) : (
+              <p className="text-gray-300 font-medium">—</p>
+            )}
+          </div>
+          {kitchenAt && kitchenDuration != null && (
+            <span className="ml-auto text-[10px] bg-orange-50 text-orange-700 font-semibold px-2 py-0.5 rounded-full">
+              {fmtDur(kitchenDuration)} in kitchen
+            </span>
+          )}
+        </div>
+
+        {/* Billed (from localStorage) */}
+        {billedAtStored && !isCompleted && (
+          <div className="flex items-center gap-3 text-xs">
+            <div className="flex flex-col items-center shrink-0">
+              <span className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-sm">🧾</span>
+              <div className="w-px h-4 bg-gray-200 mt-0.5" />
+            </div>
+            <div className="pb-2">
+              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Bill Printed</p>
+              <p className="text-gray-800 font-semibold">{fmtTime(billedAtStored)}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Completed / Status */}
+        <div className="flex items-center gap-3 text-xs">
+          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 ${
+            isCompleted ? "bg-green-100" : order.status === "billed" ? "bg-amber-50" : "bg-blue-50"
+          }`}>
+            {isCompleted ? "✅" : order.status === "billed" ? "🧾" : order.status === "cancelled" ? "❌" : "⏳"}
+          </span>
+          <div>
+            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+              {isCompleted ? "Order Completed" : order.status === "billed" ? "Awaiting Payment" : order.status === "cancelled" ? "Cancelled" : "In Progress"}
+            </p>
+            {closed ? (
+              <p className="text-gray-800 font-semibold">{fmtTime(closed)}</p>
+            ) : (
+              <p className="text-gray-400 italic text-[11px]">Not yet closed</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Duration footer */}
+      {durationMins != null ? (
+        <div className="bg-green-50 rounded-xl px-3 py-2 flex justify-between text-xs border border-green-100">
+          <span className="text-green-700 font-medium">Total duration</span>
+          <span className="text-green-800 font-bold">{fmtDur(durationMins)}</span>
+        </div>
+      ) : (
+        <div className="bg-blue-50 rounded-xl px-3 py-2 flex justify-between text-xs border border-blue-100">
+          <span className="text-blue-600 font-medium">Elapsed since open</span>
+          <span className="text-blue-700 font-bold">
+            {(() => {
+              const m = Math.round((Date.now() - new Date(started).getTime()) / 60000);
+              return fmtDur(Math.max(1, m));
+            })()}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OrderDetailsPage() {
   const { activeRestaurant } = useRestaurant();
+  const [view, setView] = useState<PageView>("orders");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState(weekStart());
   const [dateTo, setDateTo] = useState(today());
@@ -399,6 +589,22 @@ export default function OrderDetailsPage() {
       <Header title="Order Details" />
 
       <div className="p-4 md:p-6 space-y-4">
+
+        {/* ── Tabs ── */}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+          {(["orders", "time-logs"] as PageView[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`h-8 px-4 rounded-lg text-xs font-semibold transition-all ${
+                view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {v === "orders" ? "Orders" : "Time Logs"}
+            </button>
+          ))}
+        </div>
+
         {/* ── Toolbar ── */}
         <div className="bg-white border border-border rounded-xl p-3 flex flex-wrap items-center gap-2">
           {/* Date preset pills */}
@@ -478,8 +684,23 @@ export default function OrderDetailsPage() {
           ))}
         </div>
 
+        {/* ── Time Logs view ── */}
+        {view === "time-logs" && (
+          loading ? (
+            <div className="text-center text-sm text-gray-400 py-10">Loading…</div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="text-center text-sm text-gray-400 py-10">No orders found for the selected filters.</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {filteredOrders.map((order) => (
+                <TimeLogCard key={order.id} order={order} />
+              ))}
+            </div>
+          )
+        )}
+
         {/* ── Orders table ── */}
-        {loading ? (
+        {view === "orders" && (loading ? (
           <div className="text-center text-sm text-gray-400 py-10">Loading orders…</div>
         ) : !activeRestaurant ? (
           <div className="bg-white rounded-xl border border-gray-100 p-10 text-center text-sm text-gray-400">
@@ -515,7 +736,7 @@ export default function OrderDetailsPage() {
               </div>
             )}
           </div>
-        )}
+        ))}
       </div>
 
       {/* Delete confirmation modal */}

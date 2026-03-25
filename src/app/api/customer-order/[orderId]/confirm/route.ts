@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { confirmCustomerOrder, registerCustomerOrder } from "@/lib/customer-order-store";
+import { registerCustomerOrder, confirmCustomerOrder } from "@/lib/customer-order-store";
 
 export async function PATCH(
   req: Request,
@@ -16,17 +16,23 @@ export async function PATCH(
 
   const confirmedAt = new Date().toISOString();
 
-  // Persist in in-memory store (works without any DB migration)
-  registerCustomerOrder(orderId); // ensure it's registered even if server restarted
+  // Always store in-memory as immediate fallback (survives within same process/request)
+  registerCustomerOrder(orderId);
   confirmCustomerOrder(orderId, confirmedAt, prep_time_minutes);
 
-  // Also try updating DB columns if migration has been run (best-effort, no error if columns missing)
+  // Also persist to DB (works after migration — required for Vercel/serverless)
   const supabase = createAdminClient();
-  await supabase
+  const { error } = await supabase
     .from("orders")
     .update({ prep_time_minutes, confirmed_at: confirmedAt })
-    .eq("id", orderId)
-    .then(() => {/* ignore error — columns may not exist yet */});
+    .eq("id", orderId);
+
+  if (error) {
+    console.error("[confirm] DB update error (run migration to fix):", error.message);
+    // Return success anyway — in-memory store covers local dev
+    // On Vercel (serverless), this means customer page may not see the update
+    // until the migration is run
+  }
 
   return NextResponse.json({ ok: true, prep_time_minutes, confirmed_at: confirmedAt });
 }

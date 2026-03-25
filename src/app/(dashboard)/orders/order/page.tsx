@@ -71,6 +71,11 @@ interface OrderDraft {
   isCustomerOrder?: boolean;
   confirmedAt?: string;
   prepTimeMinutes?: number;
+  // Time tracking
+  startedAt?: string;       // when first item added
+  kitchenPrints?: string[]; // timestamps of each Kitchen/Reprint hit
+  billedAt?: string;        // when Bill hit
+  closedAt?: string;        // when Complete Order hit
 }
 
 function newDraft(label = "New Order"): OrderDraft {
@@ -93,6 +98,10 @@ function newDraft(label = "New Order"): OrderDraft {
     isCustomerOrder: false,
     confirmedAt: undefined,
     prepTimeMinutes: undefined,
+    startedAt: undefined,
+    kitchenPrints: [],
+    billedAt: undefined,
+    closedAt: undefined,
   };
 }
 
@@ -124,6 +133,25 @@ function calcTotals(
   const serviceCharge = (afterDiscount * (billing?.service_charge_percentage ?? 0)) / 100;
   const total = afterDiscount + vatAmount + serviceCharge;
   return { subtotal, discountAmount, vatAmount, serviceCharge, total };
+}
+
+// ─── Time helpers ─────────────────────────────────────────────────────────────
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
+function ElapsedTimer({ since }: { since: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = new Date(since).getTime();
+    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [since]);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  return <span className="font-mono tabular-nums">{m}m {String(s).padStart(2, "0")}s</span>;
 }
 
 // ─── Kitchen Print ────────────────────────────────────────────────────────────
@@ -309,11 +337,48 @@ function OrderCard({
   // Done state
   if (draft.stage === "done") {
     return (
-      <div className="w-full md:flex-shrink-0 md:w-64 bg-green-50 border-2 border-green-300 rounded-2xl flex flex-col items-center justify-center gap-2 p-6 text-center min-h-[120px] md:min-h-[280px]">
-        <CheckCircle size={36} className="text-green-500" />
+      <div className="w-full md:flex-shrink-0 md:w-64 bg-green-50 border-2 border-green-300 rounded-2xl flex flex-col items-center justify-center gap-2 p-5 text-center min-h-[120px] md:min-h-[280px]">
+        <CheckCircle size={30} className="text-green-500" />
         <p className="font-bold text-green-800">{draft.orderNumber ?? draft.label}</p>
         <p className="text-xl font-bold text-green-700">{fmt(totals.total)}</p>
-        <p className="text-xs text-green-500">Completed ✓</p>
+        <p className="text-xs text-green-500 mb-1">Completed ✓</p>
+        {/* Time summary */}
+        {(draft.startedAt || (draft.kitchenPrints?.length ?? 0) > 0 || draft.billedAt || draft.closedAt) && (
+          <div className="w-full bg-white/70 rounded-xl px-3 py-2 space-y-1 text-left">
+            {draft.startedAt && (
+              <div className="flex justify-between text-[10px]">
+                <span className="text-gray-400">🕐 Started</span>
+                <span className="text-gray-600 font-medium">{fmtTime(draft.startedAt)}</span>
+              </div>
+            )}
+            {(draft.kitchenPrints ?? []).map((kt, i) => (
+              <div key={kt} className="flex justify-between text-[10px]">
+                <span className="text-gray-400">🍳 Kitchen {(draft.kitchenPrints?.length ?? 0) > 1 ? `#${i + 1}` : ""}</span>
+                <span className="text-gray-600 font-medium">{fmtTime(kt)}</span>
+              </div>
+            ))}
+            {draft.billedAt && (
+              <div className="flex justify-between text-[10px]">
+                <span className="text-gray-400">🧾 Billed</span>
+                <span className="text-gray-600 font-medium">{fmtTime(draft.billedAt)}</span>
+              </div>
+            )}
+            {draft.closedAt && (
+              <div className="flex justify-between text-[10px] border-t border-green-100 pt-1 mt-0.5">
+                <span className="text-green-600">✅ Closed</span>
+                <span className="text-green-700 font-semibold">{fmtTime(draft.closedAt)}</span>
+              </div>
+            )}
+            {(draft.kitchenPrints?.length ?? 0) > 0 && draft.closedAt && (
+              <div className="flex justify-between text-[10px] bg-green-100 rounded-lg px-2 py-1 mt-1">
+                <span className="text-green-700">Total kitchen time</span>
+                <span className="text-green-800 font-bold">
+                  {Math.round((new Date(draft.closedAt).getTime() - new Date(draft.kitchenPrints![0]).getTime()) / 60000)}m
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -464,6 +529,43 @@ function OrderCard({
           ))
         )}
       </div>
+
+      {/* Time tracking strip */}
+      {(draft.startedAt || (draft.kitchenPrints?.length ?? 0) > 0 || draft.billedAt) && (
+        <div className="px-3 py-2 border-t border-gray-50 space-y-1" onClick={(e) => e.stopPropagation()}>
+          {draft.startedAt && (
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
+              <span className="w-3.5 h-3.5 rounded-full bg-gray-100 flex items-center justify-center shrink-0 text-[8px]">🕐</span>
+              <span className="text-gray-500 font-medium">Started</span>
+              <span>{fmtTime(draft.startedAt)}</span>
+            </div>
+          )}
+          {(draft.kitchenPrints ?? []).map((kt, i) => (
+            <div key={kt} className="flex items-center gap-1.5 text-[10px]">
+              <span className="w-3.5 h-3.5 rounded-full bg-orange-100 flex items-center justify-center shrink-0 text-[8px]">🍳</span>
+              <span className="text-orange-600 font-medium">Kitchen {(draft.kitchenPrints?.length ?? 0) > 1 ? `#${i + 1}` : ""}</span>
+              <span className="text-gray-500">{fmtTime(kt)}</span>
+              {i === (draft.kitchenPrints?.length ?? 0) - 1 && !draft.billedAt && (
+                <span className="ml-auto text-orange-500 font-semibold">
+                  <ElapsedTimer since={kt} />
+                </span>
+              )}
+            </div>
+          ))}
+          {draft.billedAt && (
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
+              <span className="w-3.5 h-3.5 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-[8px]">🧾</span>
+              <span className="text-amber-600 font-medium">Billed</span>
+              <span>{fmtTime(draft.billedAt)}</span>
+              {(draft.kitchenPrints?.length ?? 0) > 0 && (
+                <span className="ml-auto text-gray-400">
+                  {Math.round((new Date(draft.billedAt).getTime() - new Date(draft.kitchenPrints![0]).getTime()) / 60000)}m in kitchen
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Notes — building stage only */}
       {draft.stage === "building" && (
@@ -801,10 +903,11 @@ export default function NewOrderPage() {
           // Detect customer (QR) order: use `source` column if migration has been run,
           // otherwise fall back to customer_id being set (QR orders always create a customer).
           isCustomerOrder: (order as any).source === "customer" || !!(order.customers?.id),
-          // confirmed_at / prep_time_minutes come from DB columns after migration,
-          // or will be fetched live from the status endpoint on the customer page.
           confirmedAt: (order as any).confirmed_at ?? undefined,
           prepTimeMinutes: (order as any).prep_time_minutes ?? undefined,
+          startedAt: order.created_at ?? undefined,
+          kitchenPrints: [],
+          billedAt: order.status === "billed" ? (order.updated_at ?? order.created_at ?? undefined) : undefined,
         }));
         setDrafts(restored);
         setActiveDraftId(restored[0].draftId);
@@ -1009,7 +1112,11 @@ export default function NewOrderPage() {
       : [...activeDraft.cart, { foodItem: item, quantity: 1 }];
 
     // Optimistic local update immediately
-    updateDraft(activeDraftId, { cart: newCart });
+    const now = new Date().toISOString();
+    updateDraft(activeDraftId, {
+      cart: newCart,
+      ...(isFirstItem && !activeDraft.startedAt ? { startedAt: now } : {}),
+    });
 
     // Auto-create order in DB on very first item (so cart persists across refresh)
     if (isFirstItem && !activeDraft.savedOrderId && activeRestaurant) {
@@ -1060,8 +1167,13 @@ export default function NewOrderPage() {
       prevCartRef.current.set(draftId, draft.cart); // prevent double-sync
       const tableName = (tables as any[]).find((t) => t.id === draft.tableId)?.table_number
         ?? (tables as any[]).find((t) => t.id === draft.tableId)?.name ?? "";
+      const kitchenTs = new Date().toISOString();
       printKitchenTicket(activeRestaurant.name, { ...draft, savedOrderId: order.id, orderNumber: order.order_number }, tableName, prevPrintedCart);
-      updateDraft(draftId, { printedCart: [...draft.cart] });
+      updateDraft(draftId, { printedCart: [...draft.cart], kitchenPrints: [...(draft.kitchenPrints ?? []), kitchenTs] });
+      // Persist first kitchen print time so Time Logs tab can read it
+      if (!(draft.kitchenPrints?.length)) {
+        try { localStorage.setItem(`kitchen_${order.id}`, kitchenTs); } catch { /* ignore */ }
+      }
 
       // For customer orders: auto-confirm on first print
       if (draft.isCustomerOrder && !draft.confirmedAt) {
@@ -1089,8 +1201,13 @@ export default function NewOrderPage() {
     // Already in DB (auto-created or previously printed) — just reprint
     const tableName = (tables as any[]).find((t) => t.id === draft.tableId)?.table_number
       ?? (tables as any[]).find((t) => t.id === draft.tableId)?.name ?? "";
+    const kitchenTs2 = new Date().toISOString();
     printKitchenTicket(activeRestaurant.name, draft, tableName, prevPrintedCart);
-    updateDraft(draftId, { printedCart: [...draft.cart] });
+    updateDraft(draftId, { printedCart: [...draft.cart], kitchenPrints: [...(draft.kitchenPrints ?? []), kitchenTs2] });
+    // Persist first kitchen print time so Time Logs tab can read it
+    if (draft.savedOrderId && !(draft.kitchenPrints?.length)) {
+      try { localStorage.setItem(`kitchen_${draft.savedOrderId}`, kitchenTs2); } catch { /* ignore */ }
+    }
 
     // For customer orders: auto-confirm on (re)print so customer page moves to "Preparing"
     if (draft.isCustomerOrder && !draft.confirmedAt && draft.savedOrderId) {
@@ -1133,7 +1250,11 @@ export default function NewOrderPage() {
         console.error("[Bill] billOrder failed:", msg);
         toast.error(`Bill failed: ${msg}`);
       } else {
-        updateDraft(draftId, { stage: "billing", savedTotals: t });
+        const billedTs = new Date().toISOString();
+        updateDraft(draftId, { stage: "billing", savedTotals: t, billedAt: billedTs });
+        if (draft.savedOrderId) {
+          try { localStorage.setItem(`billed_${draft.savedOrderId}`, billedTs); } catch { /* ignore */ }
+        }
       }
     } else {
       // Went straight to bill without adding items first (edge case)
@@ -1150,7 +1271,9 @@ export default function NewOrderPage() {
         console.error("[Bill] billAndCreateOrder failed:", msg);
         toast.error(`Bill failed: ${msg}`);
       } else {
-        updateDraft(draftId, { stage: "billing", savedOrderId: order.id, orderNumber: order.order_number, savedTotals: t });
+        const billedTs2 = new Date().toISOString();
+        updateDraft(draftId, { stage: "billing", savedOrderId: order.id, orderNumber: order.order_number, savedTotals: t, billedAt: billedTs2 });
+        try { localStorage.setItem(`billed_${order.id}`, billedTs2); } catch { /* ignore */ }
       }
     }
     setSaving(false);
@@ -1175,7 +1298,7 @@ export default function NewOrderPage() {
       toast.error(`Complete failed: ${msg}`);
     } else {
       toast.success("Order completed!");
-      updateDraft(draftId, { stage: "done" });
+      updateDraft(draftId, { stage: "done", closedAt: new Date().toISOString() });
       setTimeout(() => {
         setDrafts((prev) => {
           const remaining = prev.filter((d) => d.draftId !== draftId);

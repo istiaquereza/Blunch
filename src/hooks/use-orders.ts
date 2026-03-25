@@ -31,6 +31,7 @@ export interface Order {
   vat_amount: number;
   total: number;
   notes?: string;
+  source?: string;
   created_at: string;
   updated_at: string;
   customers?: { id: string; name: string; phone?: string } | null;
@@ -219,7 +220,7 @@ export function useOrders(
 
   // Mark as completed
   const completeOrder = async (orderId: string) => {
-    const { error } = await supabase.from("orders").update({ status: "completed" }).eq("id", orderId);
+    const { error } = await supabase.from("orders").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", orderId);
     if (!error) await fetchOrders();
     return { error };
   };
@@ -387,6 +388,7 @@ export function useOrders(
       ...totals,
       payment_method_id: paymentMethodId || null,
       status: "completed",
+      updated_at: new Date().toISOString(),
     }).eq("id", orderId);
 
     if (updateErr) return { error: updateErr };

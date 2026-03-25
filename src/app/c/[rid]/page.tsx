@@ -148,18 +148,20 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
       if (d.status) setOrderStatus(d.status);
       // When admin confirms, switch countdown to server-based
       if (d.confirmed_at && !serverConfirmedAt) {
+        const prepMins = d.prep_time_minutes ?? PREP_MINUTES;
         setServerConfirmedAt(d.confirmed_at);
-        setServerPrepMins(d.prep_time_minutes ?? PREP_MINUTES);
-        // Re-compute countdown from server time
-        const target = new Date(d.confirmed_at).getTime() + (d.prep_time_minutes ?? PREP_MINUTES) * 60 * 1000;
-        setConfirmedTs(target - PREP_MINUTES * 60 * 1000); // align so countdown = prep_time
+        setServerPrepMins(prepMins);
+        // Set confirmedTs to the server's confirmed_at so countdown is accurate
+        setConfirmedTs(new Date(d.confirmed_at).getTime());
       }
     } catch { /* silent — network error, will retry on next poll */ }
   }, [orderId, serverConfirmedAt]);
 
   useEffect(() => {
     if (step !== "confirmed" || !orderId) return;
-    const id = setInterval(pollStatus, 8000);
+    // Immediate poll + every 5 seconds
+    pollStatus();
+    const id = setInterval(pollStatus, 5000);
     return () => clearInterval(id);
   }, [step, orderId, pollStatus]);
 
@@ -345,8 +347,8 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-5xl font-bold text-white tabular-nums leading-none">{mm}:{ss}</span>
-                    <span className="text-white/70 text-xs mt-1.5">minutes left</span>
+                    <span className="text-3xl font-bold text-white tabular-nums leading-none">{mm}:{ss}</span>
+                    <span className="text-white/70 text-xs mt-1">minutes left</span>
                   </div>
                 </div>
                 <h2 className="text-white text-xl font-bold mt-5">Preparing your food 👨‍🍳</h2>
