@@ -865,12 +865,17 @@ export default function NewOrderPage() {
       }
 
       if (data && data.length > 0) {
-        const restored: OrderDraft[] = data.map((order: any) => ({
-          draftId: crypto.randomUUID(),
-          label: order.order_number ?? `Order ${draftCounterRef.current++}`,
-          orderType: order.type,
-          tableId: order.table_id ?? "",
-          cart: (order.order_items ?? []).map((item: any) => ({
+        const restored: OrderDraft[] = data.map((order: any) => {
+          // Deduplicate order_items by food_item_id (keep first occurrence, discard sync duplicates)
+          const rawItems: any[] = order.order_items ?? [];
+          const seenFoodIds = new Set<string>();
+          const dedupedItems = rawItems.filter((item: any) => {
+            if (seenFoodIds.has(item.food_item_id)) return false;
+            seenFoodIds.add(item.food_item_id);
+            return true;
+          });
+
+          const cart: CartItem[] = dedupedItems.map((item: any) => ({
             foodItem: {
               id: item.food_item_id,
               name: item.food_items?.name ?? "Unknown",
@@ -880,37 +885,91 @@ export default function NewOrderPage() {
               created_at: new Date().toISOString(),
             } as FoodItem,
             quantity: item.quantity,
-          })),
-          discountId: "",
-          notes: order.notes ?? "",
-          stage: order.status === "billed" ? "billing" : "building",
-          savedOrderId: order.id,
-          orderNumber: order.order_number,
-          customerName: order.customers?.name ?? "",
-          customerPhone: order.customers?.phone ?? "",
-          customerId: order.customers?.id ?? undefined,
-          paymentMethodId: order.payment_method_id ?? "",
-          savedTotals: order.status === "billed" ? {
-            subtotal: order.subtotal,
-            discountAmount: order.discount_amount,
-            vatAmount: order.vat_amount,
-            serviceCharge: order.service_charge,
-            total: order.total,
-          } : undefined,
-          printedCart: [],
-          customDiscountType: "none",
-          customDiscountValue: 0,
-          // Detect customer (QR) order: use `source` column if migration has been run,
-          // otherwise fall back to customer_id being set (QR orders always create a customer).
-          isCustomerOrder: (order as any).source === "customer" || !!(order.customers?.id),
-          confirmedAt: (order as any).confirmed_at ?? undefined,
-          prepTimeMinutes: (order as any).prep_time_minutes ?? undefined,
-          startedAt: order.created_at ?? undefined,
-          kitchenPrints: [],
-          billedAt: order.status === "billed" ? (order.updated_at ?? order.created_at ?? undefined) : undefined,
+          }));
+
+          // QR order detection (layers, most reliable first):
+          // 1. source column in DB (post-migration)
+          // 2. localStorage cache (set after batch API check)
+          // 3. customer with phone — QR form always requires phone; staff rarely enter it
+          const cachedQrIds: string[] = (() => {
+            try { return JSON.parse(localStorage.getItem("qr_order_ids") ?? "[]"); } catch { return []; }
+          })();
+          const isCustomerOrder =
+            (order as any).source === "customer" ||
+            cachedQrIds.includes(order.id);
+
+          // Restore kitchen print timestamps from localStorage (persisted when kitchen button is hit)
+          let kitchenPrints: string[] = [];
+          try {
+            const stored = localStorage.getItem(`kitchen_prints_${order.id}`);
+            if (stored) kitchenPrints = JSON.parse(stored);
+          } catch { /* ignore */ }
+
+          return {
+            draftId: crypto.randomUUID(),
+            label: order.order_number ?? `Order ${draftCounterRef.current++}`,
+            orderType: order.type,
+            tableId: order.table_id ?? "",
+            cart,
+            discountId: "",
+            notes: order.notes ?? "",
+            stage: order.status === "billed" ? "billing" : "building",
+            savedOrderId: order.id,
+            orderNumber: order.order_number,
+            customerName: order.customers?.name ?? "",
+            customerPhone: order.customers?.phone ?? "",
+            customerId: order.customers?.id ?? undefined,
+            paymentMethodId: order.payment_method_id ?? "",
+            savedTotals: order.status === "billed" ? {
+              subtotal: order.subtotal,
+              discountAmount: order.discount_amount,
+              vatAmount: order.vat_amount,
+              serviceCharge: order.service_charge,
+              total: order.total,
+            } : undefined,
+            printedCart: [],
+            customDiscountType: "none",
+            customDiscountValue: 0,
+            isCustomerOrder,
+            confirmedAt: (order as any).confirmed_at ?? undefined,
+            prepTimeMinutes: (order as any).prep_time_minutes ?? undefined,
+            startedAt: order.created_at ?? undefined,
+            kitchenPrints,
+            billedAt: order.status === "billed" ? (order.updated_at ?? order.created_at ?? undefined) : undefined,
+          };
+        });
+
+        // Check which order IDs are QR orders via batch API — AWAITED so isCustomerOrder
+        // is correct on first render (not delayed by a background fetch)
+        const orderIds = restored.map((d) => d.savedOrderId).filter(Boolean) as string[];
+        let qrOrderIds = new Set<string>();
+        if (orderIds.length > 0) {
+          try {
+            const res = await fetch(`/api/customer-orders/qr?ids=${orderIds.join(",")}`);
+            const { qrIds } = await res.json() as { qrIds: string[] };
+            if (qrIds?.length) {
+              qrOrderIds = new Set(qrIds);
+              // Cache in localStorage so it persists across page refreshes
+              const existing: string[] = (() => {
+                try { return JSON.parse(localStorage.getItem("qr_order_ids") ?? "[]"); } catch { return []; }
+              })();
+              const merged = Array.from(new Set([...existing, ...qrIds]));
+              try { localStorage.setItem("qr_order_ids", JSON.stringify(merged)); } catch { /* ignore */ }
+            }
+          } catch { /* silent — localStorage cache still used below */ }
+        }
+
+        // Apply QR detection: batch API result + localStorage cache + source column
+        const finalRestored = restored.map((d) => ({
+          ...d,
+          isCustomerOrder: d.isCustomerOrder || (d.savedOrderId ? qrOrderIds.has(d.savedOrderId) : false),
         }));
-        setDrafts(restored);
-        setActiveDraftId(restored[0].draftId);
+
+        // Seed prevCartRef for all restored drafts so auto-sync doesn't re-write DB items
+        finalRestored.forEach((d) => prevCartRef.current.set(d.draftId, d.cart));
+
+        setDrafts(finalRestored);
+        setActiveDraftId(finalRestored[0].draftId);
       }
       setLoadingOrders(false);
     };
@@ -1169,11 +1228,10 @@ export default function NewOrderPage() {
         ?? (tables as any[]).find((t) => t.id === draft.tableId)?.name ?? "";
       const kitchenTs = new Date().toISOString();
       printKitchenTicket(activeRestaurant.name, { ...draft, savedOrderId: order.id, orderNumber: order.order_number }, tableName, prevPrintedCart);
-      updateDraft(draftId, { printedCart: [...draft.cart], kitchenPrints: [...(draft.kitchenPrints ?? []), kitchenTs] });
-      // Persist first kitchen print time so Time Logs tab can read it
-      if (!(draft.kitchenPrints?.length)) {
-        try { localStorage.setItem(`kitchen_${order.id}`, kitchenTs); } catch { /* ignore */ }
-      }
+      const newKitchenPrints = [...(draft.kitchenPrints ?? []), kitchenTs];
+      updateDraft(draftId, { printedCart: [...draft.cart], kitchenPrints: newKitchenPrints });
+      // Persist all kitchen print times to localStorage so they survive refresh
+      try { localStorage.setItem(`kitchen_prints_${order.id}`, JSON.stringify(newKitchenPrints)); } catch { /* ignore */ }
 
       // For customer orders: auto-confirm on first print
       if (draft.isCustomerOrder && !draft.confirmedAt) {
@@ -1203,10 +1261,11 @@ export default function NewOrderPage() {
       ?? (tables as any[]).find((t) => t.id === draft.tableId)?.name ?? "";
     const kitchenTs2 = new Date().toISOString();
     printKitchenTicket(activeRestaurant.name, draft, tableName, prevPrintedCart);
-    updateDraft(draftId, { printedCart: [...draft.cart], kitchenPrints: [...(draft.kitchenPrints ?? []), kitchenTs2] });
-    // Persist first kitchen print time so Time Logs tab can read it
-    if (draft.savedOrderId && !(draft.kitchenPrints?.length)) {
-      try { localStorage.setItem(`kitchen_${draft.savedOrderId}`, kitchenTs2); } catch { /* ignore */ }
+    const newKitchenPrints2 = [...(draft.kitchenPrints ?? []), kitchenTs2];
+    updateDraft(draftId, { printedCart: [...draft.cart], kitchenPrints: newKitchenPrints2 });
+    // Persist all kitchen print times to localStorage so they survive refresh
+    if (draft.savedOrderId) {
+      try { localStorage.setItem(`kitchen_prints_${draft.savedOrderId}`, JSON.stringify(newKitchenPrints2)); } catch { /* ignore */ }
     }
 
     // For customer orders: auto-confirm on (re)print so customer page moves to "Preparing"

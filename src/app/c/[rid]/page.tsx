@@ -375,20 +375,18 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
           {/* ── TIMELINE ─────────────────────────────────────────────────── */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="relative flex items-start justify-between">
-              {/* connecting line track */}
-              <div className="absolute top-[14px] left-[calc(50%/3)] right-[calc(50%/3)] h-0.5 bg-gray-100" />
-              {/* animated fill */}
+              {/* track line */}
+              <div className="absolute top-[13px] left-[16.67%] right-[16.67%] h-0.5 bg-gray-100" />
+              {/* fill line */}
               <div
-                className="absolute top-[14px] left-[calc(50%/3)] h-0.5 bg-[#FD2400] transition-all duration-700"
-                style={{ width: stepIndex === 0 ? "0%" : stepIndex === 1 ? "50%" : "100%",
-                         right: "calc(50%/3)" }}
+                className="absolute top-[13px] left-[16.67%] h-0.5 bg-[#FD2400] transition-all duration-700"
+                style={{ width: stepIndex === 0 ? "0%" : stepIndex === 1 ? "33.33%" : "66.66%" }}
               />
-
               {timelineSteps.map((s, i) => {
                 const done   = i <= stepIndex;
                 const active = i === stepIndex;
                 return (
-                  <div key={s.label} className="relative flex flex-col items-center gap-1.5 z-10 flex-1">
+                  <div key={s.label} className="relative flex flex-col items-center gap-1.5 z-10 w-[33.33%]">
                     <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all duration-500
                       ${active ? "bg-[#FD2400] border-[#FD2400] scale-125 shadow-lg shadow-red-100"
                                : done ? "bg-[#FD2400] border-[#FD2400]"
@@ -399,11 +397,11 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
                           ? <CheckCircle size={12} className="text-white" />
                           : <span className="text-gray-300 text-[10px]">○</span>}
                     </div>
-                    <span className={`text-[11px] font-bold text-center transition-colors
+                    <span className={`text-[11px] font-bold text-center leading-tight transition-colors
                       ${active ? "text-[#FD2400]" : done ? "text-gray-700" : "text-gray-300"}`}>
                       {s.label}
                     </span>
-                    <span className={`text-[10px] text-center transition-colors
+                    <span className={`text-[10px] text-center leading-tight transition-colors
                       ${active ? "text-orange-400" : done ? "text-gray-400" : "text-gray-200"}`}>
                       {s.sublabel}
                     </span>

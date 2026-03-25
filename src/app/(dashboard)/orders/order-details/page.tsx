@@ -94,19 +94,14 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
   const displayStatus = isDeleted ? "deleted" : order.status;
   const cfg = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG.active;
   const StatusIcon = cfg.icon;
-  // Deduplicate items with same food_item_id (can occur from sync race conditions)
+  // Deduplicate: keep first row per food_item_id (duplicates come from sync race conditions, not intentional qty)
   const rawItems = order.order_items ?? [];
-  const items = Object.values(
-    rawItems.reduce((acc: Record<string, typeof rawItems[0]>, item) => {
-      const key = item.food_item_id;
-      if (!acc[key]) {
-        acc[key] = { ...item };
-      } else {
-        acc[key] = { ...acc[key], quantity: acc[key].quantity + item.quantity };
-      }
-      return acc;
-    }, {})
-  );
+  const seenIds = new Set<string>();
+  const items = rawItems.filter((item) => {
+    if (seenIds.has(item.food_item_id)) return false;
+    seenIds.add(item.food_item_id);
+    return true;
+  });
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
   const isCancelled = order.status === "cancelled";
   const canDelete = !isCancelled && !isDeleted;
@@ -144,7 +139,7 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
             }`}>
               {order.type === "dine_in" ? "Dine In" : "Takeaway"}
             </span>
-            {order.source === "customer" && (
+            {((order as any).source === "customer" || (() => { try { return JSON.parse(localStorage.getItem("qr_order_ids") ?? "[]").includes(order.id); } catch { return false; } })()) && (
               <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-700 border border-orange-200">
                 📱 QR
               </span>
@@ -357,21 +352,42 @@ const STATUS_CHIP: Record<string, { label: string; cls: string }> = {
 function TimeLogCard({ order }: { order: Order }) {
   const started = order.created_at;
   const isCompleted = order.status === "completed";
+  const isBilled = order.status === "billed";
   const closed = isCompleted ? order.updated_at : null;
   const durationMins = closed ? diffMins(started, closed) : null;
 
-  // Kitchen time: read from localStorage (set when Kitchen/Reprint is hit in New Order page)
-  // Also fall back to confirmed_at if the DB migration has been run
-  const kitchenAt: string | null = (() => {
-    try { return localStorage.getItem(`kitchen_${order.id}`) || ((order as any).confirmed_at ?? null); } catch { return null; }
+  // Kitchen prints: array stored by New Order page when Kitchen/Reprint button is hit
+  const kitchenPrints: string[] = (() => {
+    try {
+      const raw = localStorage.getItem(`kitchen_prints_${order.id}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
   })();
-  const billedAtStored: string | null = (() => {
-    try { return localStorage.getItem(`billed_${order.id}`) || null; } catch { return null; }
-  })();
-  const kitchenDuration = kitchenAt && closed ? diffMins(kitchenAt, closed) : null;
+  const kitchenAt = kitchenPrints[0] ?? (order as any).confirmed_at ?? null;
 
-  // QR order = customer order via QR link — requires source column (run migration 20260325_order_confirm.sql)
-  const isQrOrder = order.source === "customer";
+  // Billed time from localStorage
+  const billedAtStored: string | null = (() => {
+    try { return localStorage.getItem(`billed_${order.id}`) ?? null; } catch { return null; }
+  })();
+
+  // Kitchen duration vs prep time target
+  const closeOrBillTime = closed ?? billedAtStored;
+  const actualKitchenMins = kitchenAt && closeOrBillTime ? diffMins(kitchenAt, closeOrBillTime) : null;
+  const targetPrepMins: number | null = (order as any).prep_time_minutes ?? null;
+
+  // Format kitchen duration display: "18m" if early, "20/25m" if over target
+  function kitchenDurationLabel() {
+    if (actualKitchenMins == null) return null;
+    if (targetPrepMins && actualKitchenMins > targetPrepMins) {
+      return `${targetPrepMins}/${actualKitchenMins}m`;
+    }
+    return `${actualKitchenMins}m`;
+  }
+  const kitchenLabel = kitchenDurationLabel();
+
+  const isQrOrder =
+    (order as any).source === "customer" ||
+    (() => { try { return JSON.parse(localStorage.getItem("qr_order_ids") ?? "[]").includes(order.id); } catch { return false; } })();
   const guestName = order.customers?.name;
   const statusChip = STATUS_CHIP[order.status] ?? STATUS_CHIP.active;
   const fmt = (n: number) => "৳" + n.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -439,9 +455,13 @@ function TimeLogCard({ order }: { order: Order }) {
               <p className="text-gray-300 font-medium">—</p>
             )}
           </div>
-          {kitchenAt && kitchenDuration != null && (
-            <span className="ml-auto text-[10px] bg-orange-50 text-orange-700 font-semibold px-2 py-0.5 rounded-full">
-              {fmtDur(kitchenDuration)} in kitchen
+          {kitchenAt && kitchenLabel != null && (
+            <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+              targetPrepMins && actualKitchenMins && actualKitchenMins > targetPrepMins
+                ? "bg-red-50 text-red-600"
+                : "bg-orange-50 text-orange-700"
+            }`}>
+              {kitchenLabel} in kitchen
             </span>
           )}
         </div>

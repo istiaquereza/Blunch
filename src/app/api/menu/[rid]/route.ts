@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ rid: string }> }
 ) {
   const { rid } = await params;
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("[menu] Missing Supabase env vars — set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel");
+    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+  }
+
   const supabase = createAdminClient();
 
   // Fetch restaurant, tables, billing settings, and discounts in parallel

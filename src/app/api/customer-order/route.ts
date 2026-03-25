@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { registerCustomerOrder } from "@/lib/customer-order-store";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   const supabase = createAdminClient();
@@ -69,6 +72,9 @@ export async function POST(req: Request) {
 
   const orderId = (order as Record<string, unknown>).id as string;
   const orderNumber = (order as Record<string, unknown>).order_number;
+
+  // Register as QR order immediately so the admin New Order page can detect it
+  registerCustomerOrder(orderId);
 
   // 3. Insert order items
   const { error: itemsErr } = await supabase.from("order_items").insert(

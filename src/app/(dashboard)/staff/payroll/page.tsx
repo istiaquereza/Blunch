@@ -19,6 +19,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Gift,
+  Printer,
+  ChefHat,
+  Utensils,
 } from "lucide-react";
 
 const fmt = (n: number) =>
@@ -34,11 +38,15 @@ function getCurrentYM() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const BONUS_TYPES = ["Daily Sells Bonus", "Health Support", "Service Charge"];
+
 interface PayrollRow {
   staffId: string;
   name: string;
   jobRole: string | null;
+  staffType: "kitchen" | "hall" | null;
   restaurantName: string | null;
+  restaurantId: string;
   monthlySalary: number;
   paid: number;
   due: number;
@@ -51,6 +59,164 @@ interface PaymentRecord {
   transaction_date: string;
   description?: string;
   payment_methods?: { name: string } | null;
+  isBonus?: boolean;
+  bonusType?: string;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function isSalaryTx(description?: string) {
+  return !description || description.startsWith("Salary —") || description.startsWith("Salary -") || description.startsWith("Advance Salary —");
+}
+
+function getBonusLabel(description?: string) {
+  if (!description) return "Bonus";
+  for (const t of BONUS_TYPES) {
+    if (description.startsWith(t)) return t;
+  }
+  return description.split("—")[0].trim();
+}
+
+// ── Get or create expense category ─────────────────────────────────────────────
+async function getOrCreateBonusCategory(supabase: ReturnType<typeof createClient>, name: string): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data: existing } = await supabase
+      .from("expense_categories")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("name", name)
+      .eq("type", "expense")
+      .limit(1)
+      .single();
+    if (existing) return existing.id;
+    const { data: created } = await supabase
+      .from("expense_categories")
+      .insert({ name, type: "expense", user_id: user.id })
+      .select("id")
+      .single();
+    return created?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Print Salary Statement ─────────────────────────────────────────────────────
+function printSalaryStatement(row: PayrollRow, records: PaymentRecord[], month: string, restaurantName: string) {
+  const salaryRecords = records.filter((r) => isSalaryTx(r.description));
+  const bonusRecords = records.filter((r) => !isSalaryTx(r.description));
+  const totalSalaryPaid = salaryRecords.reduce((s, r) => s + r.amount, 0);
+  const totalBonus = bonusRecords.reduce((s, r) => s + r.amount, 0);
+  const totalPaid = totalSalaryPaid + totalBonus;
+
+  const rowHtml = (r: PaymentRecord) => `
+    <tr>
+      <td>${new Date(r.transaction_date + "T12:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
+      <td>${isSalaryTx(r.description) ? "Salary" : getBonusLabel(r.description)}</td>
+      <td>${r.payment_methods?.name ?? "—"}</td>
+      <td class="amount">${fmt(r.amount)}</td>
+    </tr>
+  `;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Salary Statement — ${row.name}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #111; padding: 32px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 2px solid #111; padding-bottom: 16px; }
+    .logo { font-size: 20px; font-weight: 700; }
+    .title { font-size: 11px; color: #555; margin-top: 2px; }
+    .statement-info { text-align: right; font-size: 12px; color: #444; }
+    .staff-block { background: #f5f5f5; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; display: flex; gap: 32px; }
+    .staff-block .label { font-size: 10px; color: #888; margin-bottom: 2px; }
+    .staff-block .value { font-size: 13px; font-weight: 600; }
+    h2 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    thead tr { background: #111; color: #fff; }
+    thead th { padding: 7px 10px; text-align: left; font-size: 11px; font-weight: 600; }
+    thead th.amount { text-align: right; }
+    tbody tr { border-bottom: 1px solid #eee; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    td { padding: 7px 10px; font-size: 12px; }
+    td.amount { text-align: right; font-weight: 600; }
+    .summary { border-top: 2px solid #111; padding-top: 12px; display: flex; justify-content: flex-end; }
+    .summary-table { width: 280px; }
+    .summary-table tr td { padding: 4px 8px; font-size: 12px; }
+    .summary-table tr td:last-child { text-align: right; font-weight: 600; }
+    .summary-table .total-row td { font-size: 14px; font-weight: 700; border-top: 1px solid #ddd; padding-top: 6px; margin-top: 4px; }
+    .footer { margin-top: 32px; font-size: 10px; color: #aaa; text-align: center; border-top: 1px solid #eee; padding-top: 12px; }
+    @media print { body { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="logo">${restaurantName}</div>
+      <div class="title">Salary Statement</div>
+    </div>
+    <div class="statement-info">
+      <div><strong>${getMonthLabel(month)}</strong></div>
+      <div>Generated: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</div>
+    </div>
+  </div>
+
+  <div class="staff-block">
+    <div>
+      <div class="label">Staff Name</div>
+      <div class="value">${row.name}</div>
+    </div>
+    <div>
+      <div class="label">Role</div>
+      <div class="value">${row.jobRole ?? "—"}</div>
+    </div>
+    <div>
+      <div class="label">Type</div>
+      <div class="value">${row.staffType ? (row.staffType.charAt(0).toUpperCase() + row.staffType.slice(1)) : "—"}</div>
+    </div>
+    <div>
+      <div class="label">Monthly Salary</div>
+      <div class="value">${fmt(row.monthlySalary)}</div>
+    </div>
+  </div>
+
+  <h2>Payment Details</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Method</th>
+        <th class="amount">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${records.length === 0 ? `<tr><td colspan="4" style="text-align:center;color:#aaa;padding:16px;">No payments recorded</td></tr>` : records.map(rowHtml).join("")}
+    </tbody>
+  </table>
+
+  <div class="summary">
+    <table class="summary-table">
+      <tr><td>Monthly Salary</td><td>${fmt(row.monthlySalary)}</td></tr>
+      <tr><td>Salary Paid</td><td>${fmt(totalSalaryPaid)}</td></tr>
+      ${bonusRecords.length > 0 ? `<tr><td>Benefits & Bonuses</td><td>${fmt(totalBonus)}</td></tr>` : ""}
+      <tr class="total-row"><td>Total Paid</td><td>${fmt(totalPaid)}</td></tr>
+      ${row.due > 0 ? `<tr><td style="color:#b45309;">Salary Due</td><td style="color:#b45309;">${fmt(row.due)}</td></tr>` : ""}
+    </table>
+  </div>
+
+  <div class="footer">This is a computer-generated document. No signature required.</div>
+  <script>window.onload = function() { window.print(); }</script>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  }
 }
 
 // ── Pay Dialog ─────────────────────────────────────────────────────────────────
@@ -69,31 +235,86 @@ function PayDialog({
   onSave: (payload: object) => Promise<{ error: unknown }>;
   onClose: () => void;
 }) {
-  const [amount, setAmount] = useState(String(row.due));
-  const [paymentMethodId, setPaymentMethodId] = useState("");
-  const [date, setDate] = useState(() => {
+  const todayStr = (() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  });
+  })();
+
+  const [date, setDate] = useState(todayStr);
+  const [salaryMonth, setSalaryMonth] = useState(month); // which month's salary this pays for
+  const [amount, setAmount] = useState(String(row.due));
+  const [paymentMethodId, setPaymentMethodId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [monthPaid, setMonthPaid] = useState<number | null>(null);
+  const [loadingMonth, setLoadingMonth] = useState(false);
+
+  const isAdvance = salaryMonth > month;
+  const isDifferentMonth = salaryMonth !== month;
+
+  // Build month options: 3 months back + current + 3 months ahead
+  const monthOptions = useMemo(() => {
+    const options: { value: string; label: string }[] = [];
+    const [baseY, baseM] = month.split("-").map(Number);
+    for (let offset = -3; offset <= 6; offset++) {
+      const d = new Date(baseY, baseM - 1 + offset, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      options.push({ value: ym, label: getMonthLabel(ym) });
+    }
+    return options;
+  }, [month]);
+
+  // Fetch existing salary payments when salary month changes
+  useEffect(() => {
+    if (!isDifferentMonth) {
+      setMonthPaid(null);
+      setAmount(String(row.due));
+      return;
+    }
+    setLoadingMonth(true);
+    const supabase = createClient();
+    const monthStart = `${salaryMonth}-01`;
+    const [yr, mo] = salaryMonth.split("-").map(Number);
+    const lastDay = new Date(yr, mo, 0).getDate();
+    const monthEnd = `${salaryMonth}-${String(lastDay).padStart(2, "0")}`;
+    supabase
+      .from("transactions")
+      .select("amount, description")
+      .eq("staff_id", row.staffId)
+      .eq("type", "expense")
+      .eq("status", "paid")
+      .gte("payroll_month", monthStart)
+      .lte("payroll_month", monthEnd)
+      .then(({ data }) => {
+        const paid = (data ?? []).filter((r: any) => isSalaryTx(r.description)).reduce((s: number, r: any) => s + r.amount, 0);
+        setMonthPaid(paid);
+        setAmount(String(Math.max(0, row.monthlySalary - paid)));
+        setLoadingMonth(false);
+      });
+  }, [salaryMonth, isDifferentMonth, row.staffId, row.monthlySalary, row.due]);
+
+  const effectivePaid = isDifferentMonth ? (monthPaid ?? 0) : row.paid;
+  const effectiveDue = Math.max(0, row.monthlySalary - effectivePaid);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(amount);
     if (!amount || isNaN(amt) || amt <= 0) { setError("Valid amount required"); return; }
-    if (amt > row.due) { setError(`Cannot exceed due amount (${fmt(row.due)})`); return; }
+    if (amt > row.monthlySalary) { setError(`Cannot exceed monthly salary (${fmt(row.monthlySalary)})`); return; }
     setSaving(true);
+    const label = isAdvance
+      ? `Advance Salary — ${row.name} (${getMonthLabel(salaryMonth)})`
+      : `Salary — ${row.name} (${salaryMonth})`;
     const { error: err } = await onSave({
       restaurant_id: restaurantId,
       type: "expense",
-      description: `Salary — ${row.name} (${month})`,
+      description: label,
       amount: amt,
       payment_method_id: paymentMethodId || undefined,
       status: "paid",
       transaction_date: date,
       staff_id: row.staffId,
-      payroll_month: `${month}-01`,
+      payroll_month: `${salaryMonth}-01`,
     });
     setSaving(false);
     if (err) { setError(String(err)); return; }
@@ -102,14 +323,44 @@ function PayDialog({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Payment date + Salary month side by side */}
+      <div className="grid grid-cols-2 gap-3">
+        <Input
+          label="Payment Date *"
+          type="date"
+          value={date}
+          onChange={(e) => { setDate(e.target.value); setError(""); }}
+        />
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-gray-700">Salary Month *</label>
+          <select
+            value={salaryMonth}
+            onChange={(e) => { setSalaryMonth(e.target.value); setError(""); }}
+            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          >
+            {monthOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Advance badge */}
+      {isAdvance && (
+        <div className="px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700">
+          🗓 Advance salary for <strong>{getMonthLabel(salaryMonth)}</strong> — expense recorded on payment date
+        </div>
+      )}
+
+      {/* Summary card */}
       <div className="bg-gray-50 rounded-xl border border-gray-100 px-4 py-3 text-sm space-y-1">
         <div className="flex justify-between">
           <span className="text-gray-500">Staff</span>
           <span className="font-medium text-gray-800">{row.name}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500">Month</span>
-          <span className="font-medium text-gray-800">{getMonthLabel(month)}</span>
+          <span className="text-gray-500">Salary Month</span>
+          <span className="font-medium text-gray-800">{getMonthLabel(salaryMonth)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Monthly Salary</span>
@@ -117,32 +368,27 @@ function PayDialog({
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Already Paid</span>
-          <span className="font-semibold text-green-600">{fmt(row.paid)}</span>
+          <span className="font-semibold text-green-600">
+            {loadingMonth ? <span className="text-gray-300">…</span> : fmt(effectivePaid)}
+          </span>
         </div>
         <div className="flex justify-between border-t border-gray-200 pt-2 mt-2">
           <span className="text-gray-600 font-semibold">Due</span>
-          <span className="font-bold text-amber-600">{fmt(row.due)}</span>
+          <span className="font-bold text-amber-600">
+            {loadingMonth ? <span className="text-gray-300">…</span> : fmt(effectiveDue)}
+          </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-700">Amount (৳) *</label>
-          <input
-            type="number"
-            min="0"
-            max={row.due}
-            step="0.01"
-            value={amount}
-            onChange={(e) => { setAmount(e.target.value); setError(""); }}
-            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-          />
-        </div>
-        <Input
-          label="Date *"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-700">Amount (৳) *</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={amount}
+          onChange={(e) => { setAmount(e.target.value); setError(""); }}
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
         />
       </div>
 
@@ -169,6 +415,138 @@ function PayDialog({
   );
 }
 
+// ── Bonus Dialog ───────────────────────────────────────────────────────────────
+function BonusDialog({
+  row,
+  month,
+  paymentMethods,
+  restaurantId,
+  onSave,
+  onClose,
+}: {
+  row: PayrollRow;
+  month: string;
+  paymentMethods: { id: string; name: string }[];
+  restaurantId: string;
+  onSave: (bonusType: string, payload: object) => Promise<{ error: unknown }>;
+  onClose: () => void;
+}) {
+  const [bonusType, setBonusType] = useState(BONUS_TYPES[0]);
+  const [amount, setAmount] = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(amount);
+    if (!amount || isNaN(amt) || amt <= 0) { setError("Valid amount required"); return; }
+    setSaving(true);
+    const desc = note
+      ? `${bonusType} — ${row.name} (${note})`
+      : `${bonusType} — ${row.name}`;
+    const { error: err } = await onSave(bonusType, {
+      restaurant_id: restaurantId,
+      type: "expense",
+      description: desc,
+      amount: amt,
+      payment_method_id: paymentMethodId || undefined,
+      status: "paid",
+      transaction_date: date,
+      staff_id: row.staffId,
+      payroll_month: `${month}-01`,
+    });
+    setSaving(false);
+    if (err) { setError(String(err)); return; }
+    onClose();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="bg-purple-50 rounded-xl border border-purple-100 px-4 py-3 text-sm space-y-1">
+        <div className="flex justify-between">
+          <span className="text-purple-500">Staff</span>
+          <span className="font-medium text-gray-800">{row.name}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-purple-500">Month</span>
+          <span className="font-medium text-gray-800">{getMonthLabel(month)}</span>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-700">Benefit Type *</label>
+        <select
+          value={bonusType}
+          onChange={(e) => setBonusType(e.target.value)}
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        >
+          {BONUS_TYPES.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-gray-700">Amount (৳) *</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={(e) => { setAmount(e.target.value); setError(""); }}
+            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="0"
+          />
+        </div>
+        <Input
+          label="Date *"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+        <select
+          value={paymentMethodId}
+          onChange={(e) => setPaymentMethodId(e.target.value)}
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        >
+          <option value="">Not specified</option>
+          {paymentMethods.map((pm) => (
+            <option key={pm.id} value={pm.id}>{pm.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-700">Note (optional)</label>
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="e.g. Eid bonus, weekly bonus…"
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        />
+      </div>
+
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+        <Button type="submit" loading={saving} className="bg-purple-600 hover:bg-purple-700">Give Benefit</Button>
+      </div>
+    </form>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function StaffPayrollPage() {
   const { restaurants, activeRestaurant } = useRestaurant();
@@ -182,10 +560,12 @@ export default function StaffPayrollPage() {
   const [payrollData, setPayrollData] = useState<Map<string, number>>(new Map());
   const [loadingPayroll, setLoadingPayroll] = useState(false);
   const [payTarget, setPayTarget] = useState<PayrollRow | null>(null);
+  const [bonusTarget, setBonusTarget] = useState<PayrollRow | null>(null);
   const [historyTarget, setHistoryTarget] = useState<PayrollRow | null>(null);
   const [historyRecords, setHistoryRecords] = useState<PaymentRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Fetch payroll payments for the selected month
+  // Fetch payroll SALARY payments for the selected month (bonuses excluded from due calc)
   const fetchPayroll = useCallback(async () => {
     if (!restaurantIds.length || !month) return;
     setLoadingPayroll(true);
@@ -197,7 +577,7 @@ export default function StaffPayrollPage() {
 
     const { data } = await supabase
       .from("transactions")
-      .select("staff_id, amount, status")
+      .select("staff_id, amount, description")
       .in("restaurant_id", restaurantIds)
       .eq("type", "expense")
       .eq("status", "paid")
@@ -207,7 +587,8 @@ export default function StaffPayrollPage() {
 
     const map = new Map<string, number>();
     (data ?? []).forEach((r: any) => {
-      if (r.staff_id) {
+      // Only salary payments count towards due calculation
+      if (r.staff_id && isSalaryTx(r.description)) {
         map.set(r.staff_id, (map.get(r.staff_id) ?? 0) + r.amount);
       }
     });
@@ -217,8 +598,9 @@ export default function StaffPayrollPage() {
 
   useEffect(() => { fetchPayroll(); }, [fetchPayroll]);
 
-  // Fetch history records for a specific staff member
+  // Fetch all payment history (salary + bonuses) for a staff member
   const fetchHistory = useCallback(async (staffId: string) => {
+    setHistoryLoading(true);
     const supabase = createClient();
     const monthStart = `${month}-01`;
     const [yr, mo] = month.split("-").map(Number);
@@ -235,7 +617,13 @@ export default function StaffPayrollPage() {
       .lte("payroll_month", monthEnd)
       .order("transaction_date", { ascending: false });
 
-    setHistoryRecords((data ?? []) as unknown as PaymentRecord[]);
+    const records = (data ?? []) as unknown as PaymentRecord[];
+    setHistoryRecords(records.map(r => ({
+      ...r,
+      isBonus: !isSalaryTx(r.description),
+      bonusType: !isSalaryTx(r.description) ? getBonusLabel(r.description) : undefined,
+    })));
+    setHistoryLoading(false);
   }, [month]);
 
   // Build payroll rows
@@ -252,7 +640,9 @@ export default function StaffPayrollPage() {
         staffId: s.id,
         name: s.name,
         jobRole: s.job_role,
+        staffType: s.staff_type,
         restaurantName: s.restaurants?.name ?? null,
+        restaurantId: s.restaurant_id,
         monthlySalary: s.salary,
         paid,
         due,
@@ -282,6 +672,8 @@ export default function StaffPayrollPage() {
   const totalPaid = rows.reduce((s, r) => s + r.paid, 0);
   const totalDue = rows.reduce((s, r) => s + r.due, 0);
   const fullyPaid = rows.filter(r => r.status === "fully_paid").length;
+  const hallCount = rows.filter(r => r.staffType === "hall").length;
+  const kitchenCount = rows.filter(r => r.staffType === "kitchen").length;
 
   // Month navigation
   const prevMonth = () => {
@@ -296,10 +688,22 @@ export default function StaffPayrollPage() {
   };
   const isCurrentMonth = month === getCurrentYM();
 
-  // Save payroll payment
+  // Save salary payment
   const handlePaySave = async (payload: object) => {
     const supabase = createClient();
     const { error } = await supabase.from("transactions").insert(payload);
+    if (!error) fetchPayroll();
+    return { error };
+  };
+
+  // Save bonus/benefit payment
+  const handleBonusSave = async (bonusType: string, payload: object) => {
+    const supabase = createClient();
+    const categoryId = await getOrCreateBonusCategory(supabase, bonusType);
+    const { error } = await supabase.from("transactions").insert({
+      ...payload,
+      ...(categoryId ? { category_id: categoryId } : {}),
+    });
     if (!error) fetchPayroll();
     return { error };
   };
@@ -310,36 +714,36 @@ export default function StaffPayrollPage() {
 
       <div className="p-4 md:p-6 space-y-4">
 
-        {/* ── Month Selector ── */}
+        {/* ── Month Selector & Filters ── */}
         <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <button
               onClick={prevMonth}
               className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
             >
-              <ChevronLeft size={16} className="text-gray-600" />
+              <ChevronLeft size={14} className="text-gray-600" />
             </button>
             <input
               type="month"
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
             <button
               onClick={nextMonth}
-              disabled={isCurrentMonth}
+              disabled={false}
               className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-30"
             >
-              <ChevronRight size={16} className="text-gray-600" />
+              <ChevronRight size={14} className="text-gray-600" />
             </button>
-            <span className="text-sm font-semibold text-gray-700">{getMonthLabel(month)}</span>
+            <span className="text-xs font-semibold text-gray-700">{getMonthLabel(month)}</span>
             {/* Status filter */}
             <div className="flex rounded-lg border border-gray-200 overflow-hidden h-9">
               {([["all", "All"], ["unpaid", "Unpaid"], ["partial", "Partial"], ["paid", "Paid"]] as const).map(([v, label]) => (
                 <button
                   key={v}
                   onClick={() => setStatusFilter(v)}
-                  className={`px-3 text-xs font-medium transition-colors ${
+                  className={`px-3 text-[12px] font-medium transition-colors ${
                     statusFilter === v
                       ? v === "paid" ? "bg-green-500 text-white"
                         : v === "partial" ? "bg-amber-500 text-white"
@@ -355,18 +759,19 @@ export default function StaffPayrollPage() {
           </div>
           {/* Search */}
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search staff…"
-              className="w-56 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-52 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
         </div>
 
         {/* ── Summary Cards ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {/* Total Staff */}
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
@@ -375,8 +780,23 @@ export default function StaffPayrollPage() {
               <span className="text-xs font-medium text-gray-500">Total Staff</span>
             </div>
             <p className="text-2xl font-bold text-gray-800">{rows.length}</p>
-            <p className="text-xs text-gray-400 mt-1">{fullyPaid} fully paid</p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {hallCount > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600">
+                  <Utensils size={9} /> {hallCount} Hall
+                </span>
+              )}
+              {kitchenCount > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-600">
+                  <ChefHat size={9} /> {kitchenCount} Kitchen
+                </span>
+              )}
+              {hallCount === 0 && kitchenCount === 0 && (
+                <p className="text-[10px] text-gray-400">{fullyPaid} fully paid</p>
+              )}
+            </div>
           </div>
+
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
@@ -387,6 +807,7 @@ export default function StaffPayrollPage() {
             <p className="text-2xl font-bold text-gray-800">{fmt(totalSalary)}</p>
             <p className="text-xs text-gray-400 mt-1">{getMonthLabel(month)}</p>
           </div>
+
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
@@ -399,6 +820,7 @@ export default function StaffPayrollPage() {
               {totalSalary > 0 ? ((totalPaid / totalSalary) * 100).toFixed(0) : 0}% of total
             </p>
           </div>
+
           <div className={`rounded-xl border p-4 ${totalDue > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${totalDue > 0 ? "bg-amber-100" : "bg-gray-50"}`}>
@@ -431,6 +853,7 @@ export default function StaffPayrollPage() {
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Staff</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 hidden sm:table-cell">Role</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Type</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 hidden md:table-cell">Restaurant</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Salary</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Paid</th>
@@ -450,6 +873,19 @@ export default function StaffPayrollPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500 hidden sm:table-cell">
                       {row.jobRole ?? <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.staffType === "kitchen" ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
+                          <ChefHat size={9} /> Kitchen
+                        </span>
+                      ) : row.staffType === "hall" ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                          <Utensils size={9} /> Hall
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500 hidden md:table-cell">
                       {row.restaurantName ?? <span className="text-gray-300">—</span>}
@@ -490,17 +926,23 @@ export default function StaffPayrollPage() {
                               setHistoryTarget(row);
                               await fetchHistory(row.staffId);
                             }}
-                            className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                            className="px-2 py-1 text-[11px] font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                           >
                             History
                           </button>
                         )}
+                        <button
+                          onClick={() => setBonusTarget(row)}
+                          className="flex items-center gap-0.5 px-2 py-1 text-[11px] font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+                        >
+                          <Gift size={10} /> Benefit
+                        </button>
                         {row.status !== "fully_paid" && row.monthlySalary > 0 && (
                           <button
                             onClick={() => setPayTarget(row)}
-                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors"
+                            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors"
                           >
-                            <Plus size={11} /> Pay
+                            <Plus size={10} /> Pay
                           </button>
                         )}
                       </div>
@@ -510,7 +952,7 @@ export default function StaffPayrollPage() {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-gray-100 bg-gray-50">
-                  <td colSpan={3} className="px-4 py-3 text-xs font-semibold text-gray-500 hidden md:table-cell">
+                  <td colSpan={4} className="px-4 py-3 text-xs font-semibold text-gray-500 hidden md:table-cell">
                     {filtered.length} staff members
                   </td>
                   <td colSpan={3} className="px-4 py-3 text-xs font-semibold text-gray-500 md:hidden">
@@ -527,7 +969,7 @@ export default function StaffPayrollPage() {
         </div>
       </div>
 
-      {/* ── Pay Dialog ── */}
+      {/* ── Pay Salary Dialog ── */}
       {payTarget && activeRestaurant && (
         <Dialog
           open={!!payTarget}
@@ -546,43 +988,107 @@ export default function StaffPayrollPage() {
         </Dialog>
       )}
 
+      {/* ── Add Benefit Dialog ── */}
+      {bonusTarget && activeRestaurant && (
+        <Dialog
+          open={!!bonusTarget}
+          onOpenChange={(o) => !o && setBonusTarget(null)}
+          title={`Add Benefit — ${bonusTarget.name}`}
+          maxWidth="max-w-md"
+        >
+          <BonusDialog
+            row={bonusTarget}
+            month={month}
+            paymentMethods={paymentMethods}
+            restaurantId={activeRestaurant.id}
+            onSave={handleBonusSave}
+            onClose={() => setBonusTarget(null)}
+          />
+        </Dialog>
+      )}
+
       {/* ── Payment History Dialog ── */}
       {historyTarget && (
         <Dialog
           open={!!historyTarget}
-          onOpenChange={(o) => !o && setHistoryTarget(null)}
+          onOpenChange={(o) => { if (!o) { setHistoryTarget(null); setHistoryRecords([]); } }}
           title={`Payment History — ${historyTarget.name}`}
           maxWidth="max-w-md"
         >
           <div className="space-y-3">
-            <p className="text-xs text-gray-500">{getMonthLabel(month)}</p>
-            {historyRecords.length === 0 ? (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">{getMonthLabel(month)}</p>
+              <button
+                onClick={() => printSalaryStatement(historyTarget, historyRecords, month, activeRestaurant?.name ?? "Restaurant")}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <Printer size={11} /> Print Statement
+              </button>
+            </div>
+
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-8 gap-2 text-sm text-gray-400">
+                <Loader2 size={15} className="animate-spin" /> Loading…
+              </div>
+            ) : historyRecords.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-6">No payments recorded</p>
             ) : (
               <ul className="divide-y divide-gray-100">
                 {historyRecords.map((r) => (
-                  <li key={r.id} className="py-3 flex items-center justify-between text-sm">
-                    <div>
-                      <p className="font-medium text-gray-700">
-                        {new Date(r.transaction_date + "T12:00:00").toLocaleDateString("en-GB", {
-                          day: "numeric", month: "short",
-                        })}
-                      </p>
+                  <li key={r.id} className="py-3 flex items-start justify-between gap-3 text-sm">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-medium text-gray-700">
+                          {new Date(r.transaction_date + "T12:00:00").toLocaleDateString("en-GB", {
+                            day: "numeric", month: "short",
+                          })}
+                        </p>
+                        {r.isBonus ? (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                            <Gift size={8} /> {r.bonusType}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                            Salary
+                          </span>
+                        )}
+                      </div>
                       {r.payment_methods?.name && (
-                        <p className="text-xs text-gray-400">{r.payment_methods.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{r.payment_methods.name}</p>
                       )}
                     </div>
-                    <span className="font-semibold text-green-600">{fmt(r.amount)}</span>
+                    <span className={`font-semibold shrink-0 ${r.isBonus ? "text-purple-600" : "text-green-600"}`}>
+                      {fmt(r.amount)}
+                    </span>
                   </li>
                 ))}
               </ul>
             )}
-            <div className="border-t border-gray-100 pt-3 flex justify-between items-center text-sm">
-              <span className="font-semibold text-gray-600">Total Paid</span>
-              <span className="font-bold text-green-600">{fmt(historyRecords.reduce((s, r) => s + r.amount, 0))}</span>
-            </div>
+
+            {!historyLoading && historyRecords.length > 0 && (
+              <>
+                {/* Breakdown */}
+                {historyRecords.some(r => r.isBonus) && (
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-sm">
+                    <div className="flex justify-between text-gray-500">
+                      <span>Salary Paid</span>
+                      <span className="font-semibold text-green-600">{fmt(historyRecords.filter(r => !r.isBonus).reduce((s, r) => s + r.amount, 0))}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-500">
+                      <span>Benefits & Bonuses</span>
+                      <span className="font-semibold text-purple-600">{fmt(historyRecords.filter(r => r.isBonus).reduce((s, r) => s + r.amount, 0))}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="border-t border-gray-100 pt-3 flex justify-between items-center text-sm">
+                  <span className="font-semibold text-gray-600">Total Paid</span>
+                  <span className="font-bold text-gray-800">{fmt(historyRecords.reduce((s, r) => s + r.amount, 0))}</span>
+                </div>
+              </>
+            )}
+
             <div className="flex justify-end">
-              <Button variant="secondary" size="sm" onClick={() => setHistoryTarget(null)}>Close</Button>
+              <Button variant="secondary" size="sm" onClick={() => { setHistoryTarget(null); setHistoryRecords([]); }}>Close</Button>
             </div>
           </div>
         </Dialog>

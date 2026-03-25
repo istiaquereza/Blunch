@@ -11,8 +11,11 @@ interface CustomerOrderEntry {
   prep_time_minutes?: number;
 }
 
-// Global map keyed by order UUID
-const store = new Map<string, CustomerOrderEntry>();
+// Use globalThis so the store is shared across all API route module scopes
+// (Next.js App Router dev mode gives each route its own module instance)
+const g = globalThis as any;
+if (!g.__customerOrderStore) g.__customerOrderStore = new Map<string, CustomerOrderEntry>();
+const store: Map<string, CustomerOrderEntry> = g.__customerOrderStore;
 
 /** Register an order as a customer (QR) order at creation time. */
 export function registerCustomerOrder(orderId: string): void {
