@@ -10,6 +10,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        orange: {
+          50:  "#FFF2F0",
+          100: "#FFE5E0",
+          200: "#FFC2B8",
+          300: "#FF8E7A",
+          400: "#FF5A3D",
+          500: "#FD2400",
+          600: "#D62000",
+          700: "#A81900",
+          800: "#801300",
+          900: "#581000",
+          950: "#300800",
+        },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

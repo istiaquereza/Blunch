@@ -28,6 +28,8 @@ import {
   Phone,
   CreditCard,
   NotebookPen,
+  Timer,
+  Smartphone,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -65,6 +67,10 @@ interface OrderDraft {
   savedTotals?: BillingTotals;
   customDiscountType: "none" | "amount" | "percent";
   customDiscountValue: number;
+  // Customer order fields
+  isCustomerOrder?: boolean;
+  confirmedAt?: string;
+  prepTimeMinutes?: number;
 }
 
 function newDraft(label = "New Order"): OrderDraft {
@@ -84,6 +90,9 @@ function newDraft(label = "New Order"): OrderDraft {
     paymentMethodId: "",
     customDiscountType: "none",
     customDiscountValue: 0,
+    isCustomerOrder: false,
+    confirmedAt: undefined,
+    prepTimeMinutes: undefined,
   };
 }
 
@@ -244,6 +253,7 @@ function OrderCard({
   onBill,
   onComplete,
   onAddFood,
+  onConfirmCustomerOrder,
   saving,
 }: {
   draft: OrderDraft;
@@ -262,6 +272,7 @@ function OrderCard({
   onBill: () => void;
   onComplete: () => void;
   onAddFood?: () => void;
+  onConfirmCustomerOrder?: () => void;
   saving: boolean;
 }) {
   const [showCustDropdown, setShowCustDropdown] = useState(false);
@@ -329,8 +340,18 @@ function OrderCard({
           {draft.stage === "billing" && (
             <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded-full">Billing</span>
           )}
-          {draft.stage === "building" && draft.savedOrderId && (
+          {draft.stage === "building" && draft.savedOrderId && !draft.isCustomerOrder && (
             <span className="text-xs bg-blue-100 text-blue-700 font-semibold px-1.5 py-0.5 rounded-full">Active</span>
+          )}
+          {draft.isCustomerOrder && (
+            <span className="text-xs bg-purple-100 text-purple-700 font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+              <Smartphone size={9} />QR
+            </span>
+          )}
+          {draft.confirmedAt && (
+            <span className="text-xs bg-green-100 text-green-700 font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+              <Timer size={9} />{draft.prepTimeMinutes}m
+            </span>
           )}
         </div>
         <button
@@ -625,6 +646,15 @@ function OrderCard({
       <div className="px-3 py-2.5 border-t border-gray-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
         {draft.stage === "building" && (
           <>
+            {/* Customer order confirm button */}
+            {draft.isCustomerOrder && !draft.confirmedAt && onConfirmCustomerOrder && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onConfirmCustomerOrder(); }}
+                className="w-full h-8 rounded-xl bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors mb-1"
+              >
+                <Timer size={12} /> Confirm &amp; Set Prep Time
+              </button>
+            )}
             {/* Mobile: Add Food button when cart has items */}
             {onAddFood && draft.cart.length > 0 && (
               <button
@@ -699,6 +729,9 @@ export default function NewOrderPage() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  // Customer order confirm modal
+  const [confirmModalDraftId, setConfirmModalDraftId] = useState<string | null>(null);
+  const [confirmMinutes, setConfirmMinutes] = useState("25");
 
   // Track previous cart per draft to detect changes for DB sync
   const prevCartRef = useRef<Map<string, CartItem[]>>(new Map());
@@ -710,12 +743,24 @@ export default function NewOrderPage() {
 
     const loadOrders = async () => {
       setLoadingOrders(true);
-      const { data } = await supabase
+      // Try full query with new customer-order columns; fall back without them
+      let data: any[] | null = null;
+      const { data: full, error: fullErr } = await supabase
         .from("orders")
         .select(`*, tables(id, table_number), customers(id, name, phone), order_items(*, food_items(id, name, sell_price))`)
         .eq("restaurant_id", activeRestaurant.id)
         .in("status", ["active", "billed"])
         .order("created_at", { ascending: true });
+      if (!fullErr) { data = full; }
+      else {
+        const { data: basic } = await supabase
+          .from("orders")
+          .select(`*, tables(id, table_number), customers(id, name, phone), order_items(*, food_items(id, name, sell_price))`)
+          .eq("restaurant_id", activeRestaurant.id)
+          .in("status", ["active", "billed"])
+          .order("created_at", { ascending: true });
+        data = basic;
+      }
 
       if (data && data.length > 0) {
         const restored: OrderDraft[] = data.map((order: any) => ({
@@ -753,6 +798,13 @@ export default function NewOrderPage() {
           printedCart: [],
           customDiscountType: "none",
           customDiscountValue: 0,
+          // Detect customer (QR) order: use `source` column if migration has been run,
+          // otherwise fall back to customer_id being set (QR orders always create a customer).
+          isCustomerOrder: (order as any).source === "customer" || !!(order.customers?.id),
+          // confirmed_at / prep_time_minutes come from DB columns after migration,
+          // or will be fetched live from the status endpoint on the customer page.
+          confirmedAt: (order as any).confirmed_at ?? undefined,
+          prepTimeMinutes: (order as any).prep_time_minutes ?? undefined,
         }));
         setDrafts(restored);
         setActiveDraftId(restored[0].draftId);
@@ -802,6 +854,28 @@ export default function NewOrderPage() {
     const d = newDraft(`Order ${draftCounterRef.current++}`);
     setDrafts((prev) => [...prev, d]);
     setActiveDraftId(d.draftId);
+  };
+
+  const handleConfirmOrder = async () => {
+    const draft = drafts.find((d) => d.draftId === confirmModalDraftId);
+    if (!draft?.savedOrderId) return;
+    const mins = parseInt(confirmMinutes, 10);
+    if (!mins || mins < 1) { toast.error("Enter a valid prep time"); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/customer-order/${draft.savedOrderId}/confirm`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prep_time_minutes: mins }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error("Failed to confirm order"); return; }
+      const confirmedAt = data.confirmed_at ?? new Date().toISOString();
+      updateDraft(draft.draftId, { confirmedAt, prepTimeMinutes: mins });
+      toast.success(`Order confirmed — ${mins} min prep time set`);
+      setConfirmModalDraftId(null);
+    } catch { toast.error("Something went wrong"); }
+    finally { setSaving(false); }
   };
 
   // Remove draft from UI and reset counter if it was the last one
@@ -988,6 +1062,26 @@ export default function NewOrderPage() {
         ?? (tables as any[]).find((t) => t.id === draft.tableId)?.name ?? "";
       printKitchenTicket(activeRestaurant.name, { ...draft, savedOrderId: order.id, orderNumber: order.order_number }, tableName, prevPrintedCart);
       updateDraft(draftId, { printedCart: [...draft.cart] });
+
+      // For customer orders: auto-confirm on first print
+      if (draft.isCustomerOrder && !draft.confirmedAt) {
+        const prepMins = draft.prepTimeMinutes ?? 25;
+        try {
+          const res = await fetch(`/api/customer-order/${order.id}/confirm`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prep_time_minutes: prepMins }),
+          });
+          const data = await res.json();
+          if (res.ok || data.confirmed_at) {
+            updateDraft(draftId, {
+              confirmedAt: data.confirmed_at ?? new Date().toISOString(),
+              prepTimeMinutes: prepMins,
+            });
+          }
+        } catch { /* silent */ }
+      }
+
       setSaving(false);
       return;
     }
@@ -997,6 +1091,26 @@ export default function NewOrderPage() {
       ?? (tables as any[]).find((t) => t.id === draft.tableId)?.name ?? "";
     printKitchenTicket(activeRestaurant.name, draft, tableName, prevPrintedCart);
     updateDraft(draftId, { printedCart: [...draft.cart] });
+
+    // For customer orders: auto-confirm on (re)print so customer page moves to "Preparing"
+    if (draft.isCustomerOrder && !draft.confirmedAt && draft.savedOrderId) {
+      const prepMins = draft.prepTimeMinutes ?? 25;
+      try {
+        const res = await fetch(`/api/customer-order/${draft.savedOrderId}/confirm`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prep_time_minutes: prepMins }),
+        });
+        const data = await res.json();
+        if (res.ok || data.confirmed_at) {
+          updateDraft(draftId, {
+            confirmedAt: data.confirmed_at ?? new Date().toISOString(),
+            prepTimeMinutes: prepMins,
+          });
+          toast.success(`Kitchen notified — customer sees ${prepMins} min prep time`);
+        }
+      } catch { /* silent — reprint still succeeded */ }
+    }
   };
 
   const handleBill = async (draftId: string) => {
@@ -1173,6 +1287,7 @@ export default function NewOrderPage() {
                   onBill={() => handleBill(draft.draftId)}
                   onComplete={() => handleComplete(draft.draftId)}
                   onAddFood={() => { setActiveDraftId(draft.draftId); setMobileMenuOpen(true); }}
+                  onConfirmCustomerOrder={draft.isCustomerOrder ? () => { setConfirmModalDraftId(draft.draftId); setConfirmMinutes("25"); } : undefined}
                   saving={saving}
                 />
               ))}
@@ -1189,6 +1304,54 @@ export default function NewOrderPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Confirm Customer Order Modal ─────────────────────────────────────── */}
+      {confirmModalDraftId && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setConfirmModalDraftId(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-6 pb-4 text-center space-y-2">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mx-auto">
+                <Timer size={20} className="text-purple-500" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Confirm Order</h3>
+              <p className="text-sm text-gray-500">Set the preparation time for this customer order. The timer will appear on the customer&apos;s screen.</p>
+            </div>
+            <div className="px-6 pb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Preparation time (minutes)</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={confirmMinutes}
+                  onChange={(e) => setConfirmMinutes(e.target.value)}
+                  className="flex-1 h-11 px-4 rounded-xl border border-gray-200 text-lg font-bold text-center focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  autoFocus
+                />
+                <span className="text-sm text-gray-500 shrink-0">minutes</span>
+              </div>
+              <div className="flex gap-2 mt-2">
+                {[10, 15, 20, 25, 30, 45].map((m) => (
+                  <button key={m} onClick={() => setConfirmMinutes(String(m))}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${confirmMinutes === String(m) ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                    {m}m
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="px-6 py-4 flex gap-2">
+              <button onClick={() => setConfirmModalDraftId(null)}
+                className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleConfirmOrder} disabled={saving}
+                className="flex-1 h-10 rounded-xl bg-purple-500 hover:bg-purple-600 text-white text-sm font-bold disabled:opacity-60 transition-colors flex items-center justify-center gap-1.5">
+                {saving ? "Saving…" : <><CheckCircle size={14} /> Confirm Order</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Cancel Confirmation Modal ───────────────────────────────────────── */}
       {cancelConfirmId && (() => {

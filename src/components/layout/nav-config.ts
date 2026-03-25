@@ -22,6 +22,7 @@ import {
   BarChart2,
   ShieldCheck,
   Truck,
+  QrCode,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -93,6 +94,11 @@ export const navItems: NavItem[] = [
       { title: "Roles & Access", href: "/staff/app-users", icon: ShieldCheck },
       { title: "Vendors", href: "/staff/vendors", icon: Truck },
     ],
+  },
+  {
+    title: "Customer Order",
+    href: "/customer-order",
+    icon: QrCode,
   },
   {
     title: "Analytics",

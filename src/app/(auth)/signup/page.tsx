@@ -67,7 +67,18 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2">
+            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-lg">B</span>
+            </div>
+            <span className="text-2xl font-bold text-gray-900">Blunch</span>
+          </div>
+          <p className="text-gray-500 text-sm mt-2">Restaurant Management System</p>
+        </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
         <p className="text-gray-500 text-sm mt-1">
@@ -174,15 +185,17 @@ export default function SignupPage() {
         </button>
       </form>
 
-      <p className="text-center text-sm text-gray-500 mt-6">
-        Already have an account?{" "}
-        <Link
-          href="/login"
-          className="text-orange-500 hover:text-orange-600 font-medium"
-        >
-          Sign in
-        </Link>
-      </p>
+          <p className="text-center text-sm text-gray-500 mt-6">
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              className="text-orange-500 hover:text-orange-600 font-medium"
+            >
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
