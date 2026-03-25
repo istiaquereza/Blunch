@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { registerCustomerOrder, confirmCustomerOrder } from "@/lib/customer-order-store";
+
+export const dynamic = "force-dynamic";
+
+function createClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createSupabaseClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
 
 export async function PATCH(
   req: Request,
@@ -21,7 +29,7 @@ export async function PATCH(
   confirmCustomerOrder(orderId, confirmedAt, prep_time_minutes);
 
   // Also persist to DB (works after migration — required for Vercel/serverless)
-  const supabase = createAdminClient();
+  const supabase = createClient();
   const { error } = await supabase
     .from("orders")
     .update({ prep_time_minutes, confirmed_at: confirmedAt })

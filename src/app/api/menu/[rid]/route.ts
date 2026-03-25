@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
@@ -9,12 +9,17 @@ export async function GET(
 ) {
   const { rid } = await params;
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.error("[menu] Missing Supabase env vars — set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel");
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    console.error("[menu] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
     return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
   }
 
-  const supabase = createAdminClient();
+  // Use anon key — this is a public route, no auth needed
+  // If your RLS blocks anon reads on food_items/restaurants, add SUPABASE_SERVICE_ROLE_KEY to Vercel and swap below
+  const supabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
 
   // Fetch restaurant, tables, billing settings, and discounts in parallel
   const [

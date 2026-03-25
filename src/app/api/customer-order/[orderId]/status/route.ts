@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getCustomerOrderMeta } from "@/lib/customer-order-store";
+
+export const dynamic = "force-dynamic";
+
+function createClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createSupabaseClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
   const { orderId } = await params;
-  const supabase = createAdminClient();
+  const supabase = createClient();
 
   // Try full select (including columns added by migration)
   const { data: order, error } = await supabase
