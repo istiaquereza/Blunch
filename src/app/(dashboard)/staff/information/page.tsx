@@ -526,7 +526,7 @@ export default function StaffInformationPage() {
                 </div>
               )}
               <button type="button" onClick={() => photoInputRef.current?.click()}
-                className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center shadow hover:bg-orange-600">
+                className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#111827] text-white flex items-center justify-center shadow hover:bg-black">
                 <Camera size={12} />
               </button>
             </div>
@@ -646,8 +646,8 @@ export default function StaffInformationPage() {
                   <button key={cat.id} type="button" onClick={() => toggleCat(cat.id)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                       form.food_category_ids.includes(cat.id)
-                        ? "bg-orange-500 text-white border-orange-500"
-                        : "bg-white text-gray-600 border-gray-200 hover:border-orange-300"
+                        ? "bg-[#111827] text-white border-[#111827]"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
                     }`}>
                     {cat.name}
                   </button>

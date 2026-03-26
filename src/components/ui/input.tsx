@@ -21,7 +21,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           className={cn(
             "w-full h-9 px-3 rounded-lg border text-sm transition-colors",
             "placeholder:text-gray-400 bg-white",
-            "focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent",
+            "focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent",
             error
               ? "border-red-300 focus:ring-red-400"
               : "border-gray-200 hover:border-gray-300",

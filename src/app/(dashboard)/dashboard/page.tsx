@@ -352,7 +352,7 @@ function TransferModal({
             <button
               onClick={handleSubmit}
               disabled={saving}
-              className="flex-1 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 h-10 rounded-xl bg-[#111827] hover:bg-black text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <ArrowLeftRight size={14} />}
               {saving ? "Transferring…" : "Confirm Transfer"}

@@ -92,7 +92,7 @@ export default function CustomerOrderPage() {
                   href={orderUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#111827] hover:bg-black text-white text-sm font-medium transition-colors"
                 >
                   <ExternalLink size={15} />
                   Preview

@@ -398,7 +398,7 @@ function OrderCard({
             {draft.orderNumber ?? draft.label}
           </span>
           {itemCount > 0 && (
-            <span className={`text-xs font-bold rounded-full px-1.5 py-0.5 ${isActive ? "bg-orange-500 text-white" : "bg-gray-200 text-gray-600"}`}>
+            <span className={`text-xs font-bold rounded-full px-1.5 py-0.5 ${isActive ? "bg-[#111827] text-white" : "bg-gray-200 text-gray-600"}`}>
               {itemCount}
             </span>
           )}
@@ -624,7 +624,7 @@ function OrderCard({
                       const newTotals = calcTotals(draft.cart, discounts, "", billing, type, draft.customDiscountValue);
                       onUpdate({ discountId: "", customDiscountType: type, savedTotals: newTotals });
                     }}
-                    className={`px-2 py-1 text-[10px] font-semibold transition-colors ${draft.customDiscountType === type ? "bg-orange-500 text-white" : "text-gray-500 hover:bg-gray-50"}`}
+                    className={`px-2 py-1 text-[10px] font-semibold transition-colors ${draft.customDiscountType === type ? "bg-[#111827] text-white" : "text-gray-500 hover:bg-gray-50"}`}
                   >
                     {type === "none" ? "None" : type === "amount" ? "৳" : "%"}
                   </button>
@@ -777,7 +777,7 @@ function OrderCard({
               <button
                 onClick={onBill}
                 disabled={draft.cart.length === 0 || saving}
-                className="h-8 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1 transition-colors"
+                className="h-8 rounded-xl bg-[#111827] hover:bg-black text-white text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1 transition-colors"
               >
                 <ReceiptText size={12} /> {saving ? "…" : "Bill"}
               </button>
@@ -1459,12 +1459,12 @@ export default function NewOrderPage() {
             </div>
             <div className="flex flex-wrap gap-1.5">
               <button onClick={() => setActiveCategory("all")}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === "all" ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === "all" ? "bg-[#111827] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
                 All
               </button>
               {categories.map((cat) => (
                 <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat.id ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat.id ? "bg-[#111827] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
                   {cat.name}
                 </button>
               ))}
@@ -1523,7 +1523,7 @@ export default function NewOrderPage() {
               )}
               <button
                 onClick={addNewOrder}
-                className="h-9 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold flex items-center gap-1.5 transition-colors"
+                className="h-9 px-4 rounded-xl bg-[#111827] hover:bg-black text-white text-sm font-semibold flex items-center gap-1.5 transition-colors"
               >
                 <Plus size={15} /> New Order
               </button>
@@ -1704,7 +1704,7 @@ export default function NewOrderPage() {
             <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
               <button
                 onClick={() => setActiveCategory("all")}
-                className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === "all" ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600"}`}
+                className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === "all" ? "bg-[#111827] text-white" : "bg-gray-100 text-gray-600"}`}
               >
                 All
               </button>
@@ -1712,7 +1712,7 @@ export default function NewOrderPage() {
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat.id ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600"}`}
+                  className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat.id ? "bg-[#111827] text-white" : "bg-gray-100 text-gray-600"}`}
                 >
                   {cat.name}
                 </button>
@@ -1746,7 +1746,7 @@ export default function NewOrderPage() {
           <div className="fixed bottom-0 inset-x-0 p-4 bg-white border-t border-gray-100">
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="w-full h-11 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
+              className="w-full h-11 rounded-xl bg-[#111827] hover:bg-black text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
             >
               <CheckCircle size={16} />
               Done · {activeDraft?.cart.reduce((s, c) => s + c.quantity, 0) ?? 0} item{(activeDraft?.cart.reduce((s, c) => s + c.quantity, 0) ?? 0) !== 1 ? "s" : ""} in order

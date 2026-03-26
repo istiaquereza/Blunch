@@ -239,7 +239,7 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
         <div className="relative" ref={profileRef}>
           <button
             onClick={() => { setProfileOpen(!profileOpen); setNotifOpen(false); }}
-            className="w-8 h-8 rounded-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center shrink-0 transition-colors"
+            className="w-8 h-8 rounded-full bg-[#111827] hover:bg-black flex items-center justify-center shrink-0 transition-colors"
           >
             <span className="text-white text-xs font-bold">{initials}</span>
           </button>
@@ -248,7 +248,7 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
             <div className="absolute right-0 top-11 w-56 bg-white rounded-xl border border-border shadow-xl z-50 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-[#111827] flex items-center justify-center shrink-0">
                     <span className="text-white text-xs font-bold">{initials}</span>
                   </div>
                   <div className="min-w-0">

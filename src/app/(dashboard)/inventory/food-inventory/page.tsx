@@ -678,7 +678,7 @@ export default function FoodInventoryPage() {
                     ] as { value: "paid" | "due"; label: string }[]).map((s) => (
                       <button key={s.value} onClick={() => setPaymentStatus(s.value)}
                         className={`px-4 py-1.5 text-xs font-semibold transition-colors ${
-                          paymentStatus === s.value ? "bg-orange-500 text-white" : "text-gray-500 hover:bg-gray-50"
+                          paymentStatus === s.value ? "bg-[#111827] text-white" : "text-gray-500 hover:bg-gray-50"
                         }`}>
                         {s.label}
                       </button>

@@ -301,7 +301,7 @@ function RecipeCard({
                   onKeyDown={(e) => e.key === "Enter" && onAddLog()}
                   placeholder="Add note..." className="flex-1 h-7 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-500" />
                 <button onClick={onAddLog} disabled={logLoading}
-                  className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 disabled:opacity-50">
+                  className="w-7 h-7 rounded-lg bg-[#111827] text-white flex items-center justify-center hover:bg-black disabled:opacity-50">
                   <Send size={10} />
                 </button>
               </div>
@@ -790,7 +790,7 @@ export default function RecipePage() {
                 <button key={r.id} type="button" onClick={() => toggleRestaurant(r.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                     form.restaurant_ids.includes(r.id)
-                      ? "bg-orange-500 text-white border-orange-500"
+                      ? "bg-[#111827] text-white border-[#111827]"
                       : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
                   }`}>
                   {r.name}

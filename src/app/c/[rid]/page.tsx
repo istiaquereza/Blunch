@@ -298,8 +298,8 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
       <div className={`min-h-screen flex flex-col transition-colors duration-700 ${isReady ? "bg-green-50" : "bg-gray-50"}`}>
 
         {/* Header */}
-        <div className="bg-white border-b border-gray-100 px-4 py-3.5 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
-          <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0 overflow-hidden border border-gray-100">
+        <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+          <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center shrink-0 overflow-hidden border border-gray-100">
             {restaurant.logo_url
               ? <img src={restaurant.logo_url} alt={restaurant.name} className="w-full h-full object-cover" />
               : <span className="text-orange-500 font-bold text-sm">{restaurant.name[0]}</span>}
@@ -446,11 +446,7 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
             </div>
           </details>
 
-          <button
-            onClick={startNewOrder}
-            className="w-full py-3.5 bg-white border-2 border-gray-200 hover:border-orange-500 hover:text-orange-500 text-gray-500 font-semibold rounded-2xl transition-all flex items-center justify-center gap-2"
-          >
-            <Plus size={16} />
+          <button onClick={startNewOrder} className="bg-gray-900 text-white rounded-xl py-3 font-semibold text-sm w-full">
             Start a New Order
           </button>
 
@@ -539,10 +535,12 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
           </div>
 
           {/* Payment */}
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
+          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment Method</p>
-            <div className="py-3 rounded-xl text-sm font-medium border bg-gray-900 text-white border-gray-900 text-center">
-              💵 Cash on Delivery
+            <div className="grid grid-cols-2 gap-2">
+              <button className="py-3 rounded-xl text-sm font-medium border bg-gray-900 text-white border-gray-900">
+                Cash
+              </button>
             </div>
           </div>
         </div>
@@ -550,7 +548,7 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
         {/* Fixed bottom button */}
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100">
           <button onClick={submitOrder} disabled={submitting || !cart.length}
-            className="w-full bg-gray-900 text-white font-bold rounded-xl py-4 flex items-center justify-center gap-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+            className="w-full bg-gray-900 text-white font-bold text-base rounded-xl py-4 flex items-center justify-center gap-2 disabled:opacity-50">
             {submitting
               ? <><Loader2 size={18} className="animate-spin" /> Placing Order…</>
               : <>Place Order — {fmt(grandTotal)}</>}
@@ -738,8 +736,8 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
             {/* Action button */}
             <div className="p-4 border-t border-gray-100">
               <button onClick={() => { setCartOpen(false); setStep("checkout"); }}
-                className="w-full bg-gray-900 text-white rounded-xl py-3.5 font-bold text-sm">
-                Proceed to Checkout — {fmt(grandTotal)}
+                className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white rounded-xl py-3.5 font-semibold text-sm">
+                Checkout — {fmt(grandTotal)}
               </button>
             </div>
           </div>

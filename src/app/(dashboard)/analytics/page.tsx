@@ -595,7 +595,7 @@ export default function AnalyticsPage() {
                     key={v}
                     onClick={() => setReportView(v)}
                     className={`px-3 text-xs font-medium transition-colors capitalize ${
-                      reportView === v ? "bg-orange-500 text-white" : "text-gray-500 hover:bg-gray-50"
+                      reportView === v ? "bg-[#111827] text-white" : "text-gray-500 hover:bg-gray-50"
                     }`}
                   >
                     By {v === "food" ? "Food" : "Category"}

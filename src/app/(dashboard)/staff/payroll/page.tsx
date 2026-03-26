@@ -940,7 +940,7 @@ export default function StaffPayrollPage() {
                         {row.status !== "fully_paid" && row.monthlySalary > 0 && (
                           <button
                             onClick={() => setPayTarget(row)}
-                            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors"
+                            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-white bg-[#111827] hover:bg-black rounded-lg transition-colors"
                           >
                             <Plus size={10} /> Pay
                           </button>
