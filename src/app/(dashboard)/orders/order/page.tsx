@@ -831,6 +831,70 @@ export default function NewOrderPage() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+
+  // Staff selector — persists across sessions per restaurant
+  const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
+  const [currentStaffName, setCurrentStaffName] = useState<string>("");
+
+  useEffect(() => {
+    if (!activeRestaurant) return;
+    const supabase = createClient();
+    const key = `new_order_staff_${activeRestaurant.id}`;
+
+    const init = async () => {
+      // 1. Restore from localStorage first
+      const saved = localStorage.getItem(key);
+
+      // 2. Load staff list
+      const { data: staffData } = await supabase
+        .from("staff").select("id, name").eq("restaurant_id", activeRestaurant.id).order("name");
+      if (staffData) setStaffList(staffData);
+
+      if (saved) {
+        setCurrentStaffName(saved);
+        return;
+      }
+
+      // 3. No saved selection — auto-detect from logged-in user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Try matching auth email to a staff member's email column
+      const byEmail = staffData?.find((s: any) => s.email && s.email.toLowerCase() === user.email?.toLowerCase());
+      if (byEmail) {
+        setCurrentStaffName(byEmail.name);
+        localStorage.setItem(key, byEmail.name);
+        return;
+      }
+
+      // Fallback: use user metadata name or email prefix
+      const autoName =
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.email?.split("@")[0] ||
+        "";
+      if (autoName) {
+        setCurrentStaffName(autoName);
+        localStorage.setItem(key, autoName);
+      }
+    };
+
+    init();
+  }, [activeRestaurant]);
+
+  const selectStaff = (name: string) => {
+    setCurrentStaffName(name);
+    if (activeRestaurant) localStorage.setItem(`new_order_staff_${activeRestaurant.id}`, name);
+  };
+
+  // Builds the notes string: "Staff: Name\n{kitchen notes}" or just one of them
+  const buildNotes = (kitchenNotes: string) => {
+    const parts = [
+      currentStaffName.trim() ? `Staff: ${currentStaffName.trim()}` : "",
+      kitchenNotes.trim(),
+    ].filter(Boolean);
+    return parts.join("\n");
+  };
   // Customer order confirm modal
   const [confirmModalDraftId, setConfirmModalDraftId] = useState<string | null>(null);
   const [confirmMinutes, setConfirmMinutes] = useState("25");
@@ -863,6 +927,10 @@ export default function NewOrderPage() {
           .order("created_at", { ascending: true });
         data = basic;
       }
+
+      // Remote orders (source = "remote_staff") are self-contained — they complete on mobile
+      // and must never appear in the New Order management page.
+      if (data) data = data.filter((o: any) => o.source !== "remote_staff");
 
       if (data && data.length > 0) {
         const restored: OrderDraft[] = data.map((order: any) => {
@@ -1180,7 +1248,7 @@ export default function NewOrderPage() {
     // Auto-create order in DB on very first item (so cart persists across refresh)
     if (isFirstItem && !activeDraft.savedOrderId && activeRestaurant) {
       const { data: order, error } = await createKitchenOrder(
-        { type: activeDraft.orderType, tableId: activeDraft.tableId || undefined, notes: activeDraft.notes },
+        { type: activeDraft.orderType, tableId: activeDraft.tableId || undefined, notes: buildNotes(activeDraft.notes) },
         [{ food_item_id: item.id, quantity: 1, unit_price: item.sell_price }]
       );
       if (error || !order) {
@@ -1212,7 +1280,7 @@ export default function NewOrderPage() {
         food_item_id: c.foodItem.id, quantity: c.quantity, unit_price: c.foodItem.sell_price,
       }));
       const { data: order, error } = await createKitchenOrder(
-        { type: draft.orderType, tableId: draft.tableId || undefined, notes: draft.notes },
+        { type: draft.orderType, tableId: draft.tableId || undefined, notes: buildNotes(draft.notes) },
         items
       );
       if (error || !order) {
@@ -1439,12 +1507,27 @@ export default function NewOrderPage() {
               </span>
               {loadingOrders && <span className="text-xs text-gray-400">Loading…</span>}
             </div>
-            <button
-              onClick={addNewOrder}
-              className="h-9 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold flex items-center gap-1.5 transition-colors"
-            >
-              <Plus size={15} /> New Order
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Staff selector */}
+              {staffList.length > 0 && (
+                <select
+                  value={currentStaffName}
+                  onChange={(e) => selectStaff(e.target.value)}
+                  className="h-9 px-3 rounded-xl border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                >
+                  <option value="">🧑‍🍳 Staff</option>
+                  {staffList.map((s) => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={addNewOrder}
+                className="h-9 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Plus size={15} /> New Order
+              </button>
+            </div>
           </div>
 
           {/* Cards area — vertical scroll on mobile, horizontal on desktop */}

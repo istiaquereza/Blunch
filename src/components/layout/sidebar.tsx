@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navItems, type NavItem } from "./nav-config";
@@ -27,15 +27,15 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group",
             isActive
-              ? "bg-sidebar-accent text-sidebar-foreground"
-              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+              ? "bg-gray-900 text-white"
+              : "text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
           )}
         >
           <item.icon
             size={18}
             className={cn(
               "shrink-0 transition-colors",
-              isActive ? "text-orange-400" : "group-hover:text-orange-400"
+              isActive ? "text-white" : "group-hover:text-sidebar-foreground"
             )}
           />
           <span className="flex-1 text-left">{item.title}</span>
@@ -65,40 +65,19 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
       className={cn(
         "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group",
         isActive
-          ? "bg-orange-500 text-white"
-          : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+          ? "bg-gray-900 text-white"
+          : "text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
       )}
     >
       <item.icon
         size={18}
         className={cn(
           "shrink-0",
-          isActive ? "text-white" : "group-hover:text-orange-400"
+          isActive ? "text-white" : "group-hover:text-sidebar-foreground"
         )}
       />
       <span>{item.title}</span>
     </Link>
-  );
-}
-
-function SidebarClock() {
-  const [time, setTime] = useState("");
-  const [date, setDate] = useState("");
-  useEffect(() => {
-    const tick = () => {
-      const now = new Date();
-      setTime(now.toLocaleTimeString("en-US", { timeZone: "Asia/Dhaka", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }));
-      setDate(now.toLocaleDateString("en-US", { timeZone: "Asia/Dhaka", weekday: "short", day: "numeric", month: "short" }));
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div className="px-4 py-3 border-t border-sidebar-border">
-      <p className="text-xs font-semibold text-sidebar-foreground tabular-nums">{time}</p>
-      <p className="text-[10px] text-sidebar-foreground/40 mt-0.5">{date} · GMT+6</p>
-    </div>
   );
 }
 
@@ -108,24 +87,17 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
   return (
     <aside className="w-64 shrink-0 bg-sidebar h-full flex flex-col border-r border-sidebar-border">
       {/* Logo */}
-      <div className="p-5 border-b border-sidebar-border flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-sm">B</span>
-          </div>
-          <div>
-            <p className="text-sidebar-foreground font-bold text-sm leading-none">
-              Blunch
-            </p>
-            <p className="text-sidebar-foreground/40 text-xs mt-0.5">
-              Restaurant Management
-            </p>
-          </div>
-        </div>
+      <div className="px-5 pt-6 pb-5 border-b border-sidebar-border flex items-center justify-between">
+        <p
+          className="text-3xl leading-none tracking-tight select-none"
+          style={{ fontFamily: "var(--font-poppins), sans-serif", fontWeight: 600, color: "#C2C3C7" }}
+        >
+          Blunch<span style={{ color: "#F97316" }}>.</span>
+        </p>
         {showClose && (
           <button
             onClick={closeSidebar}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
           >
             <X size={16} />
           </button>
@@ -139,8 +111,13 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
         ))}
       </nav>
 
-      {/* Clock */}
-      <SidebarClock />
+      {/* Footer */}
+      <div className="px-5 py-3 border-t border-sidebar-border">
+        <p className="text-xs text-sidebar-foreground/40 text-center">
+          Made with <span style={{ color: "#F97316" }}>♥</span> from <span className="font-medium">gridlab</span>
+        </p>
+      </div>
+
     </aside>
   );
 }

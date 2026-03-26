@@ -23,7 +23,7 @@ export async function GET(
 
   // Fetch restaurant, tables, billing settings, and discounts in parallel
   const [
-    { data: restaurant },
+    { data: restaurant, error: restaurantErr },
     { data: tables },
     { data: billing },
     { data: discounts },
@@ -35,7 +35,9 @@ export async function GET(
   ]);
 
   if (!restaurant) {
-    return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
+    const usingServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    console.error(`[menu] restaurant fetch failed. rid=${rid} usingServiceRole=${usingServiceRole} error=${JSON.stringify(restaurantErr)}`);
+    return NextResponse.json({ error: "Restaurant not found", detail: restaurantErr?.message }, { status: 404 });
   }
 
   // Fetch food items via food_item_restaurants join (same as useFoodItems hook)

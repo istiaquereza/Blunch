@@ -625,64 +625,53 @@ export default function IncomeExpensesPage() {
 
       <div className="p-4 md:p-6 space-y-4">
         {/* ── Toolbar ── */}
-        <div className="bg-white rounded-xl border border-border p-3 space-y-2.5">
-          {/* Row 1: date presets + actions */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            {/* Date preset pills */}
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto flex-shrink-0">
-              {PRESETS.map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => {
-                    setPreset(p.value);
-                    if (p.value !== "custom") {
-                      const { from, to } = getPresetRange(p.value);
-                      setDateFrom(from);
-                      setDateTo(to);
-                    }
-                  }}
-                  className={`h-7 px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
-                    preset === p.value
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            {preset === "custom" && (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                <span className="text-gray-400 text-xs">→</span>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                  className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500" />
-              </div>
-            )}
-            <div className="flex-1" />
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setCatOpen(true)}>
-                <Tag size={14} /> Categories
-              </Button>
-              <Button onClick={() => setAddOpen(true)} disabled={!activeRestaurant} size="sm">
-                <Plus size={14} /> Add Transaction
-              </Button>
-            </div>
-          </div>
+        <div className="bg-white rounded-xl border border-border p-3">
+          <div className="flex flex-wrap items-center gap-2">
 
-          {/* Row 2: search + type filter + category */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search transactions…"
-                className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
+            {/* Date range dropdown */}
+            <select
+              value={preset}
+              onChange={(e) => {
+                const val = e.target.value as Preset;
+                setPreset(val);
+                if (val !== "custom") {
+                  const { from, to } = getPresetRange(val);
+                  setDateFrom(from);
+                  setDateTo(to);
+                }
+              }}
+              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              {PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+
+            {/* Custom date pickers */}
+            {preset === "custom" && (
+              <>
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                <span className="text-gray-400 text-sm">→</span>
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+              </>
+            )}
+
+            {/* Category dropdown */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">All Categories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+
+            {/* All / Income / Expense tabs */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
               {(["all", "income", "expense"] as const).map(chip => (
                 <button
                   key={chip}
@@ -699,16 +688,26 @@ export default function IncomeExpensesPage() {
                 </button>
               ))}
             </div>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shrink-0"
-            >
-              <option value="">All Categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+
+            <div className="flex-1" />
+
+            {/* Right side: categories + add + search */}
+            <Button variant="outline" size="sm" onClick={() => setCatOpen(true)}>
+              <Tag size={14} /> Categories
+            </Button>
+            <Button onClick={() => setAddOpen(true)} disabled={!activeRestaurant} size="sm">
+              <Plus size={14} /> Add Transaction
+            </Button>
+            <div className="relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search transactions…"
+                className="h-9 pl-9 pr-3 w-48 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
           </div>
         </div>
 

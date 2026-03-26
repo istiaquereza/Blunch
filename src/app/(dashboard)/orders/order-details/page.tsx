@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useRestaurant } from "@/contexts/restaurant-context";
 import { useOrders, type Order } from "@/hooks/use-orders";
+import { createClient } from "@/lib/supabase/client";
 import {
   ChevronRight,
   ChevronDown,
@@ -105,6 +106,23 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
   const isCancelled = order.status === "cancelled";
   const canDelete = !isCancelled && !isDeleted;
+  const isRemote = (order as any).source === "remote_staff";
+
+  // For active orders the stored total may be 0 until billing — calculate from items instead
+  const itemsTotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const displayTotal = order.total > 0 ? order.total : order.subtotal > 0 ? order.subtotal : itemsTotal;
+
+  // Staff name stored in notes as "Staff: Name\n..." (for both remote and PC orders)
+  const notesStaffName = order.notes?.startsWith("Staff: ")
+    ? order.notes.slice(7).split("\n")[0]
+    : null;
+  const staffName = notesStaffName;
+
+  // Elapsed time for active orders
+  const elapsedMins = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000);
+  const elapsedLabel = elapsedMins < 60
+    ? `${elapsedMins}m`
+    : `${Math.floor(elapsedMins / 60)}h ${elapsedMins % 60}m`;
 
   async function handleAction(action: OrderAction) {
     setLoading(true);
@@ -144,6 +162,16 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
                 📱 QR
               </span>
             )}
+            {isRemote && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                📲 Remote
+              </span>
+            )}
+            {order.status === "active" && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500">
+                <Clock size={9} /> {elapsedLabel}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
             {order.tables && (
@@ -156,6 +184,11 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
                 <Users size={10} /> {order.customers.name}
               </span>
             )}
+            {staffName && (
+              <span className="text-xs text-gray-500 flex items-center gap-1 font-medium">
+                <Utensils size={10} /> {staffName}
+              </span>
+            )}
             <span className="text-xs text-gray-400">
               {new Date(order.created_at).toLocaleString("en-GB", {
                 day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
@@ -165,7 +198,7 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
         </div>
 
         <div className="text-right shrink-0">
-          <p className="text-sm font-bold text-gray-900">{fmt(order.total || order.subtotal)}</p>
+          <p className="text-sm font-bold text-gray-900">{fmt(displayTotal)}</p>
           <p className="text-xs text-gray-400">{itemCount} item{itemCount !== 1 ? "s" : ""}</p>
         </div>
 
@@ -268,17 +301,25 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
             </div>
           )}
 
-          {order.status === "active" && !isDeleted && (
+          {order.status === "active" && !isDeleted && !isRemote && (
             <div className="px-4 pb-3">
               <p className="text-xs text-blue-500 bg-blue-50 rounded-lg px-3 py-2">
                 Manage this order from the <strong>New Order</strong> page.
               </p>
             </div>
           )}
-          {order.status === "billed" && !isDeleted && (
+          {order.status === "billed" && !isDeleted && !isRemote && (
             <div className="px-4 pb-3">
               <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
                 Complete this order from the <strong>New Order</strong> page.
+              </p>
+            </div>
+          )}
+          {isRemote && !isDeleted && (order.status === "active" || order.status === "billed") && (
+            <div className="px-4 pb-3">
+              <p className="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
+                📲 This order was taken via <strong>Remote Order</strong> on mobile.
+                {staffName && <> Staff: <strong>{staffName}</strong>.</>}
               </p>
             </div>
           )}
@@ -349,24 +390,33 @@ const STATUS_CHIP: Record<string, { label: string; cls: string }> = {
   completed: { label: "Completed", cls: "bg-green-50 text-green-700" },
 };
 
-function TimeLogCard({ order }: { order: Order }) {
+function TimeLogCard({ order, fallbackStaffName }: { order: Order; fallbackStaffName?: string }) {
   const started = order.created_at;
   const isCompleted = order.status === "completed";
   const isBilled = order.status === "billed";
   const closed = isCompleted ? order.updated_at : null;
   const durationMins = closed ? diffMins(started, closed) : null;
 
-  // Kitchen prints: array stored by New Order page when Kitchen/Reprint button is hit
+  const isQrOrder =
+    (order as any).source === "customer" ||
+    (() => { try { return JSON.parse(localStorage.getItem("qr_order_ids") ?? "[]").includes(order.id); } catch { return false; } })();
+  const isRemoteOrder = (order as any).source === "remote_staff";
+
+  // Kitchen start time:
+  // - Remote orders: created_at (kitchen is sent the moment the order is created on mobile)
+  // - PC/QR orders: first entry from localStorage kitchen_prints, then confirmed_at DB field
   const kitchenPrints: string[] = (() => {
     try {
       const raw = localStorage.getItem(`kitchen_prints_${order.id}`);
       return raw ? JSON.parse(raw) : [];
     } catch { return []; }
   })();
-  const kitchenAt = kitchenPrints[0] ?? (order as any).confirmed_at ?? null;
+  const kitchenAt = isRemoteOrder
+    ? order.created_at
+    : (kitchenPrints[0] ?? (order as any).confirmed_at ?? null);
 
-  // Billed time from localStorage
-  const billedAtStored: string | null = (() => {
+  // Billed time from localStorage (PC orders only — remote orders skip billed state)
+  const billedAtStored: string | null = isRemoteOrder ? null : (() => {
     try { return localStorage.getItem(`billed_${order.id}`) ?? null; } catch { return null; }
   })();
 
@@ -384,13 +434,19 @@ function TimeLogCard({ order }: { order: Order }) {
     return `${actualKitchenMins}m`;
   }
   const kitchenLabel = kitchenDurationLabel();
-
-  const isQrOrder =
-    (order as any).source === "customer" ||
-    (() => { try { return JSON.parse(localStorage.getItem("qr_order_ids") ?? "[]").includes(order.id); } catch { return false; } })();
   const guestName = order.customers?.name;
   const statusChip = STATUS_CHIP[order.status] ?? STATUS_CHIP.active;
   const fmt = (n: number) => "৳" + n.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Staff name: stored in notes as "Staff: Name\n..." for both remote and PC orders.
+  // Fallback to current logged-in user only for PC orders — never for remote/QR orders.
+  const staffName = order.notes?.startsWith("Staff: ")
+    ? order.notes.slice(7).split("\n")[0]
+    : (!isRemoteOrder && !isQrOrder) ? (fallbackStaffName ?? null) : null;
+
+  // Display total: for active orders total may be 0, fall back to items sum
+  const itemsSum = (order.order_items ?? []).reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const displayTotal = order.total > 0 ? order.total : order.subtotal > 0 ? order.subtotal : itemsSum;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col gap-3">
@@ -403,9 +459,13 @@ function TimeLogCard({ order }: { order: Order }) {
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-700 border border-orange-200">
                 📱 QR Order
               </span>
+            ) : isRemoteOrder ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                📲 {staffName ?? "Remote"}
+              </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 border border-gray-200">
-                🧑‍🍳 Staff
+                🧑‍🍳 {staffName ?? "Staff"}
               </span>
             )}
             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${statusChip.cls}`}>
@@ -422,82 +482,141 @@ function TimeLogCard({ order }: { order: Order }) {
             )}
           </div>
         </div>
-        <p className="text-sm font-bold text-gray-900 shrink-0">{fmt(order.total || order.subtotal)}</p>
+        <p className="text-sm font-bold text-gray-900 shrink-0">{fmt(displayTotal)}</p>
       </div>
 
       {/* Timeline */}
       <div className="flex flex-col gap-0">
-        {/* Start */}
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex flex-col items-center shrink-0">
-            <span className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-sm">🕐</span>
-            <div className="w-px h-4 bg-gray-200 mt-0.5" />
-          </div>
-          <div className="pb-2">
-            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Order Started</p>
-            <p className="text-gray-800 font-semibold">{fmtTime(started)}</p>
-          </div>
-        </div>
+        {isRemoteOrder ? (
+          <>
+            {/* Step 1: Order Started = created_at */}
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex flex-col items-center shrink-0">
+                <span className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-sm">🕐</span>
+                <div className="w-px h-4 bg-gray-200 mt-0.5" />
+              </div>
+              <div className="pb-2">
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Order Started</p>
+                <p className="text-gray-800 font-semibold">{fmtTime(started)}</p>
+              </div>
+            </div>
 
-        {/* Kitchen */}
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex flex-col items-center shrink-0">
-            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm ${kitchenAt ? "bg-orange-100" : "bg-gray-50 border border-dashed border-gray-200"}`}>
-              🍳
-            </span>
-            <div className="w-px h-4 bg-gray-200 mt-0.5" />
-          </div>
-          <div className="pb-2">
-            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Kitchen Start</p>
-            {kitchenAt ? (
-              <p className="text-gray-800 font-semibold">{fmtTime(kitchenAt)}</p>
-            ) : (
-              <p className="text-gray-300 font-medium">—</p>
+            {/* Step 2: Kitchen Start = created_at (same moment — remote orders are created on kitchen press) */}
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex flex-col items-center shrink-0">
+                <span className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center text-sm">🍳</span>
+                <div className="w-px h-4 bg-gray-200 mt-0.5" />
+              </div>
+              <div className="pb-2">
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Kitchen Start</p>
+                <p className="text-gray-800 font-semibold">{fmtTime(started)}</p>
+              </div>
+              {kitchenLabel != null && closed && (
+                <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  targetPrepMins && actualKitchenMins && actualKitchenMins > targetPrepMins
+                    ? "bg-red-50 text-red-600"
+                    : "bg-orange-50 text-orange-700"
+                }`}>
+                  {kitchenLabel} in kitchen
+                </span>
+              )}
+            </div>
+
+            {/* Step 3: Order Completed = updated_at */}
+            <div className="flex items-center gap-3 text-xs">
+              <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 ${
+                isCompleted ? "bg-green-100" : order.status === "cancelled" ? "bg-red-50" : "bg-blue-50"
+              }`}>
+                {isCompleted ? "✅" : order.status === "cancelled" ? "❌" : "⏳"}
+              </span>
+              <div>
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                  {isCompleted ? "Order Completed" : order.status === "cancelled" ? "Cancelled" : "In Progress"}
+                </p>
+                {closed ? (
+                  <p className="text-gray-800 font-semibold">{fmtTime(closed)}</p>
+                ) : (
+                  <p className="text-gray-400 italic text-[11px]">Not yet closed</p>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* PC / QR orders: separate Order Started → Kitchen → Billed → Completed steps */}
+            {/* Step 1: Order Started */}
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex flex-col items-center shrink-0">
+                <span className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-sm">🕐</span>
+                <div className="w-px h-4 bg-gray-200 mt-0.5" />
+              </div>
+              <div className="pb-2">
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Order Started</p>
+                <p className="text-gray-800 font-semibold">{fmtTime(started)}</p>
+              </div>
+            </div>
+
+            {/* Step 2: Kitchen Start */}
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex flex-col items-center shrink-0">
+                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm ${kitchenAt ? "bg-orange-100" : "bg-gray-50 border border-dashed border-gray-200"}`}>
+                  🍳
+                </span>
+                <div className="w-px h-4 bg-gray-200 mt-0.5" />
+              </div>
+              <div className="pb-2">
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Kitchen Start</p>
+                {kitchenAt ? (
+                  <p className="text-gray-800 font-semibold">{fmtTime(kitchenAt)}</p>
+                ) : (
+                  <p className="text-gray-300 font-medium">—</p>
+                )}
+              </div>
+              {kitchenAt && kitchenLabel != null && (
+                <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  targetPrepMins && actualKitchenMins && actualKitchenMins > targetPrepMins
+                    ? "bg-red-50 text-red-600"
+                    : "bg-orange-50 text-orange-700"
+                }`}>
+                  {kitchenLabel} in kitchen
+                </span>
+              )}
+            </div>
+
+            {/* Step 3: Bill Printed (localStorage, PC only) */}
+            {billedAtStored && !isCompleted && (
+              <div className="flex items-center gap-3 text-xs">
+                <div className="flex flex-col items-center shrink-0">
+                  <span className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-sm">🧾</span>
+                  <div className="w-px h-4 bg-gray-200 mt-0.5" />
+                </div>
+                <div className="pb-2">
+                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Bill Printed</p>
+                  <p className="text-gray-800 font-semibold">{fmtTime(billedAtStored)}</p>
+                </div>
+              </div>
             )}
-          </div>
-          {kitchenAt && kitchenLabel != null && (
-            <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-              targetPrepMins && actualKitchenMins && actualKitchenMins > targetPrepMins
-                ? "bg-red-50 text-red-600"
-                : "bg-orange-50 text-orange-700"
-            }`}>
-              {kitchenLabel} in kitchen
-            </span>
-          )}
-        </div>
 
-        {/* Billed (from localStorage) */}
-        {billedAtStored && !isCompleted && (
-          <div className="flex items-center gap-3 text-xs">
-            <div className="flex flex-col items-center shrink-0">
-              <span className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-sm">🧾</span>
-              <div className="w-px h-4 bg-gray-200 mt-0.5" />
+            {/* Step 4: Completed / Status */}
+            <div className="flex items-center gap-3 text-xs">
+              <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 ${
+                isCompleted ? "bg-green-100" : order.status === "billed" ? "bg-amber-50" : "bg-blue-50"
+              }`}>
+                {isCompleted ? "✅" : order.status === "billed" ? "🧾" : order.status === "cancelled" ? "❌" : "⏳"}
+              </span>
+              <div>
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                  {isCompleted ? "Order Completed" : order.status === "billed" ? "Awaiting Payment" : order.status === "cancelled" ? "Cancelled" : "In Progress"}
+                </p>
+                {closed ? (
+                  <p className="text-gray-800 font-semibold">{fmtTime(closed)}</p>
+                ) : (
+                  <p className="text-gray-400 italic text-[11px]">Not yet closed</p>
+                )}
+              </div>
             </div>
-            <div className="pb-2">
-              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Bill Printed</p>
-              <p className="text-gray-800 font-semibold">{fmtTime(billedAtStored)}</p>
-            </div>
-          </div>
+          </>
         )}
-
-        {/* Completed / Status */}
-        <div className="flex items-center gap-3 text-xs">
-          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 ${
-            isCompleted ? "bg-green-100" : order.status === "billed" ? "bg-amber-50" : "bg-blue-50"
-          }`}>
-            {isCompleted ? "✅" : order.status === "billed" ? "🧾" : order.status === "cancelled" ? "❌" : "⏳"}
-          </span>
-          <div>
-            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
-              {isCompleted ? "Order Completed" : order.status === "billed" ? "Awaiting Payment" : order.status === "cancelled" ? "Cancelled" : "In Progress"}
-            </p>
-            {closed ? (
-              <p className="text-gray-800 font-semibold">{fmtTime(closed)}</p>
-            ) : (
-              <p className="text-gray-400 italic text-[11px]">Not yet closed</p>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Duration footer */}
@@ -531,12 +650,33 @@ export default function OrderDetailsPage() {
   const [search, setSearch] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [fallbackStaffName, setFallbackStaffName] = useState<string>("");
 
   // Load deleted IDs from localStorage when restaurant changes
   useEffect(() => {
     if (activeRestaurant?.id) {
       setDeletedIds(getDeletedIds(activeRestaurant.id));
     }
+  }, [activeRestaurant?.id]);
+
+  // Detect current auth user name for staff badge fallback
+  useEffect(() => {
+    const supabase = createClient();
+    // Check localStorage first (set by the New Order page staff selector)
+    const lsKey = activeRestaurant?.id ? `staff_name_${activeRestaurant.id}` : null;
+    if (lsKey) {
+      const saved = localStorage.getItem(lsKey);
+      if (saved) { setFallbackStaffName(saved); return; }
+    }
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      const name =
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.email?.split("@")[0] ||
+        "";
+      if (name) setFallbackStaffName(name);
+    });
   }, [activeRestaurant?.id]);
 
   function applyPreset(p: DatePreset) {
@@ -713,7 +853,7 @@ export default function OrderDetailsPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {filteredOrders.map((order) => (
-                <TimeLogCard key={order.id} order={order} />
+                <TimeLogCard key={order.id} order={order} fallbackStaffName={fallbackStaffName || undefined} />
               ))}
             </div>
           )

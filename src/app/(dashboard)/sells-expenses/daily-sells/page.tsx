@@ -332,7 +332,7 @@ export default function DailySellsPage() {
             <select
               value={preset}
               onChange={(e) => handlePreset(e.target.value as Preset)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               {PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -343,10 +343,10 @@ export default function DailySellsPage() {
             {preset === "custom" && (
               <>
                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                <span className="text-gray-400 text-sm">→</span>
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                <span className="text-gray-400 text-xs">→</span>
                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
               </>
             )}
 

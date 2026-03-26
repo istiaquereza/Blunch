@@ -24,13 +24,13 @@
     --input: 220 13% 91%;
     --ring: 9 100% 50%;
     --radius: 0.6rem;
-    --sidebar-background: 224 71.4% 4.1%;
-    --sidebar-foreground: 0 0% 98%;
+    --sidebar-background: 0 0% 99%;
+    --sidebar-foreground: 224 71.4% 4.1%;
     --sidebar-primary: 9 100% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 13% 15%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 220 13% 15%;
+    --sidebar-accent: 220 13% 95%;
+    --sidebar-accent-foreground: 224 71.4% 4.1%;
+    --sidebar-border: 220 13% 91%;
     --sidebar-ring: 9 100% 50%;
   }
 }

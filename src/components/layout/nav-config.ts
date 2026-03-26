@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Truck,
   QrCode,
+  Smartphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -82,18 +83,26 @@ export const navItems: NavItem[] = [
       { title: "New Order", href: "/orders/order", icon: ShoppingCart },
       { title: "Order Details", href: "/orders/order-details", icon: ClipboardList },
       { title: "Customer Order", href: "/customer-order", icon: QrCode },
+      { title: "Remote Order", href: "/orders/remote-order", icon: Smartphone },
     ],
   },
   {
-    title: "User Management",
+    title: "Staff Management",
     href: "/staff",
     icon: UserCog,
     children: [
       { title: "Staff Information", href: "/staff/information", icon: BadgeCheck },
       { title: "Leave Calendar", href: "/staff/leave-calendar", icon: CalendarDays },
       { title: "Staff Payroll", href: "/staff/payroll", icon: Banknote },
-      { title: "Roles & Access", href: "/staff/app-users", icon: ShieldCheck },
       { title: "Vendors", href: "/staff/vendors", icon: Truck },
+    ],
+  },
+  {
+    title: "User Access",
+    href: "/user-access",
+    icon: ShieldCheck,
+    children: [
+      { title: "Roles & Access", href: "/staff/app-users", icon: ShieldCheck },
     ],
   },
   {
