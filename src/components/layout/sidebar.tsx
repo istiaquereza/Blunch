@@ -7,6 +7,7 @@ import { ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navItems, type NavItem } from "./nav-config";
 import { useSidebar } from "@/contexts/sidebar-context";
+import Image from "next/image";
 
 function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
   const pathname = usePathname();
@@ -87,7 +88,7 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
   return (
     <aside className="w-64 shrink-0 bg-sidebar h-full flex flex-col border-r border-sidebar-border">
       {/* Logo */}
-      <div className="px-5 pt-6 pb-5 border-b border-sidebar-border flex items-center justify-between">
+      <div className="px-5 pt-6 pb-5 flex items-center justify-between">
         <p
           className="text-3xl leading-none tracking-tight select-none"
           style={{ fontFamily: "var(--font-poppins), sans-serif", fontWeight: 600, color: "#C2C3C7" }}
@@ -110,6 +111,18 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
           <NavLink key={item.href} item={item} />
         ))}
       </nav>
+
+      {/* Illustration */}
+      <div className="w-full">
+        <Image
+          src="/sidebar-illustration.png"
+          alt="Restaurant illustration"
+          width={255}
+          height={255}
+          className="w-full h-auto block"
+          priority={false}
+        />
+      </div>
 
       {/* Footer */}
       <div className="px-5 py-3 border-t border-sidebar-border">

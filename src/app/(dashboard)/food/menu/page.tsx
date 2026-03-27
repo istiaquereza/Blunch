@@ -358,10 +358,12 @@ export default function FoodMenuPage() {
         <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             {/* Status tabs */}
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden h-9 shrink-0">
+            <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1 shrink-0">
               {(["active", "", "inactive"] as const).map((val, i) => (
                 <button key={i} onClick={() => setFilterStatus(val)}
-                  className={`px-3 text-xs font-medium transition-colors ${filterStatus === val ? "bg-[#111827] text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+                  className={`h-7 px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                    filterStatus === val ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}>
                   {val === "" ? "All" : val === "active" ? "Active" : "Inactive"}
                 </button>
               ))}

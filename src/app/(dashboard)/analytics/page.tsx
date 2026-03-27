@@ -28,7 +28,6 @@ import {
   ChevronDown,
   Loader2,
   Star,
-  Store,
 } from "lucide-react";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -187,6 +186,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [tableLimit, setTableLimit] = useState<number | null>(null);
   const [sortField, setSortField] = useState<SortField>("qty_sold");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [reportView, setReportView] = useState<"food" | "category">("food");
@@ -485,26 +485,23 @@ export default function AnalyticsPage() {
           <div className="flex items-center gap-2 flex-wrap">
             {/* Restaurant selector */}
             {restaurants.length > 1 && (
-              <div className="flex items-center gap-2">
-                <Store size={14} className="text-gray-400" />
-                <select
-                  value={selectedRestaurantId}
-                  onChange={(e) => setSelectedRestaurantId(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="all">All Restaurants</option>
-                  {restaurants.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={selectedRestaurantId}
+                onChange={(e) => setSelectedRestaurantId(e.target.value)}
+                className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <option value="all">All Restaurants</option>
+                {restaurants.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
             )}
 
             {/* Date preset */}
             <select
               value={preset}
               onChange={(e) => handlePreset(e.target.value as DatePreset)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               {PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -517,14 +514,14 @@ export default function AnalyticsPage() {
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
-                <span className="text-gray-400 text-sm">→</span>
+                <span className="text-gray-400 text-xs">→</span>
                 <input
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </>
             )}
@@ -533,9 +530,16 @@ export default function AnalyticsPage() {
 
             {loading && <Loader2 size={16} className="text-orange-400 animate-spin" />}
 
-            <span className="text-xs text-gray-400">
-              {orders.length} order{orders.length !== 1 ? "s" : ""}
-            </span>
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search food item…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-xs text-gray-700 w-44 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent"
+              />
+            </div>
           </div>
         </div>
 
@@ -580,7 +584,7 @@ export default function AnalyticsPage() {
 
         {/* ── Food Sales Report ── */}
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between flex-wrap gap-2">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
             <div>
               <h2 className="text-sm font-semibold text-gray-800">Food Sales Report</h2>
               <p className="text-xs text-gray-400">
@@ -588,33 +592,31 @@ export default function AnalyticsPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {/* View toggle */}
-              <div className="flex rounded-lg border border-gray-200 overflow-hidden h-8">
+              {/* View toggle — pill style */}
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
                 {(["food", "category"] as const).map((v) => (
                   <button
                     key={v}
                     onClick={() => setReportView(v)}
-                    className={`px-3 text-xs font-medium transition-colors capitalize ${
-                      reportView === v ? "bg-[#111827] text-white" : "text-gray-500 hover:bg-gray-50"
+                    className={`px-3 h-7 rounded-md text-xs font-medium transition-all ${
+                      reportView === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                     }`}
                   >
                     By {v === "food" ? "Food" : "Category"}
                   </button>
                 ))}
               </div>
-              {/* Search — only for food view */}
-              {reportView === "food" && (
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search food item…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="h-8 pl-7 pr-3 rounded-lg border border-gray-200 text-sm text-gray-700 w-44 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                </div>
-              )}
+              {/* Show limit dropdown */}
+              <select
+                value={tableLimit ?? "all"}
+                onChange={(e) => setTableLimit(e.target.value === "all" ? null : Number(e.target.value))}
+                className="h-8 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#111827]"
+              >
+                <option value="all">Show all</option>
+                <option value="30">30</option>
+                <option value="40">40</option>
+                <option value="50">50</option>
+              </select>
             </div>
           </div>
 
@@ -633,14 +635,14 @@ export default function AnalyticsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[620px]">
                   <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 w-10">#</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Category</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Items</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Times Ordered</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Qty Sold</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Revenue</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">% of Total</th>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Category</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Items</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Times Ordered</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty Sold</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Revenue</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">% of Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -702,28 +704,28 @@ export default function AnalyticsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[750px]">
                   <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 w-10">#</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("name")}>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("name")}>
                         Food Item <SortIcon field="name" sortField={sortField} sortDir={sortDir} />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("times_ordered")}>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("times_ordered")}>
                         Times Ordered <SortIcon field="times_ordered" sortField={sortField} sortDir={sortDir} />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("qty_sold")}>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("qty_sold")}>
                         Qty Sold <SortIcon field="qty_sold" sortField={sortField} sortDir={sortDir} />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("revenue")}>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("revenue")}>
                         Revenue <SortIcon field="revenue" sortField={sortField} sortDir={sortDir} />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">% of Total</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("avg_price")}>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">% of Total</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("avg_price")}>
                         Avg Price <SortIcon field="avg_price" sortField={sortField} sortDir={sortDir} />
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {filteredSorted.map((row, idx) => {
+                    {(tableLimit ? filteredSorted.slice(0, tableLimit) : filteredSorted).map((row, idx) => {
                       const pct = totalRevenue > 0 ? (row.revenue / totalRevenue) * 100 : 0;
                       return (
                         <tr key={row.foodId} className="hover:bg-gray-50 transition-colors">
@@ -878,7 +880,7 @@ export default function AnalyticsPage() {
 
         {/* ── Profit Margin Analysis ── */}
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+          <div className="px-4 py-3 border-b border-gray-100">
             <h2 className="text-sm font-semibold text-gray-800">Profit Margin Analysis</h2>
             <p className="text-xs text-gray-400">Top 10 items by margin (based on ingredient costs)</p>
           </div>
@@ -892,12 +894,12 @@ export default function AnalyticsPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[620px]">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Food Item</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Sell Price</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Ingredient Cost</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Profit</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Margin</th>
+                  <tr className="border-b border-gray-100">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Food Item</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Sell Price</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Ingredient Cost</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Profit</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Margin</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">

@@ -26,21 +26,18 @@ export function Switch({
         disabled={disabled}
         className={cn(
           "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full",
-          "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#111827]",
+          "transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#111827]",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           checked ? "bg-[#111827]" : "bg-gray-200"
         )}
       >
         <RadixSwitch.Thumb
-          className={cn(
-            "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-sm",
-            "transition-transform duration-200",
-            checked ? "translate-x-4.5" : "translate-x-0.5"
-          )}
+          className="pointer-events-none block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200"
+          style={{ transform: checked ? "translateX(1.125rem)" : "translateX(0.125rem)" }}
         />
       </RadixSwitch.Root>
       {label && (
-        <span className="text-sm text-gray-700 select-none">{label}</span>
+        <span className="text-sm text-gray-700 select-none inline-block min-w-[4rem]">{label}</span>
       )}
     </div>
   );

@@ -21,10 +21,31 @@ export function useRestaurants() {
 
   const create = async (data: Partial<Restaurant>) => {
     const supabase = createClient();
-    const { data: user } = await supabase.auth.getUser();
-    const { error } = await supabase
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    const userEmail = userData.user?.email?.toLowerCase();
+
+    // Insert restaurant
+    const { data: created, error } = await supabase
       .from("restaurants")
-      .insert({ ...data, user_id: user.user?.id });
+      .insert({ ...data, user_id: userId })
+      .select()
+      .single();
+
+    // Auto-assign creator as owner in app_user_roles
+    if (!error && created && userEmail) {
+      await supabase.from("app_user_roles").upsert(
+        {
+          restaurant_id: created.id,
+          email: userEmail,
+          name: userEmail.split("@")[0],
+          role: "owner",
+          is_active: true,
+        },
+        { onConflict: "restaurant_id,email" }
+      );
+    }
+
     if (!error) await fetch();
     return { error };
   };

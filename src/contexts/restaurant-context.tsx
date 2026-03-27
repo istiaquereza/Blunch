@@ -11,12 +11,22 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { Restaurant } from "@/types";
 
+// ── Access tiers ────────────────────────────────────────────────────────────
+// super_admin  → sees ALL restaurants (across all owners)
+// owner        → sees their assigned restaurant(s) only
+// manager/etc. → same, scoped to their assigned restaurants
+// no entry     → backward compat: original creator (user_id on restaurants) sees all
+
 interface RestaurantContextType {
   restaurants: Restaurant[];
   activeRestaurant: Restaurant | null;
   setActiveRestaurant: (r: Restaurant) => void;
   loading: boolean;
   refresh: () => void;
+  /** True if the current user has super_admin role in any restaurant */
+  isSuperAdmin: boolean;
+  /** Role for a specific restaurant, or null if not a member */
+  getUserRole: (restaurantId: string) => string | null;
 }
 
 const RestaurantContext = createContext<RestaurantContextType>({
@@ -25,31 +35,89 @@ const RestaurantContext = createContext<RestaurantContextType>({
   setActiveRestaurant: () => {},
   loading: true,
   refresh: () => {},
+  isSuperAdmin: false,
+  getUserRole: () => null,
 });
 
 export function RestaurantProvider({ children }: { children: ReactNode }) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [activeRestaurant, setActiveRestaurantState] =
-    useState<Restaurant | null>(null);
+  const [activeRestaurant, setActiveRestaurantState] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
+  // restaurantId → role map for the logged-in user
+  const [roleMap, setRoleMap] = useState<Record<string, string>>({});
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   const fetchRestaurants = useCallback(async () => {
+    setLoading(true);
     const supabase = createClient();
-    const { data } = await supabase
-      .from("restaurants")
-      .select("*")
-      .order("created_at");
 
-    if (data) {
-      setRestaurants(data);
-      // Restore previously selected restaurant
-      const savedId =
-        typeof window !== "undefined"
-          ? localStorage.getItem("activeRestaurantId")
-          : null;
-      const saved = savedId ? data.find((r) => r.id === savedId) : null;
-      setActiveRestaurantState(saved ?? data[0] ?? null);
+    // 1. Who is the current user?
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    const userEmail = userData.user?.email?.toLowerCase();
+
+    if (!userId) { setLoading(false); return; }
+
+    // 2. Check app_user_roles for this email
+    const { data: roleData } = userEmail
+      ? await supabase
+          .from("app_user_roles")
+          .select("restaurant_id, role, is_active")
+          .ilike("email", userEmail)
+          .eq("is_active", true)
+      : { data: null };
+
+    const activeRoles = roleData ?? [];
+    const hasSuperAdminRole = activeRoles.some((r) => r.role === "super_admin");
+    const hasAnyRole = activeRoles.length > 0;
+
+    // Build roleMap for getUserRole()
+    const newRoleMap: Record<string, string> = {};
+    activeRoles.forEach((r) => { newRoleMap[r.restaurant_id] = r.role; });
+    setRoleMap(newRoleMap);
+    setIsSuperAdmin(hasSuperAdminRole);
+
+    // 3. Determine which restaurants to show
+    let restaurantData: Restaurant[] = [];
+
+    if (hasSuperAdminRole || !hasAnyRole) {
+      // Super admin OR original creator (no entries yet) → all restaurants
+      const { data } = await supabase
+        .from("restaurants")
+        .select("*")
+        .order("created_at");
+      restaurantData = data ?? [];
+    } else {
+      // Scoped user: fetch only their assigned restaurants
+      // Also include any restaurant they originally created (user_id) for backward compat
+      const assignedIds = activeRoles.map((r) => r.restaurant_id);
+
+      const [{ data: assignedData }, { data: createdData }] = await Promise.all([
+        supabase.from("restaurants").select("*").in("id", assignedIds),
+        supabase.from("restaurants").select("*").eq("user_id", userId),
+      ]);
+
+      const combined = [...(assignedData ?? []), ...(createdData ?? [])];
+      // Deduplicate by id
+      const seen = new Set<string>();
+      restaurantData = combined.filter((r) => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      });
+      restaurantData.sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
     }
+
+    setRestaurants(restaurantData);
+
+    // Restore previously selected restaurant from localStorage
+    const savedId =
+      typeof window !== "undefined" ? localStorage.getItem("activeRestaurantId") : null;
+    const saved = savedId ? restaurantData.find((r) => r.id === savedId) : null;
+    setActiveRestaurantState(saved ?? restaurantData[0] ?? null);
+
     setLoading(false);
   }, []);
 
@@ -57,6 +125,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     setActiveRestaurantState(r);
     localStorage.setItem("activeRestaurantId", r.id);
   };
+
+  const getUserRole = useCallback(
+    (restaurantId: string): string | null => {
+      if (isSuperAdmin) return "super_admin";
+      return roleMap[restaurantId] ?? null;
+    },
+    [isSuperAdmin, roleMap]
+  );
 
   useEffect(() => {
     fetchRestaurants();
@@ -70,6 +146,8 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         setActiveRestaurant,
         loading,
         refresh: fetchRestaurants,
+        isSuperAdmin,
+        getUserRole,
       }}
     >
       {children}

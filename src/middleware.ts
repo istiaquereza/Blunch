@@ -38,7 +38,10 @@ export async function middleware(request: NextRequest) {
   const authRoutes = ["/login", "/signup", "/forgot-password"];
   const publicRoutes = ["/c/", "/remote/"]; // customer-facing & staff remote order pages
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route)) || pathname.startsWith("/api/");
+  const isPublicRoute =
+    pathname === "/" || // landing page — always public
+    publicRoutes.some((route) => pathname.startsWith(route)) ||
+    pathname.startsWith("/api/");
 
   if (!user && !isAuthRoute && !isPublicRoute) {
     const url = request.nextUrl.clone();

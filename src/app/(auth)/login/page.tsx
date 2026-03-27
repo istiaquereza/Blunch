@@ -102,12 +102,9 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="px-8 sm:px-12 pt-6 sm:pt-8 shrink-0">
-          <div className="inline-flex items-center gap-2">
-            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">B</span>
-            </div>
-            <span className="text-lg font-bold text-gray-900">Blunch</span>
-          </div>
+          <span style={{ fontFamily: "var(--font-poppins), sans-serif", fontWeight: 700, fontSize: 26, color: "#111827", letterSpacing: -0.5 }}>
+            Blunch<span style={{ color: "#FD2400" }}>.</span>
+          </span>
         </div>
 
         {/* Form area — centred vertically */}
@@ -191,7 +188,7 @@ export default function LoginPage() {
         {/* Footer */}
         <div className="px-8 sm:px-12 pb-6 text-center shrink-0">
           <p className="text-sm text-gray-500">
-            Don&apos;t have an account?{" "}
+            Don&apos;t have a Restaurant Account?{" "}
             <Link
               href="/signup"
               className="text-gray-900 font-semibold hover:underline"

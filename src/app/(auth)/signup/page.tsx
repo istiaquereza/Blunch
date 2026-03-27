@@ -46,9 +46,7 @@ export default function SignupPage() {
         email: data.email,
         password: data.password,
         options: {
-          data: {
-            full_name: data.fullName,
-          },
+          data: { full_name: data.fullName },
         },
       });
 
@@ -67,134 +65,171 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">B</span>
-            </div>
-            <span className="text-2xl font-bold text-gray-900">Blunch</span>
-          </div>
-          <p className="text-gray-500 text-sm mt-2">Restaurant Management System</p>
+    <div className="h-screen flex bg-white p-3 gap-3 overflow-hidden">
+
+      {/* ── Left panel ── */}
+      <div
+        className="hidden lg:flex lg:w-[45%] xl:w-1/2 relative flex-col justify-between p-8 xl:p-12 rounded-3xl shrink-0 overflow-hidden"
+        style={{
+          background: "linear-gradient(145deg, #0d0400 0%, #3a0d00 25%, #7a1a00 55%, #c42800 80%, #fd2400 100%)",
+        }}
+      >
+        {/* Decorative circles */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-3xl">
+          <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-10"
+            style={{ background: "radial-gradient(circle, #ff8c00, transparent)" }} />
+          <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full opacity-10"
+            style={{ background: "radial-gradient(circle, #fff, transparent)" }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full opacity-5"
+            style={{ background: "radial-gradient(circle, #fd2400, transparent)" }} />
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Set up your Blunch account
-        </p>
+
+        {/* Top label */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="h-px w-10 bg-white/40" />
+            <span className="text-white/60 text-xs font-semibold tracking-widest uppercase">
+              Restaurant Wisdom
+            </span>
+          </div>
+        </div>
+
+        {/* Bottom quote */}
+        <div className="relative z-10">
+          <h2 className="text-white text-3xl xl:text-5xl 2xl:text-6xl font-bold leading-tight mb-4">
+            Great Food<br />
+            Starts With<br />
+            Great Systems
+          </h2>
+          <p className="text-white/60 text-sm leading-relaxed max-w-xs">
+            Manage your kitchen, inventory, and team — all from one place. Built for restaurants that want to grow.
+          </p>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Full name
-          </label>
-          <input
-            {...register("fullName")}
-            type="text"
-            placeholder="John Doe"
-            autoComplete="name"
-            className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all placeholder:text-gray-400"
-          />
-          {errors.fullName && (
-            <p className="text-red-500 text-xs mt-1">
-              {errors.fullName.message}
+      {/* ── Right panel: form ── */}
+      <div className="flex-1 bg-white flex flex-col h-full overflow-y-auto">
+
+        {/* Logo */}
+        <div className="px-8 sm:px-12 pt-6 sm:pt-8 shrink-0">
+          <span style={{ fontFamily: "var(--font-poppins), sans-serif", fontWeight: 700, fontSize: 26, color: "#111827", letterSpacing: -0.5 }}>
+            Blunch<span style={{ color: "#FD2400" }}>.</span>
+          </span>
+        </div>
+
+        {/* Form area — centred vertically */}
+        <div className="flex-1 flex items-center justify-center px-8 sm:px-12 py-6">
+          <div className="w-full max-w-sm">
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">Create Account</h1>
+            <p className="text-gray-500 text-sm mb-8">
+              Set up your restaurant account to get started
             </p>
-          )}
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Email address
-          </label>
-          <input
-            {...register("email")}
-            type="email"
-            placeholder="you@restaurant.com"
-            autoComplete="email"
-            className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all placeholder:text-gray-400"
-          />
-          {errors.email && (
-            <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
-          )}
-        </div>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Full Name
+                </label>
+                <input
+                  {...register("fullName")}
+                  type="text"
+                  placeholder="Enter your full name"
+                  autoComplete="name"
+                  className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all placeholder:text-gray-400"
+                />
+                {errors.fullName && (
+                  <p className="text-red-500 text-xs mt-1">{errors.fullName.message}</p>
+                )}
+              </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Password
-          </label>
-          <div className="relative">
-            <input
-              {...register("password")}
-              type={showPassword ? "text" : "password"}
-              placeholder="Min. 8 characters"
-              autoComplete="new-password"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all placeholder:text-gray-400 pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Email
+                </label>
+                <input
+                  {...register("email")}
+                  type="email"
+                  placeholder="Enter your email"
+                  autoComplete="email"
+                  className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all placeholder:text-gray-400"
+                />
+                {errors.email && (
+                  <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    {...register("password")}
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Min. 8 characters"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all placeholder:text-gray-400 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <input
+                    {...register("confirmPassword")}
+                    type={showConfirm ? "text" : "password"}
+                    placeholder="Re-enter your password"
+                    autoComplete="new-password"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all placeholder:text-gray-400 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {errors.confirmPassword && (
+                  <p className="text-red-500 text-xs mt-1">{errors.confirmPassword.message}</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-gray-900 hover:bg-black text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isLoading && <Loader2 size={16} className="animate-spin" />}
+                Create Account
+              </button>
+            </form>
           </div>
-          {errors.password && (
-            <p className="text-red-500 text-xs mt-1">
-              {errors.password.message}
-            </p>
-          )}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Confirm password
-          </label>
-          <div className="relative">
-            <input
-              {...register("confirmPassword")}
-              type={showConfirm ? "text" : "password"}
-              placeholder="Re-enter password"
-              autoComplete="new-password"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all placeholder:text-gray-400 pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirm(!showConfirm)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-          {errors.confirmPassword && (
-            <p className="text-red-500 text-xs mt-1">
-              {errors.confirmPassword.message}
-            </p>
-          )}
-        </div>
-
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mt-2"
-        >
-          {isLoading && <Loader2 size={16} className="animate-spin" />}
-          Create account
-        </button>
-      </form>
-
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Already have an account?{" "}
-            <Link
-              href="/login"
-              className="text-orange-500 hover:text-orange-600 font-medium"
-            >
+        {/* Footer */}
+        <div className="px-8 sm:px-12 pb-6 text-center shrink-0">
+          <p className="text-sm text-gray-500">
+            Already have a Restaurant Account?{" "}
+            <Link href="/login" className="text-gray-900 font-semibold hover:underline">
               Sign in
             </Link>
           </p>
         </div>
+
       </div>
     </div>
   );

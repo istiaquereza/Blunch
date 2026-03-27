@@ -1,3 +1,21 @@
+export type AppUserRoleType = "super_admin" | "owner" | "manager" | "cashier" | "viewer";
+
+export interface AppUserRole {
+  id: string;
+  restaurant_id: string;
+  email: string;
+  name: string;
+  role: AppUserRoleType;
+  is_active: boolean;
+  notes?: string;
+  created_at: string;
+}
+
+export interface SocialLink {
+  platform: string;
+  url: string;
+}
+
 export interface Restaurant {
   id: string;
   user_id: string;
@@ -8,6 +26,7 @@ export interface Restaurant {
   address?: string;
   phone?: string;
   logo_url?: string;
+  social_links?: SocialLink[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
