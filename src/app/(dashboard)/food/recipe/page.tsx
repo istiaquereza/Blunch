@@ -93,7 +93,7 @@ function RecipeCard({
   const totalLogQty  = logs.reduce((s, l) => s + (l.quantity ?? 0), 0);
 
   return (
-    <div className="bg-white rounded-xl border border-border overflow-hidden hover:shadow-sm transition-shadow flex flex-col">
+    <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
       {/* Photo */}
       <div className="relative h-40 bg-gradient-to-br from-purple-50 to-indigo-100 flex items-center justify-center overflow-hidden shrink-0">
         {item.image_url ? (
@@ -588,7 +588,7 @@ export default function RecipePage() {
 
   if (!rid) return (
     <div><Header title="Food Recipe" />
-      <div className="p-6"><div className="bg-white rounded-xl border border-border p-12 text-center">
+      <div className="p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
         <ChefHat size={40} className="text-gray-200 mx-auto mb-3" />
         <p className="font-medium text-gray-500">No restaurant selected</p>
         <p className="text-sm text-gray-400 mt-1">Go to <strong>Settings</strong> to add a restaurant first</p>
@@ -599,9 +599,9 @@ export default function RecipePage() {
   return (
     <div>
       <Header title="Food Recipe" />
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
         {/* Toolbar */}
-        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+        <div className="shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto bg-white rounded-xl border border-border">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
               className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
@@ -642,15 +642,15 @@ export default function RecipePage() {
 
         {/* Cards */}
         {loading ? (
-          <div className="bg-white rounded-xl border border-border p-8 text-center text-sm text-gray-400">Loading…</div>
+          <div className="bg-white rounded-xl border border-border shadow-sm p-8 text-center text-sm text-gray-400">Loading…</div>
         ) : recipeItems.length === 0 ? (
-          <div className="bg-white rounded-xl border border-border p-12 text-center">
+          <div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
             <BookOpen size={40} className="text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-400">{search || filterCat || filterStatus ? "No recipes match filters" : "No recipes yet"}</p>
             <Button size="sm" className="mt-4" onClick={openAdd}><Plus size={14} /> Add First Recipe</Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-[18px]">
             {recipeItems.map((item) => {
               const costPerUnit = item.food_item_ingredients?.reduce(
                 (s, r) => s + (r.ingredients?.unit_price ?? 0) * r.quantity, 0
@@ -911,8 +911,7 @@ export default function RecipePage() {
             )}
           </div>
 
-          <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))}
-            label={`Status: ${form.is_active ? "Active" : "Inactive"}`} />
+          <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} label="Status" />
         </div>
       </Dialog>
     </div>

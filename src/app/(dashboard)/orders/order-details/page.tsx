@@ -19,6 +19,7 @@ import {
   ReceiptText,
   Users,
   LayoutGrid,
+  User,
   Utensils,
   MoreVertical,
   Trash2,
@@ -186,12 +187,12 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
             )}
             {staffName && (
               <span className="text-xs text-gray-500 flex items-center gap-1 font-medium">
-                <Utensils size={10} /> {staffName}
+                <User size={10} /> {staffName}
               </span>
             )}
             <span className="text-xs text-gray-400">
               {new Date(order.created_at).toLocaleString("en-GB", {
-                day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
               })}
             </span>
           </div>
@@ -275,7 +276,7 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
                 <span>Subtotal</span><span>{fmt(order.subtotal)}</span>
               </div>
               {order.discount_amount > 0 && (
-                <div className="flex justify-between text-green-600">
+                <div className="flex justify-between text-red-600">
                   <span>Discount</span><span>-{fmt(order.discount_amount)}</span>
                 </div>
               )}
@@ -371,7 +372,7 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 function diffMins(a: string, b: string): number | null {
   const ms = new Date(b).getTime() - new Date(a).getTime();
@@ -644,9 +645,9 @@ export default function OrderDetailsPage() {
   const { activeRestaurant } = useRestaurant();
   const [view, setView] = useState<PageView>("orders");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [dateFrom, setDateFrom] = useState(weekStart());
+  const [dateFrom, setDateFrom] = useState(today());
   const [dateTo, setDateTo] = useState(today());
-  const [datePreset, setDatePreset] = useState<DatePreset>("week");
+  const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [search, setSearch] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -693,11 +694,15 @@ export default function OrderDetailsPage() {
   // When showing "deleted", fetch all statuses so we can filter client-side
   const hookStatusFilter = statusFilter === "deleted" ? "all" : statusFilter;
 
+  // Only apply date filter when viewing "all" or "deleted" — specific status views
+  // (cancelled, completed, etc.) should show all matching orders regardless of date
+  const applyDateFilter = statusFilter === "all" || statusFilter === "deleted";
+
   const { orders, loading, completeOrder, cancelOrder } = useOrders(
     activeRestaurant?.id,
     hookStatusFilter,
-    dateFrom || undefined,
-    dateTo || undefined
+    applyDateFilter ? (dateFrom || undefined) : undefined,
+    applyDateFilter ? (dateTo || undefined) : undefined
   );
 
   // Client-side filtering: deleted view shows only deleted IDs; others exclude them
@@ -748,7 +753,7 @@ export default function OrderDetailsPage() {
     <>
       <Header title="Order Details" />
 
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
 
         {/* ── Tabs ── */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
@@ -766,7 +771,7 @@ export default function OrderDetailsPage() {
         </div>
 
         {/* ── Toolbar ── */}
-        <div className="bg-white border border-border rounded-xl p-3 flex flex-wrap items-center gap-2">
+        <div className="shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto bg-white border border-border rounded-xl">
           {/* Date preset pills */}
           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
             {(["today", "week", "month", "all_time", "custom"] as DatePreset[]).map((p) => (
@@ -789,14 +794,14 @@ export default function OrderDetailsPage() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="h-9 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
               <span className="text-gray-400 text-xs">→</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="h-9 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
           )}
@@ -806,7 +811,7 @@ export default function OrderDetailsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer"
+              className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer"
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -822,13 +827,13 @@ export default function OrderDetailsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search order, customer…"
-              className="w-52 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className="w-52 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             />
           </div>
         </div>
 
         {/* ── Summary cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-[18px]">
           {[
             { label: "Active",    value: stats.active,       color: "text-blue-600" },
             { label: "Billed",    value: stats.billed,       color: "text-yellow-600" },
@@ -837,7 +842,7 @@ export default function OrderDetailsPage() {
             { label: "Revenue",   value: fmt(stats.revenue), color: "text-orange-600" },
             { label: "Deleted",   value: stats.deleted,      color: "text-gray-400" },
           ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white rounded-xl border border-gray-100 p-3">
+            <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
               <p className="text-xs text-gray-500 mb-1">{label}</p>
               <p className={`text-xl font-bold ${color}`}>{value}</p>
             </div>
@@ -867,8 +872,8 @@ export default function OrderDetailsPage() {
             Select a restaurant to view orders.
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-100">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
               <p className="text-sm font-semibold text-gray-900">Orders</p>
               <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full font-medium">
                 {filteredOrders.length} {filteredOrders.length === 1 ? "order" : "orders"}

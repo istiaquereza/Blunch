@@ -27,11 +27,11 @@ const ROLES: {
   border: string;
   icon: React.ElementType;
 }[] = [
-  { value: "super_admin", label: "Super Admin", description: "Full access + activity log for all users", color: "text-amber-700", bg: "bg-amber-100", border: "border-amber-300", icon: Zap },
-  { value: "owner",       label: "Owner",       description: "Full access to all features and settings", color: "text-purple-700", bg: "bg-purple-100", border: "border-purple-300", icon: Crown },
-  { value: "manager",     label: "Manager",     description: "Access to most features, except user management", color: "text-blue-700", bg: "bg-blue-100", border: "border-blue-300", icon: Briefcase },
-  { value: "cashier",     label: "Cashier",     description: "Can create orders and view sells", color: "text-green-700", bg: "bg-green-100", border: "border-green-300", icon: ShoppingCart },
-  { value: "viewer",      label: "Viewer",      description: "Read-only access to dashboard and reports", color: "text-gray-700", bg: "bg-gray-100", border: "border-gray-300", icon: Eye },
+  { value: "super_admin", label: "Super Admin", description: "Full access + activity log for all users", color: "text-amber-700",   bg: "bg-amber-500/10",   border: "border-amber-500/20",   icon: Zap },
+  { value: "owner",       label: "Owner",       description: "Full access to all features and settings", color: "text-violet-700",  bg: "bg-violet-500/10",  border: "border-violet-500/20",  icon: Crown },
+  { value: "manager",     label: "Manager",     description: "Access to most features, except user management", color: "text-blue-700",    bg: "bg-blue-500/10",    border: "border-blue-500/20",    icon: Briefcase },
+  { value: "cashier",     label: "Cashier",     description: "Can create orders and view sells", color: "text-emerald-700", bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: ShoppingCart },
+  { value: "viewer",      label: "Viewer",      description: "Read-only access to dashboard and reports", color: "text-zinc-600",    bg: "bg-zinc-500/10",    border: "border-zinc-500/20",    icon: Eye },
 ];
 
 // ─── Permission matrix ─────────────────────────────────────────────────────────
@@ -51,9 +51,9 @@ const PERMISSIONS: PermRow[] = [
 ];
 
 function PermBadge({ level }: { level: PermLevel }) {
-  if (level === "full") return <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600"><Check size={12} /></span>;
-  if (level === "view") return <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-blue-400"><Eye size={11} /></span>;
-  return <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-300"><X size={11} /></span>;
+  if (level === "full") return <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-500/10 text-green-600"><Check size={12} /></span>;
+  if (level === "view") return <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/10 text-blue-500"><Eye size={11} /></span>;
+  return <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-zinc-500/10 text-zinc-400"><X size={11} /></span>;
 }
 
 function RoleBadge({ role }: { role: AppRole }) {
@@ -104,16 +104,16 @@ interface ActivityLog {
 }
 
 const ACTION_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  "user.created":        { label: "Added user",       color: "text-green-700",  bg: "bg-green-100",  icon: UserPlus },
-  "user.deleted":        { label: "Removed user",     color: "text-red-700",    bg: "bg-red-100",    icon: Trash2 },
-  "user.role_changed":   { label: "Changed role",     color: "text-blue-700",   bg: "bg-blue-100",   icon: ShieldCheck },
-  "user.activated":      { label: "Activated user",   color: "text-green-700",  bg: "bg-green-100",  icon: ToggleRight },
-  "user.deactivated":    { label: "Deactivated user", color: "text-orange-700", bg: "bg-orange-100", icon: ToggleLeft },
-  "user.password_reset": { label: "Reset password",   color: "text-purple-700", bg: "bg-purple-100", icon: KeyRound },
-  "user.updated":        { label: "Updated user",     color: "text-blue-700",   bg: "bg-blue-100",   icon: Pencil },
+  "user.created":        { label: "Added user",       color: "text-green-700",  bg: "bg-green-500/10",  icon: UserPlus },
+  "user.deleted":        { label: "Removed user",     color: "text-red-600",    bg: "bg-red-500/10",    icon: Trash2 },
+  "user.role_changed":   { label: "Changed role",     color: "text-blue-700",   bg: "bg-blue-500/10",   icon: ShieldCheck },
+  "user.activated":      { label: "Activated user",   color: "text-green-700",  bg: "bg-green-500/10",  icon: ToggleRight },
+  "user.deactivated":    { label: "Deactivated user", color: "text-orange-700", bg: "bg-orange-500/10", icon: ToggleLeft },
+  "user.password_reset": { label: "Reset password",   color: "text-purple-700", bg: "bg-purple-500/10", icon: KeyRound },
+  "user.updated":        { label: "Updated user",     color: "text-blue-700",   bg: "bg-blue-500/10",   icon: Pencil },
 };
 
-const EMPTY_FORM = { email: "", name: "", password: "", role: "cashier" as AppRole, notes: "", restaurant_ids: [] as string[] };
+const EMPTY_FORM = { email: "", name: "", phone: "", password: "", role: "cashier" as AppRole, notes: "", restaurant_ids: [] as string[] };
 
 // ─── SQL setup helpers ─────────────────────────────────────────────────────────
 const SETUP_SQL = `-- 1. Create app_user_roles table
@@ -262,7 +262,7 @@ function TableSetupView({ isRLS, showSQL, setShowSQL, showRLSFix, setShowRLSFix,
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function AppUsersPage() {
-  const { restaurants } = useRestaurant();
+  const { restaurants, isSuperAdmin, loading: restaurantsLoading } = useRestaurant();
 
   const [groups, setGroups] = useState<UserGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,7 +274,7 @@ export default function AppUsersPage() {
   const [showSQL, setShowSQL] = useState(false);
   const [showRLSFix, setShowRLSFix] = useState(false);
   const [authEmails, setAuthEmails] = useState<Set<string>>(new Set());
-  const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ email: string; name: string; phone?: string } | null>(null);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [showActivityLog, setShowActivityLog] = useState(false);
@@ -288,13 +288,27 @@ export default function AppUsersPage() {
   const [confirmDelete, setConfirmDelete] = useState<UserGroup | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // ── Fetch all users (across all restaurants) ─────────────────────────────────
+  // ── Fetch users scoped to current user's restaurants (super_admin sees all) ──
   const fetchUsers = async () => {
     setLoading(true);
-    const { data, error } = await createClient()
+    let query = createClient()
       .from("app_user_roles")
       .select("*")
       .order("created_at", { ascending: false });
+
+    // Non-super-admins only see users belonging to their own restaurants, and never super_admin entries
+    if (!isSuperAdmin) {
+      const myIds = restaurants.map((r) => r.id);
+      if (myIds.length === 0) {
+        setGroups([]);
+        setTableReady("yes");
+        setLoading(false);
+        return;
+      }
+      query = query.in("restaurant_id", myIds).neq("role", "super_admin");
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       if (isTableMissingError(error)) setTableReady("missing");
@@ -335,14 +349,15 @@ export default function AppUsersPage() {
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  // Re-fetch once restaurant context has resolved (isSuperAdmin + restaurants are stable after load)
+  useEffect(() => { if (!restaurantsLoading) fetchUsers(); }, [restaurantsLoading, isSuperAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => {
       if (data.user?.email) {
         const meta = data.user.user_metadata;
         const name = meta?.full_name ?? meta?.name ?? data.user.email.split("@")[0];
-        setCurrentUser({ email: data.user.email, name });
+        setCurrentUser({ email: data.user.email, name, phone: meta?.phone ?? "" });
       }
     });
   }, []);
@@ -395,6 +410,7 @@ export default function AppUsersPage() {
     setForm({
       email: g.email,
       name: g.name,
+      phone: "",
       role: g.assignments[0]?.role ?? "cashier",
       notes: g.notes ?? "",
       password: "",
@@ -407,7 +423,7 @@ export default function AppUsersPage() {
     if (!currentUser) return;
     const ownerGroup: UserGroup = { email: currentUser.email, name: currentUser.name, is_active: true, notes: null, created_at: "", assignments: [], isOwner: true };
     setEditing(ownerGroup);
-    setForm({ email: currentUser.email, name: currentUser.name, role: "super_admin", notes: "", password: "", restaurant_ids: [] });
+    setForm({ email: currentUser.email, name: currentUser.name, phone: currentUser.phone ?? "", role: "super_admin", notes: "", password: "", restaurant_ids: [] });
     setModalOpen(true);
   };
 
@@ -425,7 +441,12 @@ export default function AppUsersPage() {
 
     // ── Editing account owner ────────────────────────────────────────────────
     if (editing?.isOwner) {
-      const updates: { data?: { full_name: string }; password?: string } = { data: { full_name: form.name.trim() } };
+      const updates: any = { data: { full_name: form.name.trim(), phone: form.phone?.trim() || null } };
+      const emailChanged = form.email.trim().toLowerCase() !== (currentUser?.email ?? "").toLowerCase();
+      if (emailChanged) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error("Enter a valid email"); setSaving(false); return; }
+        updates.email = form.email.trim().toLowerCase();
+      }
       if (form.password.trim()) {
         if (form.password.length < 6) { toast.error("Password must be at least 6 characters"); setSaving(false); return; }
         updates.password = form.password;
@@ -433,14 +454,33 @@ export default function AppUsersPage() {
       const { error } = await createClient().auth.updateUser(updates);
       setSaving(false);
       if (error) { toast.error("Failed to update: " + error.message); return; }
-      setCurrentUser((p) => p ? { ...p, name: form.name.trim() } : p);
-      toast.success(form.password.trim() ? "Profile & password updated" : "Profile updated");
+      setCurrentUser((p) => p ? { ...p, name: form.name.trim(), phone: form.phone?.trim() || undefined } : p);
+      toast.success(emailChanged ? "Profile updated — check your new email for a confirmation link" : form.password.trim() ? "Profile & password updated" : "Profile updated");
       closeModal();
       return;
     }
 
     if (editing) {
       // ── Update existing user ───────────────────────────────────────────────
+      // If editing yourself (self-edit from group list), also update auth user
+      const editingIsSuperAdmin = editing.assignments.some(a => a.role === "super_admin");
+      const isSelfEdit = editing.email.toLowerCase() === (currentUser?.email ?? "").toLowerCase();
+      if (isSelfEdit) {
+        const authUpdates: any = { data: { full_name: form.name.trim(), phone: form.phone?.trim() || null } };
+        const emailChanged = form.email.trim().toLowerCase() !== editing.email.toLowerCase();
+        if (emailChanged) authUpdates.email = form.email.trim().toLowerCase();
+        const { error: authErr } = await createClient().auth.updateUser(authUpdates);
+        if (authErr) { toast.error("Failed to update auth profile: " + authErr.message); setSaving(false); return; }
+        setCurrentUser((p) => p ? { ...p, name: form.name.trim(), phone: form.phone?.trim() || undefined } : p);
+        if (editingIsSuperAdmin) {
+          // Super admin from group list — no app_user_roles rows to update, just close
+          toast.success(emailChanged ? "Profile updated — check your new email for a confirmation link" : "Profile updated");
+          setSaving(false);
+          closeModal();
+          return;
+        }
+      }
+
       const currentIds = new Set(editing.assignments.map((a) => a.restaurant_id));
       const newIds = new Set(form.restaurant_ids);
       const supabase = createClient();
@@ -555,16 +595,16 @@ export default function AppUsersPage() {
     <div className="flex flex-col h-full bg-background">
       <Header title="Roles & Access" hideRestaurantSelector />
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white border border-border rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto justify-between">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-              <button onClick={() => setRoleFilter("")} className={`h-7 px-3 rounded-md text-[12px] font-medium transition-all ${roleFilter === "" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>All</button>
-              {ROLES.map((r) => (
+              <button onClick={() => setRoleFilter("")} className={`h-7 px-3 rounded-md text-xs font-medium transition-all ${roleFilter === "" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>All</button>
+              {ROLES.filter((r) => isSuperAdmin || r.value !== "super_admin").map((r) => (
                 <button key={r.value} onClick={() => setRoleFilter(roleFilter === r.value ? "" : r.value)}
-                  className={`h-7 px-3 rounded-md text-[12px] font-medium transition-all ${roleFilter === r.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                  className={`h-7 px-3 rounded-md text-xs font-medium transition-all ${roleFilter === r.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
                   {r.label}
                 </button>
               ))}
@@ -573,7 +613,7 @@ export default function AppUsersPage() {
               <select
                 value={restaurantFilter ?? "all"}
                 onChange={(e) => setRestaurantFilter(e.target.value === "all" ? "" : e.target.value)}
-                className="h-8 px-3 rounded-lg border border-gray-200 text-[12px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#111827] bg-white"
+                className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#111827] bg-white"
               >
                 <option value="all">All Restaurants</option>
                 {restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -581,20 +621,20 @@ export default function AppUsersPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={openAdd} className="h-8 px-3 rounded-lg bg-[#111827] hover:bg-black text-white text-[12px] font-medium flex items-center gap-1.5 transition-colors shrink-0">
+            <button onClick={openAdd} className="h-9 px-3 rounded-lg bg-[#111827] hover:bg-black text-white text-xs font-medium flex items-center gap-1.5 transition-colors shrink-0">
               <Plus size={14} /> Add User
             </button>
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email…"
-                className="h-8 pl-8 pr-3 w-56 rounded-lg border border-gray-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-[#111827] bg-gray-50" />
+                className="h-9 pl-8 pr-3 w-56 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#111827] bg-gray-50" />
             </div>
           </div>
         </div>
 
         {/* ── Role cards ── */}
-        <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-          {ROLES.map((role) => {
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {ROLES.filter((role) => isSuperAdmin || role.value !== "super_admin").map((role) => {
             const Icon = role.icon;
             const count = groups.filter((g) => g.assignments.some((a) => a.role === role.value)).length
               + (role.value === "super_admin" && currentUser && !groups.some((g) => g.email === currentUser.email.toLowerCase()) ? 1 : 0);
@@ -613,8 +653,8 @@ export default function AppUsersPage() {
         </div>
 
         {/* ── Permission Matrix ── */}
-        <div className="bg-white border border-border rounded-xl overflow-hidden">
-          <button onClick={() => setShowMatrix(!showMatrix)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/60 transition-colors">
+        <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+          <button onClick={() => setShowMatrix(!showMatrix)} className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50/60 transition-colors border-b border-gray-100 shrink-0">
             <div className="flex items-center gap-2.5">
               <ShieldCheck size={15} className="text-purple-600" />
               <span className="text-sm font-semibold text-gray-800">Role Permissions Matrix</span>
@@ -657,9 +697,9 @@ export default function AppUsersPage() {
                   <tr className="bg-gray-50/60 border-t border-border">
                     <td colSpan={ROLES.length + 1} className="px-5 py-2.5">
                       <div className="flex items-center gap-4 text-xs text-gray-400">
-                        <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-100 text-green-600"><Check size={9} /></span> Full access</span>
-                        <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-50 text-blue-400"><Eye size={9} /></span> View only</span>
-                        <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-gray-300"><X size={9} /></span> No access</span>
+                        <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-500/10 text-green-600"><Check size={9} /></span> Full access</span>
+                        <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500/10 text-blue-500"><Eye size={9} /></span> View only</span>
+                        <span className="flex items-center gap-1"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-zinc-500/10 text-zinc-400"><X size={9} /></span> No access</span>
                       </div>
                     </td>
                   </tr>
@@ -670,7 +710,7 @@ export default function AppUsersPage() {
         </div>
 
         {/* ── Users table ── */}
-        <div className="bg-white border border-border rounded-xl overflow-hidden">
+        <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-sm text-gray-400">Loading users…</div>
           ) : (filtered.length === 0 && !currentUser) ? (
@@ -680,40 +720,58 @@ export default function AppUsersPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[700px]">
+              <table className="w-full text-sm min-w-[820px]">
                 <thead>
                   <tr className="bg-gray-50 border-b border-border">
                     <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">User</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Restaurant & Role</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Restaurants</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Added</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                     <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {/* Current logged-in user row */}
+                  {/* Current logged-in user row (only when not appearing in groups list) */}
                   {currentUser && !groups.some((g) => g.email === currentUser.email.toLowerCase()) && (
-                    <tr className="bg-amber-50/40 hover:bg-amber-50/60 transition-colors">
+                    <tr className={`hover:bg-amber-500/5 transition-colors ${isSuperAdmin ? "bg-amber-500/5" : "bg-blue-500/5"}`}>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${isSuperAdmin ? "bg-gradient-to-br from-amber-400 to-orange-500" : "bg-gradient-to-br from-blue-400 to-blue-600"}`}>
                             {currentUser.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
                               <p className="font-semibold text-gray-900 text-sm">{currentUser.name}</p>
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700"><Zap size={9} /> You</span>
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${isSuperAdmin ? "bg-amber-500/10 text-amber-700" : "bg-blue-500/10 text-blue-700"}`}><Zap size={9} /> You</span>
                             </div>
                             <p className="text-xs text-gray-400">{currentUser.email}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3.5">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700"><Zap size={11} /> Super Admin · All</span>
+                        {isSuperAdmin
+                          ? <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700"><Zap size={11} /> Super Admin</span>
+                          : <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-700"><Crown size={11} /> Account Owner</span>
+                        }
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {isSuperAdmin
+                          ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20"><Building2 size={9} /> All Restaurants</span>
+                          : (
+                            <div className="flex flex-wrap gap-1">
+                              {restaurants.slice(0, 5).map((r) => (
+                                <span key={r.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-500/10 text-zinc-600"><Building2 size={9} />{r.name}</span>
+                              ))}
+                              {restaurants.length > 5 && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-200 text-gray-500">+{restaurants.length - 5}</span>}
+                              {restaurants.length === 0 && <span className="text-xs text-gray-400">—</span>}
+                            </div>
+                          )
+                        }
                       </td>
                       <td className="px-4 py-3.5 text-sm text-gray-500 hidden md:table-cell">—</td>
                       <td className="px-4 py-3.5 text-center">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700"><ToggleRight size={13} /> Active</span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-500/10 text-green-700"><ToggleRight size={13} /> Active</span>
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-1.5">
@@ -738,7 +796,7 @@ export default function AppUsersPage() {
                             <div className="flex items-center gap-2">
                               <p className="font-semibold text-gray-900 text-sm">{g.name}</p>
                               {!authEmails.has(g.email) && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700" title="No login account">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-700" title="No login account">
                                   <KeyRound size={9} /> No login
                                 </span>
                               )}
@@ -748,22 +806,31 @@ export default function AppUsersPage() {
                         </div>
                       </td>
 
-                      {/* Restaurant & Role */}
+                      {/* Role */}
                       <td className="px-4 py-3.5">
-                        <div className="flex flex-wrap gap-1.5">
-                          {g.assignments.map((a) => {
+                        <div className="flex flex-wrap gap-1">
+                          {[...new Set(g.assignments.map((a) => a.role))].map((role) => (
+                            <RoleBadge key={role} role={role} />
+                          ))}
+                          {g.assignments.length === 0 && <span className="text-xs text-gray-400">—</span>}
+                        </div>
+                      </td>
+
+                      {/* Restaurants */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex flex-wrap gap-1">
+                          {g.assignments.slice(0, 5).map((a) => {
                             const restaurant = restaurants.find((r) => r.id === a.restaurant_id);
-                            const roleDef = ROLES.find((r) => r.value === a.role);
-                            if (!restaurant || !roleDef) return null;
+                            if (!restaurant) return null;
                             return (
-                              <span key={a.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${roleDef.bg} ${roleDef.color} border-transparent`}>
-                                <Building2 size={9} />
-                                {restaurant.name}
-                                <span className="opacity-60 mx-0.5">·</span>
-                                {roleDef.label}
+                              <span key={a.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-500/10 text-zinc-600">
+                                <Building2 size={9} />{restaurant.name}
                               </span>
                             );
                           })}
+                          {g.assignments.length > 5 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-200 text-gray-500">+{g.assignments.length - 5}</span>
+                          )}
                           {g.assignments.length === 0 && <span className="text-xs text-gray-400">—</span>}
                         </div>
                       </td>
@@ -777,7 +844,7 @@ export default function AppUsersPage() {
                       <td className="px-4 py-3.5 text-center">
                         <button onClick={() => toggleActive(g)}
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-                            g.is_active ? "bg-green-100 text-green-700 hover:bg-red-50 hover:text-red-600" : "bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600"
+                            g.is_active ? "bg-green-500/10 text-green-700 hover:bg-red-500/10 hover:text-red-600" : "bg-zinc-500/10 text-zinc-500 hover:bg-green-500/10 hover:text-green-700"
                           }`} title={g.is_active ? "Click to deactivate" : "Click to activate"}>
                           {g.is_active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
                           {g.is_active ? "Active" : "Inactive"}
@@ -818,14 +885,14 @@ export default function AppUsersPage() {
           </div>
         )}
 
-        {/* ── Activity Log ── */}
-        <div className="bg-white border border-border rounded-xl overflow-hidden">
+        {/* ── Activity Log — super admin only ── */}
+        {isSuperAdmin && <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
           <div onClick={() => setShowActivityLog(!showActivityLog)}
-            className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/60 transition-colors cursor-pointer">
+            className="w-full flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0 hover:bg-gray-50/60 transition-colors cursor-pointer">
             <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center"><Zap size={12} className="text-amber-600" /></div>
+              <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center"><Zap size={12} className="text-amber-600" /></div>
               <span className="text-sm font-semibold text-gray-800">Activity Log</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700"><Zap size={8} /> Super Admin</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700"><Zap size={8} /> Super Admin</span>
             </div>
             <div className="flex items-center gap-2">
               {showActivityLog && (
@@ -877,19 +944,22 @@ export default function AppUsersPage() {
                 )}
             </div>
           )}
-        </div>
+        </div>}
 
       </div>
 
       {/* ── Add / Edit Modal ── */}
-      {modalOpen && (
+      {modalOpen && (() => {
+        const editingIsSuperAdmin = !editing?.isOwner && editing?.assignments.some(a => a.role === "super_admin");
+        const isSelfEdit = !editing?.isOwner && editing?.email.toLowerCase() === currentUser?.email.toLowerCase();
+        return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeModal}>
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
 
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center"><ShieldCheck size={15} className="text-purple-600" /></div>
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center"><ShieldCheck size={15} className="text-purple-600" /></div>
                 <h2 className="font-semibold text-gray-900">{editing ? "Edit User" : "Add New User"}</h2>
               </div>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={16} /></button>
@@ -909,10 +979,22 @@ export default function AppUsersPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address *</label>
                 <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  placeholder="user@restaurant.com" disabled={!!editing}
+                  placeholder="user@restaurant.com"
+                  disabled={!!editing && !editing.isOwner && !isSelfEdit}
                   className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-50 disabled:text-gray-400" />
-                {editing && <p className="text-xs text-gray-400 mt-1">Email cannot be changed after creation.</p>}
+                {editing && !editing.isOwner && !isSelfEdit && <p className="text-xs text-gray-400 mt-1">Email cannot be changed after creation.</p>}
+                {(editing?.isOwner || isSelfEdit) && <p className="text-xs text-gray-400 mt-1">Changing email requires confirmation via the new address.</p>}
               </div>
+
+              {/* Phone — self-edit or owner edit */}
+              {(editing?.isOwner || isSelfEdit) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input type="tel" value={form.phone ?? ""} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    placeholder="e.g. +88 01700 000000"
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+              )}
 
               {/* Password */}
               {!editing?.isOwner && (
@@ -965,7 +1047,7 @@ export default function AppUsersPage() {
                           <Building2 size={13} className="text-gray-400 shrink-0" />
                           <span className="text-sm text-gray-700 flex-1">{r.name}</span>
                           {r.type === "outlet" && (
-                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-100 text-purple-600">outlet</span>
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600">outlet</span>
                           )}
                         </label>
                       ))}
@@ -974,20 +1056,20 @@ export default function AppUsersPage() {
                 </div>
               )}
 
-              {/* Role picker — not shown for owner (locked super_admin) */}
-              {!editing?.isOwner && (
+              {/* Role picker — not shown for owner or super_admin users (role locked) */}
+              {!editing?.isOwner && editing?.assignments.every(a => a.role !== "super_admin") && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">Role *</label>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {ROLES.map((role) => {
+                    {ROLES.filter((role) => isSuperAdmin || role.value !== "super_admin").map((role) => {
                       const Icon = role.icon;
                       const active = form.role === role.value;
                       return (
                         <button key={role.value} type="button" onClick={() => setForm((f) => ({ ...f, role: role.value }))}
                           className={`flex items-start gap-2.5 p-3 rounded-xl border-2 text-left transition-all ${active ? `${role.border} ${role.bg}` : "border-gray-200 hover:border-gray-300 bg-white"}`}>
-                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${active ? role.bg : "bg-gray-100"}`}>
+                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${active ? role.bg : "bg-zinc-500/10"}`}>
                             <Icon size={12} className={active ? role.color : "text-gray-400"} />
                           </div>
                           <div>
@@ -1001,6 +1083,20 @@ export default function AppUsersPage() {
                   {editing && editing.assignments.length > 1 && (
                     <p className="text-xs text-gray-400 mt-1.5">This role will apply to all selected restaurants.</p>
                   )}
+                </div>
+              )}
+
+              {/* Locked role display for super_admin users */}
+              {editing && !editing.isOwner && editing.assignments.some(a => a.role === "super_admin") && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                  <div className="flex items-center gap-2 p-3 rounded-xl border-2 border-amber-500/20 bg-amber-500/10">
+                    <Zap size={14} className="text-amber-600 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-700">Super Admin</p>
+                      <p className="text-[10px] text-amber-600 mt-0.5">This role cannot be changed.</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1025,7 +1121,7 @@ export default function AppUsersPage() {
             </div>
           </div>
         </div>
-      )}
+      )})()}
 
       {/* ── Delete confirm ── */}
       {confirmDelete && (
@@ -1042,7 +1138,7 @@ export default function AppUsersPage() {
               <div className="flex flex-wrap gap-1.5">
                 {confirmDelete.assignments.map((a) => {
                   const r = restaurants.find((x) => x.id === a.restaurant_id);
-                  return r ? <span key={a.id} className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{r.name}</span> : null;
+                  return r ? <span key={a.id} className="text-xs px-2 py-0.5 rounded-full bg-zinc-500/10 text-zinc-600">{r.name}</span> : null;
                 })}
               </div>
             )}

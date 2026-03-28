@@ -166,10 +166,10 @@ export default function CRMPage() {
     <>
       <Header title="CRM" />
 
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
 
         {/* ── Tabs + toolbar ── */}
-        <div className="bg-white rounded-xl border border-border px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+        <div className="shrink-0 h-[62px] flex items-center px-[14px] gap-4 overflow-x-auto bg-white rounded-xl border border-border shadow-sm justify-between">
           {/* Tabs */}
           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto">
             {TABS.map(t => (
@@ -177,8 +177,8 @@ export default function CRMPage() {
                 className={`flex items-center gap-1.5 h-7 px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${tab === t.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
                 {t.value === "top" && <Star size={11} />}
                 {t.label}
-                {t.value === "unique" && <span className={`text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${tab === t.value ? "bg-gray-100 text-gray-600" : "bg-white text-gray-500"}`}>{uniqueCount}</span>}
-                {t.value === "repeat" && <span className={`text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${tab === t.value ? "bg-gray-100 text-gray-600" : "bg-white text-gray-500"}`}>{repeatCount}</span>}
+                {t.value === "unique" && <span className={`text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${tab === t.value ? "bg-gray-100 text-gray-700" : "bg-white text-gray-500"}`}>{uniqueCount}</span>}
+                {t.value === "repeat" && <span className={`text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${tab === t.value ? "bg-gray-100 text-gray-700" : "bg-white text-gray-500"}`}>{repeatCount}</span>}
               </button>
             ))}
           </div>
@@ -190,36 +190,35 @@ export default function CRMPage() {
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or phone…"
-                style={{ fontSize: "12px" }}
-                className="w-52 h-8 pl-8 pr-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                className="w-52 h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
             </div>
           </div>
         </div>
 
         {/* ── Stats cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-[18px]">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0"><Users size={18} className="text-orange-500" /></div>
             <div>
               <p className="text-xs text-gray-500">Total Customers</p>
               <p className="text-xl font-bold text-gray-900">{customers.length}</p>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0"><UserCircle size={18} className="text-blue-500" /></div>
             <div>
               <p className="text-xs text-gray-500">Repeat Customers</p>
               <p className="text-xl font-bold text-gray-900">{repeatCount}</p>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0"><ShoppingBag size={18} className="text-green-500" /></div>
             <div>
               <p className="text-xs text-gray-500">Total Visits</p>
               <p className="text-xl font-bold text-gray-900">{totalVisits}</p>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center shrink-0"><TrendingUp size={18} className="text-purple-500" /></div>
             <div>
               <p className="text-xs text-gray-500">CRM Revenue</p>
@@ -229,7 +228,7 @@ export default function CRMPage() {
         </div>
 
         {/* ── Table ── */}
-        <div className="bg-white rounded-xl border border-border">
+        <div className="bg-white rounded-xl border border-border shadow-sm">
           <div className="overflow-x-auto">
             {loading ? (
               <div className="p-8 text-center text-sm text-gray-400">Loading customers…</div>

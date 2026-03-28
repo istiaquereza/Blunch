@@ -23,10 +23,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
     { data: paymentMethods },
     { data: billing },
     { data: discounts },
+    { data: activeOrders },
+    { data: customers },
   ] = await Promise.all([
     supabase.from("restaurants").select("id, name, logo_url").eq("id", rid).single(),
     supabase.from("food_items")
-      .select("id, name, sell_price, notes, image_url, food_category_id, is_active, food_categories(id, name), food_item_restaurants!inner(restaurant_id)")
+      .select("id, name, sell_price, notes, image_url, food_category_id, is_active, availability_type, available_quantity, food_categories(id, name), food_item_restaurants!inner(restaurant_id)")
       .eq("food_item_restaurants.restaurant_id", rid)
       .eq("is_active", true)
       .order("name"),
@@ -35,6 +37,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
     supabase.from("payment_methods").select("id, name").eq("restaurant_id", rid).eq("is_active", true).order("name"),
     supabase.from("billing_settings").select("vat_percentage, service_charge_percentage").eq("restaurant_id", rid).maybeSingle(),
     supabase.from("discounts").select("id, name, discount_type, discount_value").eq("restaurant_id", rid).eq("is_active", true).eq("apply_on", "order"),
+    supabase.from("orders").select("table_id").eq("restaurant_id", rid).in("status", ["active", "billed"]).not("table_id", "is", null),
+    supabase.from("customers").select("id, name, phone").eq("restaurant_id", rid).order("name").limit(300),
   ]);
 
   if (!restaurant) return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
@@ -45,15 +49,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
     if (cat?.id) catMap.set(cat.id, { id: cat.id, name: cat.name });
   }
 
+  const occupiedTableIds = (activeOrders ?? []).map((o: any) => o.table_id).filter(Boolean);
+
   return NextResponse.json({
     restaurant,
     items: (items ?? []).map((i: any) => ({
       id: i.id, name: i.name, sell_price: i.sell_price,
       description: i.notes, image_url: i.image_url, category_id: i.food_category_id,
+      availability_type: i.availability_type ?? "always",
+      available_quantity: i.available_quantity ?? 0,
     })),
     categories: Array.from(catMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
     staff: staff ?? [],
     tables: (tables ?? []).map((t: any) => ({ id: t.id, name: t.name ?? t.table_number ?? "" })),
+    occupiedTableIds,
+    customers: (customers ?? []).map((c: any) => ({ id: c.id, name: c.name, phone: c.phone ?? "" })),
     paymentMethods: paymentMethods ?? [],
     billing: billing ?? { vat_percentage: 0, service_charge_percentage: 0 },
     discounts: discounts ?? [],

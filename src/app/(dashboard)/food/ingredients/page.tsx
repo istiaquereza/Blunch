@@ -98,7 +98,7 @@ export default function IngredientsPage() {
 
   if (!rid) return (
     <div><Header title="Food Ingredients" />
-      <div className="p-6"><div className="bg-white rounded-xl border border-border p-12 text-center">
+      <div className="p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
         <FlaskConical size={40} className="text-gray-200 mx-auto mb-3" />
         <p className="font-medium text-gray-500">No restaurant selected</p>
         <p className="text-sm text-gray-400 mt-1">Go to <strong>Settings</strong> to add a restaurant first</p>
@@ -109,9 +109,9 @@ export default function IngredientsPage() {
   return (
     <div>
       <Header title="Food Ingredients" hideRestaurantSelector={true} />
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
         {/* Toolbar */}
-        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+        <div className="shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto bg-white rounded-xl border border-border">
           <div className="flex items-center gap-2 flex-1">
             <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
               className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
@@ -129,8 +129,8 @@ export default function IngredientsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-border overflow-hidden overflow-x-auto">
-          <div className="px-5 py-3.5 border-b border-border">
+        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
             <h3 className="font-semibold text-gray-900 text-sm">Food Ingredients <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
           </div>
           {loading ? <div className="p-8 text-center text-sm text-gray-400">Loading...</div>

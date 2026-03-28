@@ -386,7 +386,7 @@ function OrderCard({
   return (
     <div
       onClick={onActivate}
-      className={`w-full md:flex-shrink-0 md:w-72 flex flex-col bg-white rounded-2xl border-2 transition-all overflow-hidden shadow-sm ${
+      className={`w-full md:flex-shrink-0 md:w-72 flex flex-col bg-white rounded-2xl border-2 transition-all overflow-y-auto shadow-sm ${
         isActive ? "border-orange-400 shadow-orange-100 shadow-md" : "border-gray-200 hover:border-gray-300 cursor-pointer"
       }`}
       style={{ maxHeight: "calc(100vh - 140px)" }}
@@ -463,8 +463,8 @@ function OrderCard({
         )}
       </div>
 
-      {/* Cart — scrollable */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 min-h-[80px]" onClick={(e) => e.stopPropagation()}>
+      {/* Cart */}
+      <div className="overflow-y-auto px-3 py-2 min-h-[80px]" onClick={(e) => e.stopPropagation()}>
         {draft.cart.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-4 text-center gap-3">
             {/* Mobile: prominent Add Food button when cart is empty */}
@@ -656,7 +656,7 @@ function OrderCard({
           <p className="text-xs font-bold text-orange-700 uppercase tracking-wide mb-1.5">Billing Summary</p>
           <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{fmt(totals.subtotal)}</span></div>
           {totals.discountAmount > 0 && (
-            <div className="flex justify-between text-green-600"><span>Discount</span><span>-{fmt(totals.discountAmount)}</span></div>
+            <div className="flex justify-between text-red-600"><span>Discount</span><span>-{fmt(totals.discountAmount)}</span></div>
           )}
           {(billing?.vat_percentage ?? 0) > 0 && (
             <div className="flex justify-between text-gray-500">
@@ -772,7 +772,7 @@ function OrderCard({
                 disabled={draft.cart.length === 0 || saving}
                 className="h-8 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1 transition-colors"
               >
-                <Printer size={12} /> {draft.savedOrderId ? "Reprint" : "Kitchen"}
+                <Printer size={12} /> KOT
               </button>
               <button
                 onClick={onBill}
@@ -827,7 +827,7 @@ export default function NewOrderPage() {
   const [activeDraftId, setActiveDraftId] = useState<string>(init.id);
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [savingDraftId, setSavingDraftId] = useState<string | null>(null);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
@@ -996,8 +996,8 @@ export default function NewOrderPage() {
               total: order.total,
             } : undefined,
             printedCart: [],
-            customDiscountType: "none",
-            customDiscountValue: 0,
+            customDiscountType: order.discount_amount > 0 ? "amount" : "none",
+            customDiscountValue: order.discount_amount > 0 ? order.discount_amount : 0,
             isCustomerOrder,
             confirmedAt: (order as any).confirmed_at ?? undefined,
             prepTimeMinutes: (order as any).prep_time_minutes ?? undefined,
@@ -1091,7 +1091,7 @@ export default function NewOrderPage() {
     if (!draft?.savedOrderId) return;
     const mins = parseInt(confirmMinutes, 10);
     if (!mins || mins < 1) { toast.error("Enter a valid prep time"); return; }
-    setSaving(true);
+    setSavingDraftId(confirmModalDraftId);
     try {
       const res = await fetch(`/api/customer-order/${draft.savedOrderId}/confirm`, {
         method: "PATCH",
@@ -1105,7 +1105,7 @@ export default function NewOrderPage() {
       toast.success(`Order confirmed — ${mins} min prep time set`);
       setConfirmModalDraftId(null);
     } catch { toast.error("Something went wrong"); }
-    finally { setSaving(false); }
+    finally { setSavingDraftId(null); }
   };
 
   // Remove draft from UI and reset counter if it was the last one
@@ -1275,7 +1275,7 @@ export default function NewOrderPage() {
 
     // If not yet saved (no auto-create happened), save to DB as active first
     if (!draft.savedOrderId) {
-      setSaving(true);
+      setSavingDraftId(draftId);
       const items: CreateOrderItemPayload[] = draft.cart.map((c) => ({
         food_item_id: c.foodItem.id, quantity: c.quantity, unit_price: c.foodItem.sell_price,
       }));
@@ -1287,7 +1287,7 @@ export default function NewOrderPage() {
         const msg = (error as any)?.message ?? String(error);
         console.error("[Kitchen] createKitchenOrder failed:", msg);
         toast.error(`Kitchen order failed: ${msg}`);
-        setSaving(false);
+        setSavingDraftId(null);
         return;
       }
       updateDraft(draftId, { savedOrderId: order.id, orderNumber: order.order_number });
@@ -1320,7 +1320,7 @@ export default function NewOrderPage() {
         } catch { /* silent */ }
       }
 
-      setSaving(false);
+      setSavingDraftId(null);
       return;
     }
 
@@ -1364,7 +1364,7 @@ export default function NewOrderPage() {
       toast.error("Please select a table for dine-in orders");
       return;
     }
-    setSaving(true);
+    setSavingDraftId(draftId);
 
     const t = calcTotals(draft.cart, discounts, draft.discountId, billing as any, draft.customDiscountType, draft.customDiscountValue);
     const dbTotals = { subtotal: t.subtotal, discount_amount: t.discountAmount, vat_amount: t.vatAmount, service_charge: t.serviceCharge, total: t.total };
@@ -1403,13 +1403,13 @@ export default function NewOrderPage() {
         try { localStorage.setItem(`billed_${order.id}`, billedTs2); } catch { /* ignore */ }
       }
     }
-    setSaving(false);
+    setSavingDraftId(null);
   };
 
   const handleComplete = async (draftId: string) => {
     const draft = drafts.find((d) => d.draftId === draftId);
     if (!activeRestaurant || !draft?.savedOrderId || !draft.orderNumber) return;
-    setSaving(true);
+    setSavingDraftId(draftId);
 
     const t = draft.savedTotals ?? calcTotals(draft.cart, discounts, draft.discountId, billing as any, draft.customDiscountType, draft.customDiscountValue);
     const { error } = await completeOrderFull(
@@ -1439,7 +1439,7 @@ export default function NewOrderPage() {
         });
       }, 3000);
     }
-    setSaving(false);
+    setSavingDraftId(null);
   };
 
   return (
@@ -1499,7 +1499,7 @@ export default function NewOrderPage() {
         {/* ── RIGHT: Order cards ── */}
         <div className={`flex flex-1 overflow-hidden flex-col bg-gray-50`}>
           {/* Toolbar */}
-          <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-100">
+          <div className="shrink-0 h-[62px] flex items-center justify-between px-6 border-b border-gray-100 bg-white gap-4 overflow-x-auto">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-700">Active Orders</span>
               <span className="bg-orange-100 text-orange-600 text-xs font-bold px-2 py-0.5 rounded-full">
@@ -1532,7 +1532,7 @@ export default function NewOrderPage() {
 
           {/* Cards area — vertical scroll on mobile, horizontal on desktop */}
           <div className="flex-1 overflow-y-auto md:overflow-x-auto md:overflow-y-hidden">
-            <div className="flex flex-col md:flex-row gap-4 p-4 md:p-5 md:h-full md:items-start">
+            <div className="flex flex-col md:flex-row gap-4 p-6 md:h-full md:items-start">
               {drafts.map((draft) => (
                 <OrderCard
                   key={draft.draftId}
@@ -1553,7 +1553,7 @@ export default function NewOrderPage() {
                   onComplete={() => handleComplete(draft.draftId)}
                   onAddFood={() => { setActiveDraftId(draft.draftId); setMobileMenuOpen(true); }}
                   onConfirmCustomerOrder={draft.isCustomerOrder ? () => { setConfirmModalDraftId(draft.draftId); setConfirmMinutes("25"); } : undefined}
-                  saving={saving}
+                  saving={savingDraftId === draft.draftId}
                 />
               ))}
 
@@ -1609,9 +1609,9 @@ export default function NewOrderPage() {
                 className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
-              <button onClick={handleConfirmOrder} disabled={saving}
+              <button onClick={handleConfirmOrder} disabled={savingDraftId !== null}
                 className="flex-1 h-10 rounded-xl bg-purple-500 hover:bg-purple-600 text-white text-sm font-bold disabled:opacity-60 transition-colors flex items-center justify-center gap-1.5">
-                {saving ? "Saving…" : <><CheckCircle size={14} /> Confirm Order</>}
+                {savingDraftId !== null ? "Saving…" : <><CheckCircle size={14} /> Confirm Order</>}
               </button>
             </div>
           </div>

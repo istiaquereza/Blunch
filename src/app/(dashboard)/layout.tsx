@@ -10,9 +10,13 @@ export default function DashboardLayout({
   return (
     <RestaurantProvider>
       <SidebarProvider>
-        <div className="flex h-screen overflow-hidden bg-background">
+        <div className="flex h-screen overflow-hidden bg-zinc-100">
           <Sidebar />
-          <main className="flex-1 overflow-y-auto">{children}</main>
+          <main className="flex-1 overflow-hidden p-6">
+            <div className="bg-[#FAFAFA] rounded-2xl overflow-y-auto h-full flex flex-col">
+              {children}
+            </div>
+          </main>
         </div>
       </SidebarProvider>
     </RestaurantProvider>

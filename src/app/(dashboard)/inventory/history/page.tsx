@@ -379,10 +379,10 @@ export default function InventoryHistoryPage() {
     <>
       <Header title="Inventory History" />
 
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-2 flex-wrap">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
           {/* Date preset tabs */}
           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
             {PRESETS.map((p) => (
@@ -405,14 +405,14 @@ export default function InventoryHistoryPage() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="h-9 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
               <span className="text-gray-400 text-xs">→</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="h-9 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
           )}
@@ -440,8 +440,8 @@ export default function InventoryHistoryPage() {
         </div>
 
         {/* ── Summary card ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-[18px]">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <Package size={15} className="text-orange-500" />
               <p className="text-xs text-gray-500">Ingredients Consumed</p>
@@ -449,7 +449,7 @@ export default function InventoryHistoryPage() {
             <p className="text-2xl font-bold text-gray-900">{totalConsumedCount}</p>
             <p className="text-xs text-gray-400 mt-1">unique ingredients used</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <Calendar size={15} className="text-blue-500" />
               <p className="text-xs text-gray-500">Days with Activity</p>
@@ -457,7 +457,7 @@ export default function InventoryHistoryPage() {
             <p className="text-2xl font-bold text-gray-900">{dailyBreakdown.length}</p>
             <p className="text-xs text-gray-400 mt-1">days in range</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle size={15} className="text-amber-500" />
               <p className="text-xs text-gray-500">Low Stock</p>
@@ -467,7 +467,7 @@ export default function InventoryHistoryPage() {
             </p>
             <p className="text-xs text-gray-400 mt-1">ingredients below 30%</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <XCircle size={15} className="text-red-500" />
               <p className="text-xs text-gray-500">Critical</p>
@@ -481,24 +481,24 @@ export default function InventoryHistoryPage() {
 
         {/* ── Main table ── */}
         {loading ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-16 flex flex-col items-center justify-center gap-3">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-16 flex flex-col items-center justify-center gap-3">
             <Loader2 size={28} className="text-orange-400 animate-spin" />
             <p className="text-sm text-gray-400">Loading inventory history…</p>
           </div>
         ) : !activeRestaurant ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-16 text-center">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-16 text-center">
             <Package size={44} className="mx-auto text-gray-200 mb-3" />
             <p className="text-sm font-medium text-gray-500">Select a restaurant to view inventory history.</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-16 text-center">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-16 text-center">
             <Package size={44} className="mx-auto text-gray-200 mb-3" />
             <p className="text-sm font-medium text-gray-500">No inventory movement in this period</p>
             <p className="text-xs text-gray-400 mt-1">Try adjusting the date range or check that orders are marked as completed.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
               <h2 className="text-sm font-semibold text-gray-800">Ingredient Consumption</h2>
               <span className="text-xs text-gray-400">{filtered.length} ingredient{filtered.length !== 1 ? "s" : ""}</span>
             </div>
@@ -526,10 +526,12 @@ export default function InventoryHistoryPage() {
 
         {/* ── Daily Breakdown ── */}
         {!loading && dailyBreakdown.length > 1 && (
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-              <h2 className="text-sm font-semibold text-gray-800">Daily Breakdown</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Consumption per ingredient by day</p>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-800">Daily Breakdown</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Consumption per ingredient by day</p>
+              </div>
             </div>
             <div className="divide-y divide-gray-50">
               {dailyBreakdown.map((day) => (

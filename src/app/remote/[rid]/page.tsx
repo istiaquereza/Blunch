@@ -9,7 +9,7 @@ import {
 import { toast } from "sonner";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-interface FoodItem { id: string; name: string; sell_price: number; description?: string; image_url?: string; category_id?: string; }
+interface FoodItem { id: string; name: string; sell_price: number; description?: string; image_url?: string; category_id?: string; availability_type?: string; available_quantity?: number; }
 interface Category { id: string; name: string; }
 interface StaffMember { id: string; name: string; job_role?: string; photo_url?: string; staff_type?: string; }
 interface TableItem { id: string; name: string; }
@@ -17,6 +17,7 @@ interface PayMethod { id: string; name: string; }
 interface Discount { id: string; name: string; discount_type: "percentage" | "amount"; discount_value: number; }
 interface BillingCfg { vat_percentage: number; service_charge_percentage: number; }
 interface Restaurant { id: string; name: string; logo_url?: string; }
+interface CrmCustomer { id: string; name: string; phone: string; }
 interface CartItem extends FoodItem { quantity: number; }
 
 interface OrderSession {
@@ -87,7 +88,7 @@ function printKitchen(
       .meta { font-size: 11px; color: #555; }
     </style></head><body>
     <h2>${restaurant.name}</h2>
-    <div class="sub">KITCHEN ORDER</div>
+    <div class="sub">KOT</div>
     <hr/>
     <div class="meta">Order: <b>${orderNumber ?? "—"}</b></div>
     ${tableName ? `<div class="meta">Table: <b>${tableName}</b></div>` : ""}
@@ -114,6 +115,8 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
   const [categories, setCategories] = useState<Category[]>([]);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [tables, setTables] = useState<TableItem[]>([]);
+  const [occupiedTableIds, setOccupiedTableIds] = useState<string[]>([]);
+  const [crmCustomers, setCrmCustomers] = useState<CrmCustomer[]>([]);
   const [payMethods, setPayMethods] = useState<PayMethod[]>([]);
   const [billingCfg, setBillingCfg] = useState<BillingCfg>({ vat_percentage: 0, service_charge_percentage: 0 });
   const [discounts, setDiscounts] = useState<Discount[]>([]);
@@ -152,6 +155,7 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
 
   // Billing form (for billing screen, reset per order)
   const [customerName, setCustomerName] = useState("");
+  const [crmSuggestions, setCrmSuggestions] = useState<CrmCustomer[]>([]);
   const [customerPhone, setCustomerPhone] = useState("");
   const [payMethodId, setPayMethodId] = useState("");
 
@@ -203,6 +207,8 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
         setCategories(d.categories);
         setStaffList(d.staff);
         setTables(d.tables);
+        setOccupiedTableIds(d.occupiedTableIds ?? []);
+        setCrmCustomers(d.customers ?? []);
         setPayMethods(d.paymentMethods);
         setBillingCfg(d.billing);
         setDiscounts(d.discounts);
@@ -543,10 +549,35 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
         {/* Customer */}
         <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer (optional)</p>
+          {/* Name with CRM autocomplete */}
           <div className="relative">
             <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Customer name"
+            <input value={customerName}
+              onChange={e => {
+                const v = e.target.value;
+                setCustomerName(v);
+                if (v.trim().length >= 1) {
+                  const q = v.toLowerCase();
+                  setCrmSuggestions(crmCustomers.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 6));
+                } else {
+                  setCrmSuggestions([]);
+                }
+              }}
+              onBlur={() => setTimeout(() => setCrmSuggestions([]), 150)}
+              placeholder="Customer name"
               className="w-full h-10 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+            {crmSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-11 bg-white border border-gray-200 rounded-xl shadow-lg z-30 overflow-hidden">
+                {crmSuggestions.map(c => (
+                  <button key={c.id} type="button"
+                    onMouseDown={() => { setCustomerName(c.name); setCustomerPhone(c.phone); setCrmSuggestions([]); }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 text-left">
+                    <span className="text-sm font-medium text-gray-800">{c.name}</span>
+                    {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="relative">
             <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -568,25 +599,10 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
           </div>
         </div>
 
-        {/* Discount */}
-        {discounts.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Discount</p>
-            <select value={activeSession.discountId}
-              onChange={e => updateSession(activeSession.localId, { discountId: e.target.value })}
-              className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value="">No discount</option>
-              {discounts.map(d => (
-                <option key={d.id} value={d.id}>{d.name} ({d.discount_type === "percentage" ? `${d.discount_value}%` : fmt(d.discount_value)})</option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {/* Totals */}
         <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-2 text-sm">
           <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-          {discountAmt > 0 && <div className="flex justify-between text-green-600"><span>Discount ({discount?.name})</span><span>-{fmt(discountAmt)}</span></div>}
+          {discountAmt > 0 && <div className="flex justify-between text-red-600"><span>Discount ({discount?.name})</span><span>-{fmt(discountAmt)}</span></div>}
           {billingCfg.service_charge_percentage > 0 && (
             <div className="flex justify-between text-gray-500"><span>Service Charge ({billingCfg.service_charge_percentage}%)</span><span>{fmt(serviceCharge)}</span></div>
           )}
@@ -666,7 +682,17 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
                 !activeSession.tableId ? "border-orange-300 bg-orange-50 text-orange-700" : "border-gray-200"
               }`}>
               <option value="">Select table *</option>
-              {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {tables.map(t => {
+                // Allow current session's own table; disable tables occupied by DB orders
+                const sessionTableIds = sessions.filter(s => s.localId !== activeSession.localId).map(s => s.tableId);
+                const isOccupied = (occupiedTableIds.includes(t.id) && t.id !== activeSession.tableId)
+                  || sessionTableIds.includes(t.id);
+                return (
+                  <option key={t.id} value={t.id} disabled={isOccupied}>
+                    {t.name}{isOccupied ? " (occupied)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}
@@ -697,23 +723,41 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
       <div className="flex-1 overflow-y-auto p-3 pb-40 grid grid-cols-2 gap-3">
         {filteredItems.map(item => {
           const inCart = activeSession.cart.find(c => c.id === item.id);
+          const isQty = item.availability_type === "quantity";
+          const avail = item.available_quantity ?? 0;
+          const unavailable = item.availability_type === "none" || (isQty && avail <= 0);
           return (
-            <div key={item.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden flex flex-col">
-              {item.image_url
-                ? <img src={item.image_url} alt={item.name} className="w-full h-28 object-cover" />
-                : <div className="w-full h-28 bg-orange-50 flex items-center justify-center"><UtensilsCrossed size={24} className="text-orange-200" /></div>
-              }
+            <div key={item.id} className={`bg-white rounded-xl border border-gray-100 overflow-hidden flex flex-col ${unavailable ? "opacity-60" : ""}`}>
+              <div className="relative">
+                {item.image_url
+                  ? <img src={item.image_url} alt={item.name} className="w-full h-28 object-cover" />
+                  : <div className="w-full h-28 bg-orange-50 flex items-center justify-center"><UtensilsCrossed size={24} className="text-orange-200" /></div>
+                }
+                {unavailable && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                    <span className="text-[10px] font-bold text-red-500 bg-white px-2 py-0.5 rounded-full border border-red-200">Unavailable</span>
+                  </div>
+                )}
+                {isQty && !unavailable && avail <= 5 && (
+                  <span className="absolute top-1.5 right-1.5 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">{avail} left</span>
+                )}
+              </div>
               <div className="p-3 flex-1 flex flex-col">
                 <p className="font-semibold text-gray-900 text-sm leading-tight">{item.name}</p>
                 <p className="text-orange-600 font-bold text-sm mt-1">{fmt(item.sell_price)}</p>
                 <div className="mt-2">
-                  {inCart ? (
+                  {unavailable ? (
+                    <div className="w-full bg-gray-100 text-gray-400 rounded-lg py-1.5 text-xs font-semibold text-center">Unavailable</div>
+                  ) : inCart ? (
                     <div className="flex items-center justify-between bg-gray-50 rounded-lg p-1">
                       <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center shadow-sm">
                         <Minus size={12} className="text-gray-700" />
                       </button>
                       <span className="text-sm font-bold text-gray-900">{inCart.quantity}</span>
-                      <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 rounded-lg bg-gray-900 flex items-center justify-center">
+                      <button
+                        onClick={() => updateQty(item.id, 1)}
+                        disabled={isQty && inCart.quantity >= avail}
+                        className="w-7 h-7 rounded-lg bg-gray-900 flex items-center justify-center disabled:opacity-40">
                         <Plus size={12} className="text-white" />
                       </button>
                     </div>
@@ -837,7 +881,7 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
               {/* Totals in cart */}
               <div className="px-4 pb-4 space-y-1.5 text-sm border-t border-gray-50 pt-3">
                 <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-                {discountAmt > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>-{fmt(discountAmt)}</span></div>}
+                {discountAmt > 0 && <div className="flex justify-between text-red-600"><span>Discount</span><span>-{fmt(discountAmt)}</span></div>}
                 {billingCfg.service_charge_percentage > 0 && (
                   <div className="flex justify-between text-gray-500"><span>Service ({billingCfg.service_charge_percentage}%)</span><span>{fmt(serviceCharge)}</span></div>
                 )}
@@ -856,9 +900,7 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
                 <button onClick={handleKitchen} disabled={submitting}
                   className="flex items-center justify-center gap-2 bg-gray-100 text-gray-800 rounded-xl py-3.5 font-semibold text-sm disabled:opacity-50">
                   <Printer size={16} />
-                  {activeSession.orderId
-                    ? (newItems.length > 0 ? "Add to Kitchen" : "Reprint")
-                    : "Kitchen Print"}
+                  KOT
                 </button>
                 <button
                   onClick={() => { setCartOpen(false); setScreen("billing"); }}

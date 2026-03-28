@@ -291,7 +291,7 @@ export default function FoodInventoryPage() {
 
   if (!rid) return (
     <div><Header title="Food Inventory" />
-      <div className="p-6"><div className="bg-white rounded-xl border border-border p-12 text-center">
+      <div className="p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
         <Layers size={40} className="text-gray-200 mx-auto mb-3" />
         <p className="font-medium text-gray-500">No restaurant selected</p>
         <p className="text-sm text-gray-400 mt-1">Go to <strong>Settings</strong> to add a restaurant first</p>
@@ -312,11 +312,10 @@ export default function FoodInventoryPage() {
   return (
     <div>
       <Header title="Food Inventory" />
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
             <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
               className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
               <option value="">All Groups</option>
@@ -329,7 +328,7 @@ export default function FoodInventoryPage() {
               <option value="low">Low Stock</option>
               <option value="sufficient">Sufficient</option>
             </select>
-          </div>
+          <div className="flex-1" />
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ingredients..."
@@ -338,14 +337,14 @@ export default function FoodInventoryPage() {
         </div>
 
         {/* ── Summary Cards ── */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-x-4 gap-y-[18px]">
           {[
             { label: "Total Ingredients", value: items.length, sub: "tracked", color: "text-gray-900" },
             { label: "Total Stock Value", value: `৳${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, sub: "estimated", color: "text-gray-900" },
             { label: "Low Stock", value: lowCount, sub: "need restocking", color: lowCount > 0 ? "text-amber-600" : "text-gray-900" },
             { label: "Empty / Out", value: emptyCount, sub: "urgent", color: emptyCount > 0 ? "text-red-600" : "text-gray-900" },
           ].map((c) => (
-            <div key={c.label} className="bg-white rounded-xl border border-border p-4">
+            <div key={c.label} className="bg-white rounded-xl border border-border shadow-sm p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{c.label}</p>
               <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
               <p className="text-xs text-gray-400">{c.sub}</p>
@@ -354,7 +353,7 @@ export default function FoodInventoryPage() {
         </div>
 
         {/* ── Tabs ── */}
-        <div className="bg-white rounded-xl border border-border overflow-hidden">
+        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="flex border-b border-border">
             {([
               { key: "group", label: "Group Level Inventory" },
@@ -416,7 +415,7 @@ export default function FoodInventoryPage() {
           {/* ── Stock Level ── */}
           {activeTab === "stock" && (
             <>
-              <div className="px-5 py-3 border-b border-border">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
                 <h3 className="font-semibold text-gray-900 text-sm">Stock Levels <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
               </div>
               {loading ? (

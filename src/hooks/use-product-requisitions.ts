@@ -18,13 +18,14 @@ export function useProductRequisitions(restaurantId?: string) {
     if (!restaurantId) { setRequisitions([]); return; }
     setLoading(true);
 
-    // Try with payment_methods join first (requires migration 20260324_bazar_payment_method)
+    // Try with all joins first (requires migrations 20260324 + 20260328)
     const { data, error } = await supabase
       .from("product_requisitions")
       .select(`
         *,
         vendors(id, name, phone),
         payment_methods(id, name),
+        bazar_categories(id, name),
         product_requisition_items(
           *,
           ingredients(id, name, default_unit, unit_price, unit_type)
@@ -34,7 +35,7 @@ export function useProductRequisitions(restaurantId?: string) {
       .order("created_at", { ascending: false });
 
     if (error) {
-      // Fallback: fetch without payment_methods join (migration not yet applied)
+      // Fallback: fetch without newer columns (migrations not yet applied)
       const { data: fallback } = await supabase
         .from("product_requisitions")
         .select(`
@@ -87,7 +88,8 @@ export function useProductRequisitions(restaurantId?: string) {
     targetRestaurantId?: string,
     payment_status: "paid" | "due" = "paid",
     vendor_id?: string,
-    payment_method_id?: string
+    payment_method_id?: string,
+    bazar_category_id?: string
   ) => {
     const rid = targetRestaurantId ?? restaurantId;
     if (!rid) return { error: new Error("No restaurant") };
@@ -95,6 +97,7 @@ export function useProductRequisitions(restaurantId?: string) {
     const insertPayload: Record<string, unknown> = { restaurant_id: rid, requisition_date: date, notes, status: "submitted", payment_status };
     if (vendor_id) insertPayload.vendor_id = vendor_id;
     if (payment_method_id) insertPayload.payment_method_id = payment_method_id;
+    if (bazar_category_id) insertPayload.bazar_category_id = bazar_category_id;
 
     const { data: req, error: reqErr } = await supabase
       .from("product_requisitions")
@@ -119,7 +122,8 @@ export function useProductRequisitions(restaurantId?: string) {
     items: { ingredient_id: string; quantity: number; unit_price: number; total_price?: number; unit?: string }[],
     payment_status?: "paid" | "due",
     vendor_id?: string,
-    payment_method_id?: string
+    payment_method_id?: string,
+    bazar_category_id?: string
   ) => {
     const updatePayload: Record<string, unknown> = {
       requisition_date: date,
@@ -127,6 +131,7 @@ export function useProductRequisitions(restaurantId?: string) {
       updated_at: new Date().toISOString(),
       vendor_id: vendor_id ?? null,
       payment_method_id: payment_method_id ?? null,
+      bazar_category_id: bazar_category_id ?? null,
     };
     if (payment_status) updatePayload.payment_status = payment_status;
 
@@ -225,6 +230,7 @@ export function useProductRequisitions(restaurantId?: string) {
           category_id: categoryId ?? null,
           status: req.payment_status ?? "paid",
           transaction_date: req.requisition_date,
+          payment_method_id: req.payment_method_id ?? null,
         });
 
         if (txErr) {

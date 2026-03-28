@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   Plus, Search, Edit2, Trash2, LayoutGrid, List,
   ChefHat, X, TrendingUp, TrendingDown, FlaskConical,
-  Package, Zap, ScrollText, Layers,
+  Package, Zap, ScrollText, Layers, ToggleLeft, ToggleRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { FoodItem } from "@/types";
@@ -82,7 +82,7 @@ function FoodCard({ item, onEdit, onDelete, onToggle, onViewHistory, onViewIngre
   const ings = item.food_item_ingredients ?? [];
 
   return (
-    <div className={`bg-white rounded-xl border overflow-hidden hover:shadow-sm transition-shadow flex flex-col ${isEmpty ? "border-red-200" : "border-border"}`}>
+    <div className={`bg-white rounded-xl border shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col ${isEmpty ? "border-red-200" : "border-border"}`}>
       {/* Image */}
       <div className="relative aspect-[4/3] bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center overflow-hidden shrink-0">
         {item.image_url ? (
@@ -163,12 +163,12 @@ function FoodCard({ item, onEdit, onDelete, onToggle, onViewHistory, onViewIngre
           </div>
           <button
             onClick={() => onToggle(item, !item.is_active)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold transition-all ${
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
               item.is_active
-                ? "bg-green-100 text-green-700 hover:bg-green-200"
-                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                ? "bg-green-100 text-green-700 hover:bg-red-50 hover:text-red-600"
+                : "bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600"
             }`}>
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${item.is_active ? "bg-green-500" : "bg-gray-400"}`} />
+            {item.is_active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
             {item.is_active ? "Active" : "Inactive"}
           </button>
         </div>
@@ -344,7 +344,7 @@ export default function FoodMenuPage() {
 
   if (!rid) return (
     <div><Header title="Food Menu" />
-      <div className="p-6"><div className="bg-white rounded-xl border border-border p-12 text-center">
+      <div className="p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
         <ChefHat size={40} className="text-gray-200 mx-auto mb-3" />
         <p className="font-medium text-gray-500">No restaurant selected</p>
       </div></div>
@@ -354,8 +354,8 @@ export default function FoodMenuPage() {
   return (
     <div>
       <Header title="Food Menu" />
-      <div className="p-4 md:p-6 space-y-4">
-        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+      <div className="p-6 space-y-4">
+        <div className="shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto bg-white rounded-xl border border-border">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             {/* Status tabs */}
             <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1 shrink-0">
@@ -369,13 +369,13 @@ export default function FoodMenuPage() {
               ))}
             </div>
             <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900">
+              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm">
               <option value="">All Categories</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden h-9">
-              <button onClick={() => setView("grid")} className={`px-3 ${view === "grid" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"}`}><LayoutGrid size={14} /></button>
-              <button onClick={() => setView("list")} className={`px-3 ${view === "list" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"}`}><List size={14} /></button>
+            <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1 shrink-0">
+              <button onClick={() => setView("grid")} className={`h-7 px-2.5 rounded-md text-xs font-medium transition-all flex items-center ${view === "grid" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}><LayoutGrid size={14} /></button>
+              <button onClick={() => setView("list")} className={`h-7 px-2.5 rounded-md text-xs font-medium transition-all flex items-center ${view === "list" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}><List size={14} /></button>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -394,14 +394,14 @@ export default function FoodMenuPage() {
         </p>
 
         {loading ? (
-          <div className="bg-white rounded-xl border border-border p-8 text-center text-sm text-gray-400">Loading…</div>
+          <div className="bg-white rounded-xl border border-border shadow-sm p-8 text-center text-sm text-gray-400">Loading…</div>
         ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border border-border p-12 text-center">
+          <div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
             <ChefHat size={40} className="text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-400">{search || filterStatus || filterCat ? "No results" : "No food items yet"}</p>
           </div>
         ) : view === "grid" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-[18px]">
             {filtered.map((item) => (
               <FoodCard key={item.id} item={item} onEdit={openEdit}
                 onDelete={async (i) => { if (!confirm(`Delete "${i.name}"?`)) return; await remove(i.id); toast.success("Deleted"); }}
@@ -411,7 +411,7 @@ export default function FoodMenuPage() {
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-gray-50/60">
@@ -459,10 +459,10 @@ export default function FoodMenuPage() {
                       <td className="px-4 py-3">
                         <button
                           onClick={() => toggleStatus(item.id, !item.is_active)}
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                            item.is_active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                            item.is_active ? "bg-green-100 text-green-700 hover:bg-red-50 hover:text-red-600" : "bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600"
                           }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.is_active ? "bg-green-500" : "bg-gray-400"}`} />
+                          {item.is_active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
                           {item.is_active ? "Active" : "Inactive"}
                         </button>
                       </td>
@@ -708,7 +708,7 @@ export default function FoodMenuPage() {
             )}
           </div>
 
-          <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} label={`Status: ${form.is_active ? "Active" : "Inactive"}`} />
+          <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} label="Status" />
         </div>
       </Dialog>
 

@@ -380,12 +380,6 @@ export default function LandingPage() {
             <Link href="/" style={{ fontFamily: "var(--font-poppins),sans-serif", fontWeight: 700, fontSize: 21, color: "#111827", textDecoration: "none", letterSpacing: -0.5 }}>
               Blunch<span style={{ color: "#FD2400" }}>.</span>
             </Link>
-            <ul className="lp-nav-links" style={{ display: "flex", alignItems: "center", gap: 32, listStyle: "none", padding: 0, margin: 0 }}>
-              {["Features", "Demo"].map((item, i) => (
-                <li key={item}><a href={["#features", "#demo"][i]} style={{ fontSize: 14, fontWeight: 500, color: "#6B7280", textDecoration: "none", transition: "color 0.2s" }}
-                  onMouseOver={e => (e.currentTarget.style.color = "#111827")} onMouseOut={e => (e.currentTarget.style.color = "#6B7280")}>{item}</a></li>
-              ))}
-            </ul>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Link href="/login" style={{ padding: "8px 18px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 13.5, fontWeight: 500, color: "#374151", textDecoration: "none", transition: "all 0.2s", fontFamily: "var(--font-poppins),sans-serif", background: "transparent" }}>
                 Login

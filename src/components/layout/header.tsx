@@ -1,13 +1,11 @@
 "use client";
 
-import { Bell, ChevronDown, Building2, Menu, LogOut, Package, AlertCircle } from "lucide-react";
+import { Bell, ChevronDown, Building2, Menu, Package, AlertCircle } from "lucide-react";
 import { useRestaurant } from "@/contexts/restaurant-context";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
-import { toast } from "sonner";
 
 interface HeaderProps {
   title: string;
@@ -21,15 +19,12 @@ const fmt = (n: number) =>
 export function Header({ title, rightContent, hideRestaurantSelector = false }: HeaderProps) {
   const { restaurants, activeRestaurant, setActiveRestaurant, loading } = useRestaurant();
   const { toggleSidebar } = useSidebar();
-  const router = useRouter();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
 
   const restaurantRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
-  const profileRef = useRef<HTMLDivElement>(null);
 
   const [dhakaTime, setDhakaTime] = useState("");
   const [dhakaDate, setDhakaDate] = useState("");
@@ -48,18 +43,9 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
     const handler = (e: MouseEvent) => {
       if (restaurantRef.current && !restaurantRef.current.contains(e.target as Node)) setDropdownOpen(false);
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // Current user
-  const [userEmail, setUserEmail] = useState("");
-  useEffect(() => {
-    createClient().auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email ?? "");
-    });
   }, []);
 
   // Alerts: low stock ingredients + due payments
@@ -91,17 +77,8 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
     });
   }, [restaurants]);
 
-  const handleSignOut = async () => {
-    await createClient().auth.signOut();
-    toast.success("Signed out");
-    router.push("/login");
-    router.refresh();
-  };
-
-  const initials = userEmail ? userEmail[0].toUpperCase() : "A";
-
   return (
-    <header className="h-14 border-b border-border bg-white flex items-center justify-between px-4 md:px-6 sticky top-0 z-10">
+    <header className="h-[62px] border-b border-border bg-white flex items-center justify-between px-4 md:px-6 sticky top-0 z-10">
       <div className="flex items-center gap-2.5">
         {/* Hamburger — mobile only */}
         <button
@@ -111,7 +88,7 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
         >
           <Menu size={18} />
         </button>
-        <h1 className="text-base font-semibold text-gray-900 truncate max-w-[160px] sm:max-w-none">{title}</h1>
+        <h1 className="text-[18px] font-semibold text-gray-900 truncate max-w-[160px] sm:max-w-none">{title}</h1>
       </div>
 
       <div className="flex items-center gap-1.5 md:gap-2">
@@ -171,7 +148,7 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
           <button
-            onClick={() => { setNotifOpen(!notifOpen); setProfileOpen(false); }}
+            onClick={() => setNotifOpen(!notifOpen)}
             className="relative w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
           >
             <Bell size={14} />
@@ -187,7 +164,7 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <p className="text-sm font-semibold text-gray-900">Alerts</p>
                 {alertCount > 0 && (
-                  <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">{alertCount}</span>
+                  <span className="text-xs font-bold bg-red-500/10 text-red-600 px-2 py-0.5 rounded-full">{alertCount}</span>
                 )}
               </div>
               {alertCount === 0 ? (
@@ -202,16 +179,16 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
                     const isEmpty = qty <= 0;
                     return (
                       <div key={stock.id} className="flex items-center gap-3 px-4 py-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isEmpty ? "bg-red-50" : "bg-yellow-50"}`}>
-                          <Package size={14} className={isEmpty ? "text-red-500" : "text-yellow-600"} />
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isEmpty ? "bg-red-500/10" : "bg-amber-500/10"}`}>
+                          <Package size={14} className={isEmpty ? "text-red-500" : "text-amber-600"} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-800 truncate">{stock.ingredients?.name}</p>
-                          <p className={`text-xs mt-0.5 ${isEmpty ? "text-red-500" : "text-yellow-600"}`}>
+                          <p className={`text-xs mt-0.5 ${isEmpty ? "text-red-500" : "text-amber-600"}`}>
                             {isEmpty ? "Out of stock" : `Low — ${qty} ${stock.ingredients?.default_unit ?? ""} left`}
                           </p>
                         </div>
-                        <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isEmpty ? "bg-red-100 text-red-600" : "bg-yellow-100 text-yellow-700"}`}>
+                        <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isEmpty ? "bg-red-500/10 text-red-600" : "bg-amber-500/10 text-amber-700"}`}>
                           {isEmpty ? "Empty" : "Low"}
                         </span>
                       </div>
@@ -219,14 +196,14 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
                   })}
                   {alerts.dueTx.map((tx) => (
                     <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
-                      <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
                         <AlertCircle size={14} className="text-purple-500" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">{tx.description || "Due payment"}</p>
                         <p className="text-xs text-purple-600 mt-0.5">{fmt(tx.amount)} due</p>
                       </div>
-                      <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600">Due</span>
+                      <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-600">Due</span>
                     </div>
                   ))}
                 </div>
@@ -235,40 +212,6 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
           )}
         </div>
 
-        {/* Profile dropdown */}
-        <div className="relative" ref={profileRef}>
-          <button
-            onClick={() => { setProfileOpen(!profileOpen); setNotifOpen(false); }}
-            className="w-8 h-8 rounded-full bg-[#111827] hover:bg-black flex items-center justify-center shrink-0 transition-colors"
-          >
-            <span className="text-white text-xs font-bold">{initials}</span>
-          </button>
-
-          {profileOpen && (
-            <div className="absolute right-0 top-11 w-56 bg-white rounded-xl border border-border shadow-xl z-50 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-[#111827] flex items-center justify-center shrink-0">
-                    <span className="text-white text-xs font-bold">{initials}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{userEmail || "User"}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Administrator</p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-1.5">
-                <button
-                  onClick={handleSignOut}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <LogOut size={14} />
-                  Sign out
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </header>
   );

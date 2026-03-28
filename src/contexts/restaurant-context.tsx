@@ -9,13 +9,14 @@ import {
   ReactNode,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getAllRestaurants } from "@/actions/get-all-restaurants";
 import type { Restaurant } from "@/types";
 
 // ── Access tiers ────────────────────────────────────────────────────────────
 // super_admin  → sees ALL restaurants (across all owners)
 // owner        → sees their assigned restaurant(s) only
 // manager/etc. → same, scoped to their assigned restaurants
-// no entry     → backward compat: original creator (user_id on restaurants) sees all
+// no entry     → original creator of restaurants; accesses via restaurants.user_id
 
 interface RestaurantContextType {
   restaurants: Restaurant[];
@@ -75,18 +76,29 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     const newRoleMap: Record<string, string> = {};
     activeRoles.forEach((r) => { newRoleMap[r.restaurant_id] = r.role; });
     setRoleMap(newRoleMap);
+    // Only an explicit super_admin role grants super admin access
     setIsSuperAdmin(hasSuperAdminRole);
 
     // 3. Determine which restaurants to show
     let restaurantData: Restaurant[] = [];
 
-    if (hasSuperAdminRole || !hasAnyRole) {
-      // Super admin OR original creator (no entries yet) → all restaurants
-      const { data } = await supabase
-        .from("restaurants")
-        .select("*")
-        .order("created_at");
-      restaurantData = data ?? [];
+    if (hasSuperAdminRole) {
+      // Super admin → all restaurants via admin client (bypasses RLS)
+      // Server action uses admin client server-side, bypassing RLS entirely.
+      // Pass the access token explicitly so auth works regardless of cookie forwarding.
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token ?? "";
+        const all = await getAllRestaurants(token);
+        restaurantData = all.length > 0 ? all : [];
+      } catch {
+        // ignore
+      }
+      // Fallback: own restaurants via RLS if server action returned nothing
+      if (restaurantData.length === 0) {
+        const { data } = await supabase.from("restaurants").select("*").order("created_at");
+        restaurantData = data ?? [];
+      }
     } else {
       // Scoped user: fetch only their assigned restaurants
       // Also include any restaurant they originally created (user_id) for backward compat

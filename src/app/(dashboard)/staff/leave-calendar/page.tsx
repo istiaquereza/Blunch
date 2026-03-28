@@ -171,7 +171,7 @@ export default function LeaveCalendarPage() {
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-4 overflow-x-auto">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <button onClick={prev} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors">
               <ChevronLeft size={16} />
@@ -183,16 +183,16 @@ export default function LeaveCalendarPage() {
             <button onClick={() => setAnchor(new Date())} className="h-8 px-3 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
               Today
             </button>
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => setView("week")}
-                className={`px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-colors ${view === "week" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"}`}
+                className={`h-7 px-3 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${view === "week" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
               >
                 <CalendarDays size={13} /> Week
               </button>
               <button
                 onClick={() => setView("month")}
-                className={`px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 transition-colors ${view === "month" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"}`}
+                className={`h-7 px-3 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${view === "month" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
               >
                 <LayoutGrid size={13} /> Month
               </button>
@@ -215,7 +215,7 @@ export default function LeaveCalendarPage() {
 
         {/* ── WEEK VIEW ── */}
         {view === "week" && (
-          <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
             <div className="grid grid-cols-8 border-b border-border">
               <div className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/60 border-r border-border">Staff</div>
               {weekDays.map((d, i) => {
@@ -281,7 +281,7 @@ export default function LeaveCalendarPage() {
 
         {/* ── MONTH VIEW ── */}
         {view === "month" && (
-          <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
             <div className="grid grid-cols-7 border-b border-border">
               {DAYS.map((d) => (
                 <div key={d} className="py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/60 border-r border-border last:border-0">{d}</div>
@@ -325,8 +325,8 @@ export default function LeaveCalendarPage() {
         )}
 
         {/* ── ALLOCATION TABLE (always below calendar) ── */}
-        <div className="bg-white rounded-xl border border-border overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
             <div>
               <h3 className="text-sm font-semibold text-gray-800">Monthly Leave Allocation</h3>
               <p className="text-xs text-gray-500 mt-0.5">Days taken per staff member this month</p>
@@ -335,7 +335,7 @@ export default function LeaveCalendarPage() {
               type="month"
               value={tableMonth}
               onChange={(e) => setTableMonth(e.target.value)}
-              className="h-8 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
           <div className="overflow-x-auto">

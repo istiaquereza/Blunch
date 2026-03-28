@@ -78,6 +78,22 @@ const PRESETS: { value: Preset; label: string }[] = [
   { value: "custom", label: "Custom Range" },
 ];
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+async function getOrCreateSalaryCategory(supabase: ReturnType<typeof createClient>): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data: existing } = await supabase
+      .from("expense_categories").select("id")
+      .eq("user_id", user.id).eq("name", "Salary").eq("type", "expense").limit(1).single();
+    if (existing) return existing.id;
+    const { data: created } = await supabase
+      .from("expense_categories").insert({ name: "Salary", type: "expense", user_id: user.id })
+      .select("id").single();
+    return created?.id ?? null;
+  } catch { return null; }
+}
+
 // ─── Transaction Form ─────────────────────────────────────────────────────────
 interface TxFormProps {
   initial?: Transaction;
@@ -85,6 +101,7 @@ interface TxFormProps {
   paymentMethods: { id: string; name: string }[];
   restaurantId: string;
   restaurantIds: string[]; // all restaurants for staff lookup
+  onCreateCategory: (name: string, type: "expense" | "income") => Promise<{ error: unknown }>;
   onSave: (payload: Omit<Transaction, "id" | "created_at" | "expense_categories" | "payment_methods" | "staff">) => Promise<{ error: unknown }>;
   onClose: () => void;
 }
@@ -158,12 +175,16 @@ function PayrollForm({
     if (amt > due) { setError(`Amount cannot exceed due amount (৳${due.toLocaleString()})`); return; }
     setSaving(true);
     const monthDate = `${payrollMonth}-01`;
-    const desc = description || `Salary - ${selectedStaff?.name ?? ""} (${payrollMonth})`;
+    const monthLabel = new Date(`${payrollMonth}-01`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    const desc = description || `Salary — ${selectedStaff?.name ?? ""} (${monthLabel})`;
+    const supabase = createClient();
+    const salaryCategoryId = await getOrCreateSalaryCategory(supabase);
     const { error: err } = await onSave({
       restaurant_id: restaurantId,
       type: "expense",
       description: desc,
       amount: amt,
+      category_id: salaryCategoryId || undefined,
       payment_method_id: paymentMethodId || undefined,
       status: "paid",
       transaction_date: date,
@@ -268,7 +289,9 @@ function PayrollForm({
         label="Description"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
-        placeholder={selectedStaff ? `Salary — ${selectedStaff.name} (${payrollMonth})` : "Salary payment…"}
+        placeholder={selectedStaff
+          ? `Salary — ${selectedStaff.name} (${new Date(`${payrollMonth}-01`).toLocaleDateString("en-US", { month: "long", year: "numeric" })})`
+          : "Salary payment…"}
       />
 
       <div className="space-y-1.5">
@@ -296,7 +319,7 @@ function PayrollForm({
   );
 }
 
-function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantIds, onSave, onClose }: TxFormProps) {
+function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantIds, onCreateCategory, onSave, onClose }: TxFormProps) {
   const [tab, setTab] = useState<TxTab>(initial ? (initial.staff_id ? "payroll" : initial.type) : "expense");
   const [form, setForm] = useState({
     type: (initial?.type ?? "expense") as "expense" | "income",
@@ -310,22 +333,53 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantI
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Payment method balances
+  const [pmBalances, setPmBalances] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!restaurantId || paymentMethods.length === 0) return;
+    const supabase = createClient();
+    supabase.from("transactions").select("payment_method_id, type, amount")
+      .eq("restaurant_id", restaurantId).eq("status", "paid")
+      .not("payment_method_id", "is", null)
+      .then(({ data }) => {
+        const b: Record<string, number> = {};
+        (data ?? []).forEach((tx: any) => {
+          if (!tx.payment_method_id) return;
+          b[tx.payment_method_id] = (b[tx.payment_method_id] ?? 0) + (tx.type === "income" ? tx.amount : -tx.amount);
+        });
+        setPmBalances(b);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantId, paymentMethods.length]);
+
+  // Inline category create
+  const [showNewCat, setShowNewCat] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [savingNewCat, setSavingNewCat] = useState(false);
+  const handleCreateCategory = async () => {
+    if (!newCatName.trim() || savingNewCat) return;
+    setSavingNewCat(true);
+    await onCreateCategory(newCatName.trim(), form.type);
+    setSavingNewCat(false);
+    setNewCatName("");
+    setShowNewCat(false);
+  };
+
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const filteredCats = categories.filter((c) => c.type === form.type);
 
   // Sync form.type when tab changes (income/expense tabs only)
   useEffect(() => {
     if (tab === "income" || tab === "expense") {
-      setForm(f => ({ ...f, type: tab }));
+      setForm(f => ({ ...f, type: tab, category_id: "" }));
     }
   }, [tab]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.amount || isNaN(parseFloat(form.amount))) {
-      setError("Valid amount is required");
-      return;
-    }
+    if (!form.amount || isNaN(parseFloat(form.amount))) { setError("Amount is required"); return; }
+    if (!form.category_id) { setError("Category is required"); return; }
+    if (!form.payment_method_id) { setError("Payment method is required"); return; }
     setSaving(true);
     const { error: err } = await onSave({
       restaurant_id: restaurantId,
@@ -444,33 +498,67 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantI
             placeholder="What is this for?"
           />
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-gray-700">Category</label>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700">Category *</label>
+              <button
+                type="button"
+                onClick={() => { setShowNewCat(v => !v); setNewCatName(""); }}
+                className="text-xs text-orange-600 hover:text-orange-700 font-medium"
+              >
+                {showNewCat ? "Cancel" : "+ New category"}
+              </button>
+            </div>
+            {showNewCat ? (
+              <div className="flex gap-2">
+                <input
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleCreateCategory())}
+                  placeholder={`New ${form.type} category…`}
+                  className="flex-1 h-9 px-3 rounded-lg border border-orange-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateCategory}
+                  disabled={!newCatName.trim() || savingNewCat}
+                  className="px-3 h-9 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 disabled:opacity-40"
+                >
+                  {savingNewCat ? "…" : "Add"}
+                </button>
+              </div>
+            ) : (
               <select
                 value={form.category_id}
-                onChange={(e) => set("category_id", e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                onChange={(e) => { set("category_id", e.target.value); setError(""); }}
+                className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${!form.category_id ? "border-orange-300" : "border-gray-200"}`}
               >
-                <option value="">No category</option>
+                <option value="">Select category…</option>
                 {filteredCats.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-              <select
-                value={form.payment_method_id}
-                onChange={(e) => set("payment_method_id", e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="">Not specified</option>
-                {paymentMethods.map((pm) => (
-                  <option key={pm.id} value={pm.id}>{pm.name}</option>
-                ))}
-              </select>
-            </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-700">Payment Method *</label>
+            <select
+              value={form.payment_method_id}
+              onChange={(e) => { set("payment_method_id", e.target.value); setError(""); }}
+              className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${!form.payment_method_id ? "border-orange-300" : "border-gray-200"}`}
+            >
+              <option value="">Select payment method…</option>
+              {paymentMethods.map((pm) => {
+                const bal = pmBalances[pm.id];
+                return (
+                  <option key={pm.id} value={pm.id}>
+                    {pm.name}{bal !== undefined ? ` — ৳${bal.toLocaleString("en-BD", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : ""}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           <div className="space-y-1.5">
@@ -623,10 +711,10 @@ export default function IncomeExpensesPage() {
     <>
       <Header title="Income & Expenses" />
 
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
         {/* ── Toolbar ── */}
-        <div className="bg-white rounded-xl border border-border p-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full">
 
             {/* Date range dropdown */}
             <select
@@ -640,7 +728,7 @@ export default function IncomeExpensesPage() {
                   setDateTo(to);
                 }
               }}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               {PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -651,10 +739,10 @@ export default function IncomeExpensesPage() {
             {preset === "custom" && (
               <>
                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                <span className="text-gray-400 text-sm">→</span>
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                <span className="text-gray-400 text-xs">→</span>
                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500" />
               </>
             )}
 
@@ -662,7 +750,7 @@ export default function IncomeExpensesPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
@@ -677,11 +765,7 @@ export default function IncomeExpensesPage() {
                   key={chip}
                   onClick={() => setTypeFilter(chip)}
                   className={`h-7 px-3 rounded-md text-xs font-medium transition-all ${
-                    typeFilter === chip
-                      ? chip === "income" ? "bg-green-500 text-white shadow-sm"
-                        : chip === "expense" ? "bg-red-500 text-white shadow-sm"
-                        : "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
+                    typeFilter === chip ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
                   {chip === "all" ? "All" : chip === "income" ? "Income" : "Expense"}
@@ -704,7 +788,7 @@ export default function IncomeExpensesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search transactions…"
-                className="h-9 pl-9 pr-3 w-48 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="h-9 pl-9 pr-3 w-48 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
 
@@ -712,8 +796,8 @@ export default function IncomeExpensesPage() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-[18px]">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
                 <TrendingUp size={16} className="text-green-600" />
@@ -723,7 +807,7 @@ export default function IncomeExpensesPage() {
             <p className="text-2xl font-bold text-green-600">{fmt(totalIncome)}</p>
             <p className="text-xs text-gray-400 mt-1">{transactions.filter((t) => t.type === "income").length} entries</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
                 <TrendingDown size={16} className="text-red-500" />
@@ -733,7 +817,7 @@ export default function IncomeExpensesPage() {
             <p className="text-2xl font-bold text-red-500">{fmt(totalExpense)}</p>
             <p className="text-xs text-gray-400 mt-1">{transactions.filter((t) => t.type === "expense").length} entries</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${net >= 0 ? "bg-blue-50" : "bg-orange-50"}`}>
                 <DollarSign size={16} className={net >= 0 ? "text-blue-600" : "text-orange-500"} />
@@ -745,7 +829,7 @@ export default function IncomeExpensesPage() {
               {!dateFrom && !dateTo ? "All time" : dateFrom === dateTo ? dateFrom : `${dateFrom} → ${dateTo}`}
             </p>
           </div>
-          <div className={`rounded-xl border p-4 ${totalDue > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
+          <div className={`rounded-xl border shadow-sm p-4 ${totalDue > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${totalDue > 0 ? "bg-amber-100" : "bg-gray-50"}`}>
                 <TrendingDown size={16} className={totalDue > 0 ? "text-amber-600" : "text-gray-400"} />
@@ -760,7 +844,7 @@ export default function IncomeExpensesPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Loading transactions…</div>
           ) : !activeRestaurant ? (
@@ -834,8 +918,10 @@ export default function IncomeExpensesPage() {
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500 hidden md:table-cell">
-                      {t.expense_categories?.name ?? <span className="text-gray-300">—</span>}
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      {t.expense_categories?.name
+                        ? <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${t.type === "income" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>{t.expense_categories.name}</span>
+                        : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500 hidden md:table-cell">
                       {t.payment_methods?.name ?? <span className="text-gray-300">—</span>}
@@ -1035,6 +1121,7 @@ export default function IncomeExpensesPage() {
             paymentMethods={paymentMethods}
             restaurantId={activeRestaurant.id}
             restaurantIds={restaurants.map(r => r.id)}
+            onCreateCategory={createCat}
             onSave={create}
             onClose={() => setAddOpen(false)}
           />
@@ -1050,6 +1137,7 @@ export default function IncomeExpensesPage() {
             paymentMethods={paymentMethods}
             restaurantId={activeRestaurant.id}
             restaurantIds={restaurants.map(r => r.id)}
+            onCreateCategory={createCat}
             onSave={(payload) => update(editTarget.id, payload)}
             onClose={() => setEditTarget(null)}
           />

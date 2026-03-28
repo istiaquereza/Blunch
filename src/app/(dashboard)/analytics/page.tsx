@@ -478,11 +478,10 @@ export default function AnalyticsPage() {
     <>
       <Header title="Analytics" />
 
-      <div className="p-4 md:p-6 space-y-5">
+      <div className="p-6 space-y-5">
 
         {/* ── Filter bar ── */}
-        <div className="bg-white rounded-xl border border-border px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto bg-white rounded-xl border border-border">
             {/* Restaurant selector */}
             {restaurants.length > 1 && (
               <select
@@ -540,33 +539,32 @@ export default function AnalyticsPage() {
                 className="h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-xs text-gray-700 w-44 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent"
               />
             </div>
-          </div>
         </div>
 
         {/* ── Summary cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-[18px]">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <ShoppingCart size={15} className="text-orange-500" />
               <p className="text-xs text-gray-500">Total Items Sold</p>
             </div>
             <p className="text-2xl font-bold text-gray-900">{stats.totalItemsSold.toLocaleString()}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <DollarSign size={15} className="text-green-500" />
               <p className="text-xs text-gray-500">Total Revenue</p>
             </div>
             <p className="text-xl font-bold text-green-600">{fmt(stats.totalRevenue)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp size={15} className="text-blue-500" />
               <p className="text-xs text-gray-500">Avg Items / Order</p>
             </div>
             <p className="text-2xl font-bold text-gray-900">{stats.avgItemsPerOrder.toFixed(1)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <Star size={15} className="text-amber-500" />
               <p className="text-xs text-gray-500">Most Sold Item</p>
@@ -583,8 +581,8 @@ export default function AnalyticsPage() {
         </div>
 
         {/* ── Food Sales Report ── */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 flex-wrap gap-2">
             <div>
               <h2 className="text-sm font-semibold text-gray-800">Food Sales Report</h2>
               <p className="text-xs text-gray-400">
@@ -760,7 +758,7 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
           {/* Category Breakdown */}
-          <div className="bg-white rounded-xl border border-gray-100 p-5">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h2 className="text-sm font-semibold text-gray-800 mb-4">Revenue by Category</h2>
             {categoryData.length === 0 ? (
               <div className="h-48 flex items-center justify-center">
@@ -809,7 +807,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Peak Hours */}
-          <div className="bg-white rounded-xl border border-gray-100 p-5">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <h2 className="text-sm font-semibold text-gray-800 mb-4">Peak Hours</h2>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={peakHoursData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -838,7 +836,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* ── Revenue Trend ── */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800 mb-1">Revenue Trend</h2>
           <p className="text-xs text-gray-400 mb-4">
             {preset === "today" ? "By hour" : preset === "all_time" ? "By month" : "By day"}
@@ -879,8 +877,8 @@ export default function AnalyticsPage() {
         </div>
 
         {/* ── Profit Margin Analysis ── */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
             <h2 className="text-sm font-semibold text-gray-800">Profit Margin Analysis</h2>
             <p className="text-xs text-gray-400">Top 10 items by margin (based on ingredient costs)</p>
           </div>

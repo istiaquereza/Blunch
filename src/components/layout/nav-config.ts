@@ -32,6 +32,7 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   children?: NavItem[];
+  badge?: number;
 };
 
 export const navItems: NavItem[] = [

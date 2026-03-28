@@ -16,6 +16,7 @@ interface FoodItem {
 interface FoodCategory { id: string; name: string; }
 interface TableItem    { id: string; name: string; }
 interface DiscountItem { id: string; name: string; discount_type: "percentage" | "amount"; discount_value: number; }
+interface PaymentMethod { id: string; name: string; }
 interface BillingCfg   { vat_percentage: number; service_charge_percentage: number; }
 interface CartItem extends FoodItem { quantity: number; }
 interface Restaurant   { id: string; name: string; logo_url?: string; }
@@ -54,6 +55,8 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
   const [tables, setTables]             = useState<TableItem[]>([]);
   const [billing, setBilling]           = useState<BillingCfg>({ vat_percentage: 0, service_charge_percentage: 0 });
   const [discounts, setDiscounts]       = useState<DiscountItem[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [selectedPaymentId, setSelectedPaymentId] = useState("cash");
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch]             = useState("");
   const [cart, setCart]                 = useState<CartItem[]>([]);
@@ -136,6 +139,7 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
         setTables(d.tables ?? []);
         setBilling(d.billing ?? { vat_percentage: 0, service_charge_percentage: 0 });
         setDiscounts(d.discounts ?? []);
+        setPaymentMethods(d.paymentMethods ?? []);
       })
       .catch(() => toast.error("Failed to load menu"))
       .finally(() => setLoading(false));
@@ -432,7 +436,7 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
               </div>
               <div className="border-t border-gray-100 mt-3 pt-3 space-y-1 text-sm">
                 <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-                {discountAmt > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>-{fmt(discountAmt)}</span></div>}
+                {discountAmt > 0 && <div className="flex justify-between text-red-600"><span>Discount</span><span>-{fmt(discountAmt)}</span></div>}
                 {serviceChargeAmt > 0 && <div className="flex justify-between text-gray-500"><span>Service Charge ({billing.service_charge_percentage}%)</span><span>{fmt(serviceChargeAmt)}</span></div>}
                 {vatAmt > 0 && <div className="flex justify-between text-gray-500"><span>VAT ({billing.vat_percentage}%)</span><span>{fmt(vatAmt)}</span></div>}
                 <div className="flex justify-between font-bold text-gray-900 pt-1.5 border-t border-gray-100">
@@ -505,24 +509,10 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
             )}
           </div>
 
-          {/* Discount */}
-          {discounts.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Discount</p>
-              <select value={selectedDiscountId} onChange={(e) => setSelectedDiscountId(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-700">
-                <option value="">No discount</option>
-                {discounts.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name} ({d.discount_type === "percentage" ? `${d.discount_value}%` : fmt(d.discount_value)})</option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {/* Totals */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-2 text-sm">
             <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-            {discountAmt > 0 && <div className="flex justify-between text-green-600"><span>Discount ({selectedDiscount?.name})</span><span>-{fmt(discountAmt)}</span></div>}
+            {discountAmt > 0 && <div className="flex justify-between text-red-600"><span>Discount ({selectedDiscount?.name})</span><span>-{fmt(discountAmt)}</span></div>}
             {billing.service_charge_percentage > 0 && (
               <div className="flex justify-between text-gray-500"><span>Service Charge ({billing.service_charge_percentage}%)</span><span>{fmt(serviceChargeAmt)}</span></div>
             )}
@@ -538,9 +528,12 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
           <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment Method</p>
             <div className="grid grid-cols-2 gap-2">
-              <button className="py-3 rounded-xl text-sm font-medium border bg-gray-900 text-white border-gray-900">
-                Cash
-              </button>
+              {(paymentMethods.length > 0 ? paymentMethods : [{ id: "cash", name: "Cash" }, { id: "card", name: "Credit/Debit Card" }, { id: "mobile", name: "Mobile Wallet" }]).map((m) => (
+                <button key={m.id} onClick={() => setSelectedPaymentId(m.id)}
+                  className={`py-3 rounded-xl text-sm font-medium border transition-all ${selectedPaymentId === m.id ? "bg-gray-900 text-white border-gray-900" : "bg-gray-50 text-gray-700 border-gray-200"}`}>
+                  {m.name}
+                </button>
+              ))}
             </div>
           </div>
         </div>

@@ -244,6 +244,7 @@ function PayDialog({
   const [salaryMonth, setSalaryMonth] = useState(month); // which month's salary this pays for
   const [amount, setAmount] = useState(String(row.due));
   const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [monthPaid, setMonthPaid] = useState<number | null>(null);
@@ -251,18 +252,6 @@ function PayDialog({
 
   const isAdvance = salaryMonth > month;
   const isDifferentMonth = salaryMonth !== month;
-
-  // Build month options: 3 months back + current + 3 months ahead
-  const monthOptions = useMemo(() => {
-    const options: { value: string; label: string }[] = [];
-    const [baseY, baseM] = month.split("-").map(Number);
-    for (let offset = -3; offset <= 6; offset++) {
-      const d = new Date(baseY, baseM - 1 + offset, 1);
-      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      options.push({ value: ym, label: getMonthLabel(ym) });
-    }
-    return options;
-  }, [month]);
 
   // Fetch existing salary payments when salary month changes
   useEffect(() => {
@@ -301,16 +290,18 @@ function PayDialog({
     const amt = parseFloat(amount);
     if (!amount || isNaN(amt) || amt <= 0) { setError("Valid amount required"); return; }
     if (amt > row.monthlySalary) { setError(`Cannot exceed monthly salary (${fmt(row.monthlySalary)})`); return; }
+    if (!paymentMethodId) { setError("Payment method is required"); return; }
     setSaving(true);
-    const label = isAdvance
+    const baseLabel = isAdvance
       ? `Advance Salary — ${row.name} (${getMonthLabel(salaryMonth)})`
-      : `Salary — ${row.name} (${salaryMonth})`;
+      : `Salary — ${row.name} (${getMonthLabel(salaryMonth)})`;
+    const label = note.trim() ? `${baseLabel} — ${note.trim()}` : baseLabel;
     const { error: err } = await onSave({
       restaurant_id: restaurantId,
       type: "expense",
       description: label,
       amount: amt,
-      payment_method_id: paymentMethodId || undefined,
+      payment_method_id: paymentMethodId,
       status: "paid",
       transaction_date: date,
       staff_id: row.staffId,
@@ -329,19 +320,17 @@ function PayDialog({
           label="Payment Date *"
           type="date"
           value={date}
+          max={todayStr}
           onChange={(e) => { setDate(e.target.value); setError(""); }}
         />
         <div className="space-y-1.5">
           <label className="block text-sm font-medium text-gray-700">Salary Month *</label>
-          <select
+          <input
+            type="month"
             value={salaryMonth}
-            onChange={(e) => { setSalaryMonth(e.target.value); setError(""); }}
+            onChange={(e) => { if (e.target.value) { setSalaryMonth(e.target.value); setError(""); } }}
             className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-          >
-            {monthOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          />
         </div>
       </div>
 
@@ -393,17 +382,28 @@ function PayDialog({
       </div>
 
       <div className="space-y-1.5">
-        <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+        <label className="block text-sm font-medium text-gray-700">Payment Method *</label>
         <select
           value={paymentMethodId}
-          onChange={(e) => setPaymentMethodId(e.target.value)}
-          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          onChange={(e) => { setPaymentMethodId(e.target.value); setError(""); }}
+          className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${!paymentMethodId ? "border-orange-300" : "border-gray-200"}`}
         >
-          <option value="">Not specified</option>
+          <option value="">Select payment method…</option>
           {paymentMethods.map((pm) => (
             <option key={pm.id} value={pm.id}>{pm.name}</option>
           ))}
         </select>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-700">Note (optional)</label>
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="e.g. partial payment, advance…"
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+        />
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -431,35 +431,44 @@ function BonusDialog({
   onSave: (bonusType: string, payload: object) => Promise<{ error: unknown }>;
   onClose: () => void;
 }) {
+  const todayStr = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  })();
+
   const [bonusType, setBonusType] = useState(BONUS_TYPES[0]);
+  const [customType, setCustomType] = useState("");
+  const [bonusMonth, setBonusMonth] = useState(month);
   const [amount, setAmount] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [note, setNote] = useState("");
-  const [date, setDate] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  });
+  const [date, setDate] = useState(todayStr);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const isCustomType = bonusType === "__custom__";
+  const effectiveType = isCustomType ? customType.trim() : bonusType;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(amount);
     if (!amount || isNaN(amt) || amt <= 0) { setError("Valid amount required"); return; }
+    if (isCustomType && !customType.trim()) { setError("Please enter a benefit type name"); return; }
+    if (!paymentMethodId) { setError("Payment method is required"); return; }
     setSaving(true);
     const desc = note
-      ? `${bonusType} — ${row.name} (${note})`
-      : `${bonusType} — ${row.name}`;
-    const { error: err } = await onSave(bonusType, {
+      ? `${effectiveType} — ${row.name} (${note})`
+      : `${effectiveType} — ${row.name}`;
+    const { error: err } = await onSave(effectiveType, {
       restaurant_id: restaurantId,
       type: "expense",
       description: desc,
       amount: amt,
-      payment_method_id: paymentMethodId || undefined,
+      payment_method_id: paymentMethodId,
       status: "paid",
       transaction_date: date,
       staff_id: row.staffId,
-      payroll_month: `${month}-01`,
+      payroll_month: `${bonusMonth}-01`,
     });
     setSaving(false);
     if (err) { setError(String(err)); return; }
@@ -473,23 +482,40 @@ function BonusDialog({
           <span className="text-purple-500">Staff</span>
           <span className="font-medium text-gray-800">{row.name}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-purple-500">Month</span>
-          <span className="font-medium text-gray-800">{getMonthLabel(month)}</span>
-        </div>
       </div>
 
       <div className="space-y-1.5">
         <label className="block text-sm font-medium text-gray-700">Benefit Type *</label>
         <select
           value={bonusType}
-          onChange={(e) => setBonusType(e.target.value)}
-          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          onChange={(e) => { setBonusType(e.target.value); setError(""); }}
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
         >
           {BONUS_TYPES.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
+          <option value="__custom__">+ Custom type…</option>
         </select>
+        {isCustomType && (
+          <input
+            type="text"
+            value={customType}
+            onChange={(e) => { setCustomType(e.target.value); setError(""); }}
+            placeholder="Enter benefit type name"
+            autoFocus
+            className="w-full h-9 px-3 rounded-lg border border-orange-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-gray-700">For Month *</label>
+        <input
+          type="month"
+          value={bonusMonth}
+          onChange={(e) => { if (e.target.value) setBonusMonth(e.target.value); }}
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -501,7 +527,7 @@ function BonusDialog({
             step="0.01"
             value={amount}
             onChange={(e) => { setAmount(e.target.value); setError(""); }}
-            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
             placeholder="0"
           />
         </div>
@@ -509,18 +535,19 @@ function BonusDialog({
           label="Date *"
           type="date"
           value={date}
+          max={todayStr}
           onChange={(e) => setDate(e.target.value)}
         />
       </div>
 
       <div className="space-y-1.5">
-        <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+        <label className="block text-sm font-medium text-gray-700">Payment Method *</label>
         <select
           value={paymentMethodId}
-          onChange={(e) => setPaymentMethodId(e.target.value)}
-          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          onChange={(e) => { setPaymentMethodId(e.target.value); setError(""); }}
+          className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${!paymentMethodId ? "border-orange-300" : "border-gray-200"}`}
         >
-          <option value="">Not specified</option>
+          <option value="">Select payment method…</option>
           {paymentMethods.map((pm) => (
             <option key={pm.id} value={pm.id}>{pm.name}</option>
           ))}
@@ -534,14 +561,14 @@ function BonusDialog({
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="e.g. Eid bonus, weekly bonus…"
-          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
         />
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-        <Button type="submit" loading={saving} className="bg-purple-600 hover:bg-purple-700">Give Benefit</Button>
+        <Button type="submit" loading={saving}>Give Benefit</Button>
       </div>
     </form>
   );
@@ -691,7 +718,11 @@ export default function StaffPayrollPage() {
   // Save salary payment
   const handlePaySave = async (payload: object) => {
     const supabase = createClient();
-    const { error } = await supabase.from("transactions").insert(payload);
+    const salaryCategoryId = await getOrCreateBonusCategory(supabase, "Salary");
+    const { error } = await supabase.from("transactions").insert({
+      ...payload,
+      ...(salaryCategoryId ? { category_id: salaryCategoryId } : {}),
+    });
     if (!error) fetchPayroll();
     return { error };
   };
@@ -712,44 +743,25 @@ export default function StaffPayrollPage() {
     <>
       <Header title="Staff Payroll" />
 
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
 
         {/* ── Month Selector & Filters ── */}
-        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
-            <button
-              onClick={prevMonth}
-              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
-            >
-              <ChevronLeft size={14} className="text-gray-600" />
-            </button>
             <input
               type="month"
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm"
             />
-            <button
-              onClick={nextMonth}
-              disabled={false}
-              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-30"
-            >
-              <ChevronRight size={14} className="text-gray-600" />
-            </button>
-            <span className="text-xs font-semibold text-gray-700">{getMonthLabel(month)}</span>
             {/* Status filter */}
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden h-9">
+            <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1">
               {([["all", "All"], ["unpaid", "Unpaid"], ["partial", "Partial"], ["paid", "Paid"]] as const).map(([v, label]) => (
                 <button
                   key={v}
                   onClick={() => setStatusFilter(v)}
-                  className={`px-3 text-[12px] font-medium transition-colors ${
-                    statusFilter === v
-                      ? v === "paid" ? "bg-green-500 text-white"
-                        : v === "partial" ? "bg-amber-500 text-white"
-                        : v === "unpaid" ? "bg-red-500 text-white"
-                        : "bg-gray-900 text-white"
-                      : "text-gray-500 hover:bg-gray-50"
+                  className={`h-7 px-3 rounded-md text-xs font-medium transition-all ${
+                    statusFilter === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
                   {label}
@@ -764,15 +776,15 @@ export default function StaffPayrollPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search staff…"
-              className="w-52 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-52 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
         </div>
 
         {/* ── Summary Cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-[18px]">
           {/* Total Staff */}
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
                 <Users size={16} className="text-blue-600" />
@@ -797,7 +809,7 @@ export default function StaffPayrollPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
                 <DollarSign size={16} className="text-purple-600" />
@@ -808,7 +820,7 @@ export default function StaffPayrollPage() {
             <p className="text-xs text-gray-400 mt-1">{getMonthLabel(month)}</p>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
                 <CheckCircle2 size={16} className="text-green-600" />
@@ -821,7 +833,7 @@ export default function StaffPayrollPage() {
             </p>
           </div>
 
-          <div className={`rounded-xl border p-4 ${totalDue > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
+          <div className={`rounded-xl border shadow-sm p-4 ${totalDue > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"}`}>
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${totalDue > 0 ? "bg-amber-100" : "bg-gray-50"}`}>
                 <Clock size={16} className={totalDue > 0 ? "text-amber-600" : "text-gray-400"} />
@@ -836,7 +848,7 @@ export default function StaffPayrollPage() {
         </div>
 
         {/* ── Payroll Table ── */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto">
           {staffLoading || loadingPayroll ? (
             <div className="p-8 flex items-center justify-center gap-2 text-sm text-gray-400">
               <Loader2 size={16} className="animate-spin" /> Loading payroll data…
@@ -1068,22 +1080,39 @@ export default function StaffPayrollPage() {
             {!historyLoading && historyRecords.length > 0 && (
               <>
                 {/* Breakdown */}
-                {historyRecords.some(r => r.isBonus) && (
-                  <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-sm">
-                    <div className="flex justify-between text-gray-500">
-                      <span>Salary Paid</span>
-                      <span className="font-semibold text-green-600">{fmt(historyRecords.filter(r => !r.isBonus).reduce((s, r) => s + r.amount, 0))}</span>
+                {(() => {
+                  const salaryPaid = historyRecords.filter(r => !r.isBonus).reduce((s, r) => s + r.amount, 0);
+                  const bonusPaid = historyRecords.filter(r => r.isBonus).reduce((s, r) => s + r.amount, 0);
+                  const salaryDue = Math.max(0, historyTarget!.monthlySalary - salaryPaid);
+                  return (
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-sm">
+                      <div className="flex justify-between text-gray-500">
+                        <span>Monthly Salary</span>
+                        <span className="font-semibold text-gray-700">{fmt(historyTarget!.monthlySalary)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-500">
+                        <span>Salary Paid</span>
+                        <span className="font-semibold text-green-600">{fmt(salaryPaid)}</span>
+                      </div>
+                      {bonusPaid > 0 && (
+                        <div className="flex justify-between text-gray-500">
+                          <span>Benefits & Bonuses</span>
+                          <span className="font-semibold text-purple-600">{fmt(bonusPaid)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between pt-1.5 border-t border-gray-200 font-semibold">
+                        <span className="text-gray-700">Total Paid</span>
+                        <span className="text-gray-800">{fmt(salaryPaid + bonusPaid)}</span>
+                      </div>
+                      {salaryDue > 0 && (
+                        <div className="flex justify-between text-amber-700 font-semibold">
+                          <span>Salary Due</span>
+                          <span>{fmt(salaryDue)}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex justify-between text-gray-500">
-                      <span>Benefits & Bonuses</span>
-                      <span className="font-semibold text-purple-600">{fmt(historyRecords.filter(r => r.isBonus).reduce((s, r) => s + r.amount, 0))}</span>
-                    </div>
-                  </div>
-                )}
-                <div className="border-t border-gray-100 pt-3 flex justify-between items-center text-sm">
-                  <span className="font-semibold text-gray-600">Total Paid</span>
-                  <span className="font-bold text-gray-800">{fmt(historyRecords.reduce((s, r) => s + r.amount, 0))}</span>
-                </div>
+                  );
+                })()}
               </>
             )}
 

@@ -387,7 +387,7 @@ export default function StaffInformationPage() {
             <select
               value={filterRid}
               onChange={(e) => setFilterRid(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
               <option value="">All Restaurants</option>
               {restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
@@ -402,12 +402,12 @@ export default function StaffInformationPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, role or phone…"
-            className="h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 w-64"
+            className="h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 w-64"
           />
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-border overflow-hidden">
+        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

@@ -323,11 +323,11 @@ export default function DailySellsPage() {
     <>
       <Header title="Daily Sells Report" />
 
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white rounded-xl border border-border px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
+          <div className="flex items-center gap-2 flex-wrap w-full">
             {/* Preset */}
             <select
               value={preset}
@@ -377,29 +377,29 @@ export default function DailySellsPage() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-[18px]">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp size={15} className="text-green-500" />
               <p className="text-xs text-gray-500">Total Income</p>
             </div>
             <p className="text-xl font-bold text-green-600">{fmt(totals.income)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingDown size={15} className="text-red-500" />
               <p className="text-xs text-gray-500">Total Expense</p>
             </div>
             <p className="text-xl font-bold text-red-500">{fmt(totals.expense)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <DollarSign size={15} className={net >= 0 ? "text-blue-500" : "text-orange-500"} />
               <p className="text-xs text-gray-500">Net Balance</p>
             </div>
             <p className={`text-xl font-bold ${net >= 0 ? "text-blue-600" : "text-red-500"}`}>{fmt(net)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-2">
               <Wallet size={15} className="text-emerald-500" />
               <p className="text-xs text-gray-500">Cash in Hand</p>
@@ -411,13 +411,13 @@ export default function DailySellsPage() {
 
         {/* Category + Payment Method breakdown */}
         {transactions.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-4 gap-y-[18px]">
 
             {/* Income by Category */}
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                <Tag size={14} className="text-green-500" />
-                <h3 className="text-sm font-semibold text-gray-800">Income by Category</h3>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2"><Tag size={14} className="text-green-500" />
+                <h3 className="text-sm font-semibold text-gray-800">Income by Category</h3></div>
               </div>
               {incomeByCategory.length === 0 ? (
                 <p className="px-4 py-6 text-xs text-gray-400 text-center">No income recorded</p>
@@ -438,10 +438,10 @@ export default function DailySellsPage() {
             </div>
 
             {/* Expenses by Category */}
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                <Tag size={14} className="text-red-500" />
-                <h3 className="text-sm font-semibold text-gray-800">Expenses by Category</h3>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2"><Tag size={14} className="text-red-500" />
+                <h3 className="text-sm font-semibold text-gray-800">Expenses by Category</h3></div>
               </div>
               {expenseByCategory.length === 0 ? (
                 <p className="px-4 py-6 text-xs text-gray-400 text-center">No expenses recorded</p>
@@ -463,10 +463,10 @@ export default function DailySellsPage() {
 
             {/* Income by Payment Method + Cash in Hand */}
             <div className="space-y-4">
-              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                  <CreditCard size={14} className="text-blue-500" />
-                  <h3 className="text-sm font-semibold text-gray-800">Income by Payment Method</h3>
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2"><CreditCard size={14} className="text-blue-500" />
+                  <h3 className="text-sm font-semibold text-gray-800">Income by Payment Method</h3></div>
                 </div>
                 {incomeByMethod.length === 0 ? (
                   <p className="px-4 py-6 text-xs text-gray-400 text-center">No income recorded</p>
@@ -501,16 +501,16 @@ export default function DailySellsPage() {
 
         {/* Best / Worst */}
         {dayGroups.length >= 2 && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-[18px]">
             {bestDay && (
-              <div className="bg-green-50 rounded-xl p-4 border border-green-100">
+              <div className="bg-green-50 rounded-xl p-4 border border-green-100 shadow-sm">
                 <p className="text-xs font-semibold text-green-700 mb-1">Best Day</p>
                 <p className="text-sm font-bold text-green-800">{fmtDateShort(bestDay.date)}</p>
                 <p className="text-lg font-bold text-green-600 mt-1">+{fmt(bestDay.net)}</p>
               </div>
             )}
             {worstDay && (
-              <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+              <div className="bg-red-50 rounded-xl p-4 border border-red-100 shadow-sm">
                 <p className="text-xs font-semibold text-red-700 mb-1">Worst Day</p>
                 <p className="text-sm font-bold text-red-800">{fmtDateShort(worstDay.date)}</p>
                 <p className="text-lg font-bold text-red-500">{fmt(worstDay.net)}</p>
@@ -523,11 +523,11 @@ export default function DailySellsPage() {
         {loading ? (
           <div className="text-center text-sm text-gray-400 py-10">Loading report…</div>
         ) : !activeRestaurant ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-10 text-center text-sm text-gray-400">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center text-sm text-gray-400">
             Select a restaurant to view the report.
           </div>
         ) : dayGroups.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
             <Calendar size={40} className="mx-auto text-gray-200 mb-3" />
             <p className="text-sm font-medium text-gray-500">No data for this period</p>
             <p className="text-xs text-gray-400 mt-1">Try adjusting the date range.</p>

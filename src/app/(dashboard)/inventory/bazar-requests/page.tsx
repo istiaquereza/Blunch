@@ -12,11 +12,13 @@ import { useIngredients } from "@/hooks/use-ingredients";
 import { useInventoryGroups } from "@/hooks/use-inventory-groups";
 import { useVendors } from "@/hooks/use-vendors";
 import { usePaymentMethods } from "@/hooks/use-payment-methods";
+import { useBazarCategories } from "@/hooks/use-bazar-categories";
 import { createClient } from "@/lib/supabase/client";
 import {
   ShoppingCart, Plus, Trash2, ChevronDown, ChevronUp,
   Check, X, Eye, Search, AlertCircle, Edit2, Printer,
   Zap, Loader2, ChefHat, Calendar as CalendarIcon,
+  Tag, Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, subMonths, subDays } from "date-fns";
@@ -710,6 +712,7 @@ export default function BazarRequestsPage() {
   const { groups } = useInventoryGroups(rid);
   const { vendors } = useVendors(rid);
   const { methods: paymentMethods } = usePaymentMethods(rid);
+  const { categories, create: createCategory, update: updateCategory, remove: removeCategory } = useBazarCategories(rid);
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -727,6 +730,22 @@ export default function BazarRequestsPage() {
   const [reqPaymentStatus, setReqPaymentStatus] = useState<"paid" | "due" | "">("paid");
   const [reqPaymentMethodId, setReqPaymentMethodId] = useState("");
   const [reqVendorId, setReqVendorId] = useState("");
+  const [reqCategoryId, setReqCategoryId] = useState("");
+
+  // Manage categories dialog
+  const [manageCatOpen, setManageCatOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [savingCat, setSavingCat] = useState(false);
+  const [editingCat, setEditingCat] = useState<{ id: string; name: string } | null>(null);
+
+  // Inline category create in form
+  const [inlineCatName, setInlineCatName] = useState("");
+  const [inlineCatOpen, setInlineCatOpen] = useState(false);
+  const [savingInlineCat, setSavingInlineCat] = useState(false);
+
+  // Stock suggestions for new requisition
+  const [stockMap, setStockMap] = useState<Map<string, number>>(new Map());
+  const [stockLoading, setStockLoading] = useState(false);
   const [reqItems, setReqItems] = useState<ReqItemRow[]>([{ ingredient_id: "", quantity: "1", unit: "", unit_price: "0" }]);
   const [saving, setSaving] = useState(false);
 
@@ -794,12 +813,28 @@ export default function BazarRequestsPage() {
   const itemTotal = (item: ReqItemRow) => (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
   const grandTotal = reqItems.reduce((s, i) => s + itemTotal(i), 0);
 
-  // Submit is valid when every row has an ingredient + quantity, payment status and payment method are selected
+  // Submit is valid when every row has an ingredient + quantity, payment status and method are selected
   const canSubmit =
     reqItems.length > 0 &&
     reqItems.every((r) => r.ingredient_id.trim() !== "" && parseFloat(r.quantity) > 0) &&
     reqPaymentStatus !== "" &&
     reqPaymentMethodId !== "";
+
+  // Fetch stock levels when form opens
+  useEffect(() => {
+    if (!formOpen || !reqRestaurantId) return;
+    setStockLoading(true);
+    createClient()
+      .from("food_stock")
+      .select("ingredient_id, quantity")
+      .eq("restaurant_id", reqRestaurantId)
+      .then(({ data }) => {
+        const m = new Map<string, number>();
+        for (const s of data ?? []) m.set(s.ingredient_id, s.quantity ?? 0);
+        setStockMap(m);
+        setStockLoading(false);
+      });
+  }, [formOpen, reqRestaurantId]);
 
   // ── Open dialogs ─────────────────────────────────────────
   const openFromAutomation = (items: ReqItemRow[], vendorId?: string) => {
@@ -811,6 +846,9 @@ export default function BazarRequestsPage() {
     setReqPaymentStatus("");
     setReqPaymentMethodId("");
     setReqVendorId(vendorId ?? "");
+    setReqCategoryId("");
+    setInlineCatOpen(false);
+    setInlineCatName("");
     setReqItems(items.length > 0 ? items : [{ ingredient_id: "", quantity: "1", unit: "", unit_price: "0" }]);
     setFormOpen(true);
   };
@@ -823,6 +861,9 @@ export default function BazarRequestsPage() {
     setReqPaymentStatus("");
     setReqPaymentMethodId("");
     setReqVendorId("");
+    setReqCategoryId("");
+    setInlineCatOpen(false);
+    setInlineCatName("");
     setReqItems([{ ingredient_id: "", quantity: "1", unit: "", unit_price: "0" }]);
     setFormOpen(true);
   };
@@ -833,8 +874,11 @@ export default function BazarRequestsPage() {
     setReqDate(req.requisition_date);
     setReqNotes(req.notes ?? "");
     setReqPaymentStatus(req.payment_status ?? "paid");
-    setReqPaymentMethodId((req as any).payment_method_id ?? "");
+    setReqPaymentMethodId(req.payment_method_id ?? "");
     setReqVendorId(req.vendor_id ?? "");
+    setReqCategoryId(req.bazar_category_id ?? "");
+    setInlineCatOpen(false);
+    setInlineCatName("");
     setReqItems(
       req.product_requisition_items?.map((i) => ({
         ingredient_id: i.ingredient_id,
@@ -862,11 +906,11 @@ export default function BazarRequestsPage() {
     }));
 
     if (editingReq) {
-      const { error } = await updateRequisition(editingReq.id, reqDate, reqNotes, itemPayload, reqPaymentStatus || undefined, reqVendorId || undefined, reqPaymentMethodId || undefined);
+      const { error } = await updateRequisition(editingReq.id, reqDate, reqNotes, itemPayload, reqPaymentStatus || undefined, reqVendorId || undefined, reqPaymentMethodId || undefined, reqCategoryId || undefined);
       if (error) toast.error((error as Error).message);
       else { toast.success("Requisition updated!"); setFormOpen(false); }
     } else {
-      const { error } = await create(reqDate, reqNotes, itemPayload, reqRestaurantId || undefined, (reqPaymentStatus || "paid") as "paid" | "due", reqVendorId || undefined, reqPaymentMethodId || undefined);
+      const { error } = await create(reqDate, reqNotes, itemPayload, reqRestaurantId || undefined, (reqPaymentStatus || "paid") as "paid" | "due", reqVendorId || undefined, reqPaymentMethodId || undefined, reqCategoryId || undefined);
       if (error) toast.error((error as Error).message);
       else { toast.success("Requisition submitted!"); setFormOpen(false); }
     }
@@ -891,7 +935,7 @@ export default function BazarRequestsPage() {
 
   if (!rid) return (
     <div><Header title="Bazar Requests" />
-      <div className="p-6"><div className="bg-white rounded-xl border border-border p-12 text-center">
+      <div className="p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
         <ShoppingCart size={40} className="text-gray-200 mx-auto mb-3" />
         <p className="font-medium text-gray-500">No restaurant selected</p>
         <p className="text-sm text-gray-400 mt-1">Go to <strong>Settings</strong> to add a restaurant first</p>
@@ -902,20 +946,19 @@ export default function BazarRequestsPage() {
   return (
     <div>
       <Header title="Bazar Requests" />
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
         {/* ── Toolbar — above the cards ── */}
-        <div className="bg-white rounded-xl border border-border px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
             {/* Search */}
             <div className="relative flex-1 min-w-[160px] max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search requests…"
-                className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500" />
             </div>
 
             {/* Status */}
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
               <option value="">All Status</option>
               <option value="submitted">Under Review</option>
               <option value="approved">Approved</option>
@@ -924,7 +967,7 @@ export default function BazarRequestsPage() {
 
             {/* Date preset */}
             <select value={datePreset} onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
               {DATE_PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
@@ -934,33 +977,38 @@ export default function BazarRequestsPage() {
             {datePreset === "custom" && (
               <>
                 <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
-                <span className="text-gray-400 text-sm">→</span>
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                <span className="text-gray-400 text-xs">→</span>
                 <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
               </>
             )}
 
             <div className="flex-1" />
             <button
+              onClick={() => setManageCatOpen(true)}
+              className="h-9 px-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <Tag size={13} /> Manage Categories
+            </button>
+            <button
               onClick={() => setAutoOpen(true)}
-              className="h-8 px-3 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-sm font-medium flex items-center gap-1.5 transition-colors"
+              className="h-9 px-3 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-medium flex items-center gap-1.5 transition-colors"
             >
               <Zap size={13} /> Requisition Automation
             </button>
             <Button size="sm" onClick={openCreate}><Plus size={14} /> New Requisition</Button>
-          </div>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-x-4 gap-y-[18px]">
           {[
             { label: "Total Requests", value: requisitions.length, sub: "all time" },
             { label: "Pending Review", value: pendingCount, sub: pendingCount > 0 ? "needs action" : "all clear", highlight: pendingCount > 0 },
             { label: "Approved This Month", value: requisitions.filter((r) => r.status === "approved" && new Date(r.requisition_date).getMonth() === new Date().getMonth()).length, sub: "this month" },
             { label: "Total Approved Value", value: `৳${totalApprovedValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, sub: "all time" },
           ].map((c) => (
-            <div key={c.label} className="bg-white rounded-xl border border-border p-4">
+            <div key={c.label} className="bg-white rounded-xl border border-border shadow-sm p-4">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{c.label}</p>
               <p className={`text-xl font-bold ${c.highlight ? "text-amber-600" : "text-gray-900"}`}>{c.value}</p>
               <p className="text-xs text-gray-400">{c.sub}</p>
@@ -969,8 +1017,8 @@ export default function BazarRequestsPage() {
         </div>
 
         {/* Requisition Table */}
-        <div className="bg-white rounded-xl border border-border overflow-hidden overflow-x-auto">
-          <div className="px-5 py-3.5 border-b border-border">
+        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
             <h3 className="font-semibold text-gray-900 text-sm">Requisitions <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
           </div>
           {loading ? <div className="p-8 text-center text-sm text-gray-400">Loading...</div>
@@ -991,6 +1039,7 @@ export default function BazarRequestsPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Pay Method</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Restaurant</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Category</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Items</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
@@ -1032,8 +1081,8 @@ export default function BazarRequestsPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-600">
-                            {(req as any).payment_methods?.name
-                              ? <span className="bg-gray-50 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full">{(req as any).payment_methods.name}</span>
+                            {req.payment_methods?.name
+                              ? <span className="bg-gray-50 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full">{req.payment_methods.name}</span>
                               : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-4 py-3 text-gray-600 text-xs">
@@ -1041,6 +1090,11 @@ export default function BazarRequestsPage() {
                           </td>
                           <td className="px-4 py-3 text-gray-600 text-xs">
                             {req.vendors?.name ? <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full">{req.vendors.name}</span> : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">
+                            {req.bazar_categories?.name
+                              ? <span className="bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded-full">{req.bazar_categories.name}</span>
+                              : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-4 py-3 text-right text-gray-700">{itemCount}</td>
                           <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">
@@ -1086,7 +1140,7 @@ export default function BazarRequestsPage() {
                         {/* Expanded Items */}
                         {isExpanded && req.product_requisition_items && (
                           <tr key={`${req.id}-expanded`}>
-                            <td colSpan={10} className="px-8 py-4 bg-gray-50/50">
+                            <td colSpan={11} className="px-8 py-4 bg-gray-50/50">
                               <table className="w-full text-xs">
                                 <thead>
                                   <tr className="text-gray-400 uppercase tracking-wide">
@@ -1152,14 +1206,86 @@ export default function BazarRequestsPage() {
             </div>
             <Input label="Requisition Date" type="date" value={reqDate} min={format(new Date(), "yyyy-MM-dd")} onChange={(e) => setReqDate(e.target.value)} />
           </div>
-          {/* Vendor selector */}
+          {/* Vendor + Payment Method */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Vendor <span className="text-gray-400 font-normal">(optional)</span></label>
+              <select value={reqVendorId} onChange={(e) => setReqVendorId(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                <option value="">Select vendor</option>
+                {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.phone ? ` · ${v.phone}` : ""}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Payment Method <span className="text-red-500">*</span></label>
+              <select value={reqPaymentMethodId} onChange={(e) => setReqPaymentMethodId(e.target.value)}
+                className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${reqPaymentMethodId === "" ? "border-red-300" : "border-gray-200"}`}>
+                <option value="">Select payment method</option>
+                {paymentMethods.filter(m => m.is_active).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+              {reqPaymentMethodId === "" && <p className="text-xs text-red-500 mt-1">Required</p>}
+            </div>
+          </div>
+
+          {/* Category */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Vendor <span className="text-gray-400 font-normal">(optional)</span></label>
-            <select value={reqVendorId} onChange={(e) => setReqVendorId(e.target.value)}
-              className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value="">Select vendor</option>
-              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.phone ? ` · ${v.phone}` : ""}</option>)}
-            </select>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-medium text-gray-700">Category <span className="text-gray-400 font-normal">(optional)</span></label>
+              {!inlineCatOpen && (
+                <button type="button" onClick={() => setInlineCatOpen(true)}
+                  className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium">
+                  <Plus size={11} /> New category
+                </button>
+              )}
+            </div>
+            {inlineCatOpen ? (
+              <div className="flex items-center gap-2">
+                <input value={inlineCatName} onChange={(e) => setInlineCatName(e.target.value)}
+                  placeholder="Category name…" autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (!inlineCatName.trim() || savingInlineCat) return;
+                      setSavingInlineCat(true);
+                      createCategory(inlineCatName).then(({ data, error }) => {
+                        setSavingInlineCat(false);
+                        if (error) { toast.error((error as Error).message); return; }
+                        if (data) setReqCategoryId(data.id);
+                        setInlineCatName("");
+                        setInlineCatOpen(false);
+                      });
+                    }
+                    if (e.key === "Escape") { setInlineCatOpen(false); setInlineCatName(""); }
+                  }}
+                  className="flex-1 h-9 px-3 rounded-lg border border-orange-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                <button type="button" disabled={!inlineCatName.trim() || savingInlineCat}
+                  onClick={() => {
+                    if (!inlineCatName.trim() || savingInlineCat) return;
+                    setSavingInlineCat(true);
+                    createCategory(inlineCatName).then(({ data, error }) => {
+                      setSavingInlineCat(false);
+                      if (error) { toast.error((error as Error).message); return; }
+                      if (data) setReqCategoryId(data.id);
+                      setInlineCatName("");
+                      setInlineCatOpen(false);
+                    });
+                  }}
+                  className="h-9 px-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold disabled:opacity-50 flex items-center gap-1 transition-colors">
+                  {savingInlineCat ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                  Save
+                </button>
+                <button type="button" onClick={() => { setInlineCatOpen(false); setInlineCatName(""); }}
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-500 hover:bg-gray-50">
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <select value={reqCategoryId} onChange={(e) => setReqCategoryId(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                <option value="">No category</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
           </div>
 
           <Input label="Notes (optional)" placeholder="e.g. Weekly market run" value={reqNotes} onChange={(e) => setReqNotes(e.target.value)} />
@@ -1201,22 +1327,103 @@ export default function BazarRequestsPage() {
             )}
           </div>
 
-          {/* Payment Method */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Payment Method <span className="text-red-500">*</span>
-            </label>
-            <select value={reqPaymentMethodId} onChange={(e) => setReqPaymentMethodId(e.target.value)}
-              className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${reqPaymentMethodId === "" ? "border-red-300" : "border-gray-200"}`}>
-              <option value="">Select payment method</option>
-              {paymentMethods.filter((m: any) => m.is_active).map((m: any) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-            {reqPaymentMethodId === "" && (
-              <p className="text-xs text-red-500 mt-1.5">Please select a payment method.</p>
-            )}
-          </div>
+          {/* Stock Suggestions */}
+          {!editingReq && ingredients.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-sm font-medium text-gray-700">Stock Suggestions</label>
+                {stockLoading && <Loader2 size={12} className="animate-spin text-gray-400" />}
+              </div>
+              {stockLoading ? null : (() => {
+                const empty = ingredients.filter((i) => (stockMap.get(i.id) ?? 0) === 0);
+                const low = ingredients.filter((i) => { const q = stockMap.get(i.id) ?? 0; return q > 0 && q < 5; });
+                if (empty.length === 0 && low.length === 0) return (
+                  <p className="text-xs text-gray-400">All ingredients are well-stocked.</p>
+                );
+                return (
+                  <div className="space-y-2">
+                    {empty.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-red-600 mb-1.5 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                          Out of Stock ({empty.length})
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {empty.map((ing) => {
+                            const already = reqItems.some((r) => r.ingredient_id === ing.id);
+                            return (
+                              <button
+                                key={ing.id}
+                                type="button"
+                                disabled={already}
+                                onClick={() => {
+                                  if (already) return;
+                                  const emptyRow = reqItems.findIndex((r) => !r.ingredient_id);
+                                  if (emptyRow >= 0) {
+                                    updateItemRow(emptyRow, "ingredient_id", ing.id);
+                                  } else {
+                                    setReqItems((p) => [...p, { ingredient_id: ing.id, quantity: "1", unit: ing.default_unit, unit_price: String(ing.unit_price) }]);
+                                  }
+                                }}
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                  already
+                                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-default"
+                                    : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                                }`}
+                              >
+                                {already ? <Check size={10} /> : <Plus size={10} />}
+                                {ing.name}
+                                <span className="text-[10px] opacity-60">0 {ing.default_unit}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {low.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-amber-600 mb-1.5 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                          Low Stock ({low.length})
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {low.map((ing) => {
+                            const qty = stockMap.get(ing.id) ?? 0;
+                            const already = reqItems.some((r) => r.ingredient_id === ing.id);
+                            return (
+                              <button
+                                key={ing.id}
+                                type="button"
+                                disabled={already}
+                                onClick={() => {
+                                  if (already) return;
+                                  const emptyRow = reqItems.findIndex((r) => !r.ingredient_id);
+                                  if (emptyRow >= 0) {
+                                    updateItemRow(emptyRow, "ingredient_id", ing.id);
+                                  } else {
+                                    setReqItems((p) => [...p, { ingredient_id: ing.id, quantity: "1", unit: ing.default_unit, unit_price: String(ing.unit_price) }]);
+                                  }
+                                }}
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                  already
+                                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-default"
+                                    : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                }`}
+                              >
+                                {already ? <Check size={10} /> : <Plus size={10} />}
+                                {ing.name}
+                                <span className="text-[10px] opacity-60">{qty} {ing.default_unit}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Items Table */}
           <div>
@@ -1464,6 +1671,110 @@ export default function BazarRequestsPage() {
                     <span className="text-sm text-gray-400">Click to upload memo (PDF, image, doc)</span>
                   )}
                 </label>
+              </div>
+            )}
+          </div>
+        </Dialog>
+      )}
+
+      {/* ── Manage Categories Dialog ── */}
+      {manageCatOpen && (
+        <Dialog open={manageCatOpen} onOpenChange={setManageCatOpen} title="Manage Bazar Categories"
+          footer={<Button variant="outline" onClick={() => setManageCatOpen(false)}>Close</Button>}>
+          <div className="space-y-4">
+            {/* Add new category */}
+            <div className="flex items-center gap-2">
+              <input value={newCatName} onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="New category name…"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (!newCatName.trim() || savingCat) return;
+                    setSavingCat(true);
+                    createCategory(newCatName).then(({ error }) => {
+                      setSavingCat(false);
+                      if (error) toast.error((error as Error).message);
+                      else setNewCatName("");
+                    });
+                  }
+                }}
+                className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+              <button
+                type="button"
+                disabled={!newCatName.trim() || savingCat}
+                onClick={() => {
+                  if (!newCatName.trim() || savingCat) return;
+                  setSavingCat(true);
+                  createCategory(newCatName).then(({ error }) => {
+                    setSavingCat(false);
+                    if (error) toast.error((error as Error).message);
+                    else setNewCatName("");
+                  });
+                }}
+                className="h-9 px-4 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-50 flex items-center gap-1.5 transition-colors">
+                {savingCat ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add
+              </button>
+            </div>
+
+            {/* Category list */}
+            {categories.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">No categories yet. Add one above.</p>
+            ) : (
+              <div className="border border-gray-200 rounded-lg overflow-hidden divide-y divide-gray-100">
+                {categories.map((cat) => (
+                  <div key={cat.id} className="flex items-center gap-3 px-3 py-2.5">
+                    {editingCat?.id === cat.id ? (
+                      <>
+                        <input
+                          value={editingCat.name}
+                          onChange={(e) => setEditingCat({ ...editingCat, name: e.target.value })}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (!editingCat.name.trim()) return;
+                              updateCategory(editingCat.id, editingCat.name).then(({ error }) => {
+                                if (error) toast.error((error as Error).message);
+                                else setEditingCat(null);
+                              });
+                            }
+                            if (e.key === "Escape") setEditingCat(null);
+                          }}
+                          className="flex-1 h-8 px-2 rounded-md border border-orange-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                        <button onClick={() => {
+                          if (!editingCat.name.trim()) return;
+                          updateCategory(editingCat.id, editingCat.name).then(({ error }) => {
+                            if (error) toast.error((error as Error).message);
+                            else setEditingCat(null);
+                          });
+                        }} className="w-7 h-7 rounded-lg bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center transition-colors">
+                          <Check size={12} />
+                        </button>
+                        <button onClick={() => setEditingCat(null)} className="w-7 h-7 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 flex items-center justify-center transition-colors">
+                          <X size={12} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <Tag size={13} className="text-orange-400 shrink-0" />
+                        <span className="flex-1 text-sm text-gray-700">{cat.name}</span>
+                        <button onClick={() => setEditingCat({ id: cat.id, name: cat.name })}
+                          className="w-7 h-7 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 flex items-center justify-center transition-colors">
+                          <Pencil size={12} />
+                        </button>
+                        <button onClick={() => {
+                          if (confirm(`Delete category "${cat.name}"?`)) {
+                            removeCategory(cat.id).then(({ error }) => {
+                              if (error) toast.error((error as Error).message);
+                            });
+                          }
+                        }} className="w-7 h-7 rounded-lg border border-gray-200 text-red-400 hover:bg-red-50 flex items-center justify-center transition-colors">
+                          <Trash2 size={12} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>

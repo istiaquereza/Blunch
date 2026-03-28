@@ -87,7 +87,7 @@ function StatCard({
   const up = pct >= 0;
   const good = inverse ? !up : up;
   return (
-    <div className="bg-white rounded-xl border border-border p-4 md:p-5 space-y-2 md:space-y-3">
+    <div className="bg-white rounded-xl border border-border shadow-sm p-4 md:p-5 space-y-2 md:space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground font-medium leading-tight">{title}</p>
         <div className={`w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
@@ -377,12 +377,17 @@ export default function DashboardPage() {
     search: "",
   });
 
-  // Sync restaurant filter when active restaurant loads
+  // ── User name ──
+  const [userName, setUserName] = useState("");
   useEffect(() => {
-    if (activeRestaurant) {
-      setFilters(f => ({ ...f, restaurantId: activeRestaurant.id }));
-    }
-  }, [activeRestaurant?.id]);
+    createClient().auth.getUser().then(({ data }) => {
+      const meta = data.user?.user_metadata;
+      const name = meta?.full_name ?? meta?.name ?? data.user?.email?.split("@")[0] ?? "";
+      setUserName(name);
+    });
+  }, []);
+
+  const [alertDismissed, setAlertDismissed] = useState(false);
 
   // ── Data state ──
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -487,6 +492,7 @@ export default function DashboardPage() {
     setDueTx(dueData ?? []);
     setLowStockItems(lowStockData ?? []);
     setLowStockIngredients((lowIngData ?? []).filter((s: any) => s.ingredients));
+
 
     // Fetch ingredient costs for food items in these orders
     let costMap = new Map<string, number>();
@@ -720,7 +726,7 @@ export default function DashboardPage() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div>
+    <div className="flex flex-col h-full overflow-hidden">
       {showTransfer && (
         <TransferModal
           restaurants={restaurants}
@@ -729,494 +735,407 @@ export default function DashboardPage() {
         />
       )}
       <Header
-        title="Dashboard"
+        title={userName ? `Hi! ${userName}` : "Hi!"}
         hideRestaurantSelector
         rightContent={loading ? <Loader2 size={14} className="animate-spin text-gray-400" /> : undefined}
       />
 
-      <div className="p-4 md:p-6 space-y-4 md:space-y-5">
-
-        {/* ── Filter Bar ──────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-border p-3 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
-
-          {/* Row 1 on mobile: restaurant + inline search */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 sm:flex-none">
-              <Store size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <select
-                value={filters.restaurantId}
-                onChange={e => setFilters(f => ({ ...f, restaurantId: e.target.value }))}
-                className="w-full sm:w-auto h-9 sm:h-8 pl-7 pr-7 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
-              >
-                <option value="all">All Restaurants</option>
-                {restaurants.map(r => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-
-            {/* Search inline — mobile only */}
-            <div className="relative flex-1 sm:hidden">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search…"
-                value={filters.search}
-                onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-                className="w-full h-9 pl-7 pr-7 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 placeholder:text-gray-300"
-              />
-              {filters.search && (
-                <button
-                  onClick={() => setFilters(f => ({ ...f, search: "" }))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
-                >×</button>
-              )}
-            </div>
-          </div>
-
-          {/* Date preset tabs */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto">
-            {(["today", "week", "month", "all_time", "custom"] as DatePreset[]).map(p => (
-              <button
-                key={p}
-                onClick={() => setFilters(f => ({ ...f, preset: p }))}
-                className={`h-7 sm:h-6 px-2.5 sm:px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
-                  filters.preset === p
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {p === "today" ? "Today" : p === "week" ? "Week" : p === "month" ? "Month" : p === "all_time" ? "All Time" : "Custom"}
-              </button>
-            ))}
-          </div>
-
-          {/* Custom date pickers */}
-          {filters.preset === "custom" && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <Calendar size={13} className="text-gray-400" />
-              <input
-                type="date"
-                value={filters.customFrom}
-                onChange={e => setFilters(f => ({ ...f, customFrom: e.target.value }))}
-                className="flex-1 min-w-0 h-9 sm:h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
-              <span className="text-xs text-gray-400">to</span>
-              <input
-                type="date"
-                value={filters.customTo}
-                onChange={e => setFilters(f => ({ ...f, customTo: e.target.value }))}
-                className="flex-1 min-w-0 h-9 sm:h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
-            </div>
-          )}
-
-          {/* Spacer — desktop only */}
-          <div className="hidden sm:block flex-1" />
-
-          {/* Search — desktop only */}
-          <div className="relative hidden sm:block">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search orders, items, categories…"
-              value={filters.search}
-              onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-              className="h-8 w-56 pl-7 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 placeholder:text-gray-300"
-            />
-            {filters.search && (
-              <button
-                onClick={() => setFilters(f => ({ ...f, search: "" }))}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
-              >×</button>
-            )}
-          </div>
-
+      {/* ── Filter Bar ────────────────────────────────────────────────────── */}
+      <div className="shrink-0 px-6 border-b border-gray-100 h-[62px] flex items-center gap-4 overflow-x-auto">
+        {/* Restaurant */}
+        <div className="relative shrink-0">
+          <Store size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <select value={filters.restaurantId} onChange={e => setFilters(f => ({ ...f, restaurantId: e.target.value }))}
+            className="h-9 pl-7 pr-7 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer">
+            <option value="all">All Restaurants</option>
+            {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+          <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
+        {/* Date presets */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
+          {(["today", "week", "month", "all_time", "custom"] as DatePreset[]).map(p => (
+            <button key={p} onClick={() => setFilters(f => ({ ...f, preset: p }))}
+              className={`h-7 px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${filters.preset === p ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+              {p === "today" ? "Today" : p === "week" ? "Week" : p === "month" ? "Month" : p === "all_time" ? "All Time" : "Custom"}
+            </button>
+          ))}
+        </div>
+        {/* Custom dates */}
+        {filters.preset === "custom" && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Calendar size={13} className="text-gray-400" />
+            <input type="date" value={filters.customFrom} onChange={e => setFilters(f => ({ ...f, customFrom: e.target.value }))}
+              className="h-9 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            <span className="text-xs text-gray-400">to</span>
+            <input type="date" value={filters.customTo} onChange={e => setFilters(f => ({ ...f, customTo: e.target.value }))}
+              className="h-9 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400" />
+          </div>
+        )}
+        <div className="flex-1" />
+        {/* Search */}
+        <div className="relative shrink-0">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input type="text" placeholder="Search…" value={filters.search}
+            onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+            className="h-9 w-48 pl-7 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 placeholder:text-gray-300"
+          />
+          {filters.search && (
+            <button onClick={() => setFilters(f => ({ ...f, search: "" }))} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">×</button>
+          )}
+        </div>
+      </div>
 
-        {/* ── Stat Cards ────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
-          <StatCard title="Total Revenue"    icon={DollarSign}   color="bg-green-50 text-green-600"  curr={stats.revenue}      prev={stats.pRevenue}      />
-          <StatCard title="Total Expenses"   icon={TrendingDown} color="bg-red-50 text-red-600"      curr={stats.expenses}     prev={stats.pExpenses}     inverse />
-          <StatCard title="Net Profit"       icon={TrendingUp}   color="bg-blue-50 text-blue-600"    curr={stats.revenue - stats.expenses} prev={stats.pRevenue - stats.pExpenses} />
-          <StatCard title="Total Orders"     icon={ShoppingCart} color="bg-orange-50 text-orange-600" curr={stats.totalOrders} prev={stats.pTotalOrders}  isCount />
-          <StatCard title="Avg Order Value"  icon={BarChart3}    color="bg-purple-50 text-purple-600" curr={stats.avg}         prev={stats.pAvg}          />
-          <div className="bg-white rounded-xl border border-border p-4 md:p-5 space-y-2 md:space-y-3">
+      {/* ── Scrollable content ────────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-y-[18px]">
+
+        {/* Stat cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-x-4 gap-y-[18px] shrink-0">
+          <StatCard title="Total Revenue"   icon={DollarSign}   color="bg-green-50 text-green-600"   curr={stats.revenue}      prev={stats.pRevenue}      />
+          <StatCard title="Total Expenses"  icon={TrendingDown} color="bg-red-50 text-red-600"       curr={stats.expenses}     prev={stats.pExpenses}     inverse />
+          <StatCard title="Net Profit"      icon={TrendingUp}   color="bg-blue-50 text-blue-600"     curr={stats.revenue - stats.expenses} prev={stats.pRevenue - stats.pExpenses} />
+          <StatCard title="Total Orders"    icon={ShoppingCart} color="bg-orange-50 text-orange-600" curr={stats.totalOrders}  prev={stats.pTotalOrders}  isCount />
+          <StatCard title="Avg Order Value" icon={BarChart3}    color="bg-purple-50 text-purple-600" curr={stats.avg}          prev={stats.pAvg}          />
+          <div className="bg-white rounded-xl border border-border shadow-sm p-4 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground font-medium leading-tight">Food Cost %</p>
-              <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center shrink-0 bg-amber-50 text-amber-600">
-                <Tag size={14} />
-              </div>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-amber-50 text-amber-600"><Tag size={14} /></div>
             </div>
-            <p className="text-xl md:text-2xl font-bold text-gray-900">{foodCostPct.toFixed(1)}%</p>
+            <p className="text-xl font-bold text-gray-900">{foodCostPct.toFixed(1)}%</p>
             <p className={`text-xs font-medium ${foodCostPct > 35 ? "text-red-500" : foodCostPct > 25 ? "text-amber-500" : "text-green-600"}`}>
               {foodCostPct > 35 ? "High — review costs" : foodCostPct > 25 ? "Moderate" : foodCostPct === 0 ? "No data" : "Healthy"}
             </p>
           </div>
         </div>
 
-        {/* ── Alert Card ──────────────────────────────────────────────────── */}
-        {(lowStockItems.length > 0 || lowStockIngredients.length > 0 || dueTx.length > 0) && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+        {/* Alerts */}
+        {!alertDismissed && (lowStockItems.length > 0 || lowStockIngredients.length > 0 || dueTx.length > 0) && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 shrink-0">
             <div className="flex items-center gap-2 mb-3">
               <Bell size={15} className="text-amber-600" />
               <h3 className="text-sm font-semibold text-amber-800">Alerts</h3>
               <span className="text-xs font-bold bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">
                 {lowStockItems.length + lowStockIngredients.length + (dueTx.length > 0 ? 1 : 0)}
               </span>
+              <button onClick={() => setAlertDismissed(true)} className="ml-auto w-6 h-6 rounded-lg flex items-center justify-center text-amber-600 hover:bg-amber-200 transition-colors">
+                <X size={13} />
+              </button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {/* Food menu items with low quantity */}
               {lowStockItems.map(item => {
                 const qty = item.available_quantity ?? 0;
                 const isEmpty = qty === 0;
                 const isCritical = qty > 0 && qty <= 3;
                 return (
-                  <div
-                    key={`fi-${item.id}`}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${
-                      isEmpty
-                        ? "bg-red-50 border-red-200 text-red-700"
-                        : isCritical
-                        ? "bg-orange-50 border-orange-200 text-orange-700"
-                        : "bg-yellow-50 border-yellow-200 text-yellow-700"
-                    }`}
-                  >
+                  <div key={`fi-${item.id}`} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${isEmpty ? "bg-red-50 border-red-200 text-red-700" : isCritical ? "bg-orange-50 border-orange-200 text-orange-700" : "bg-yellow-50 border-yellow-200 text-yellow-700"}`}>
                     <Package size={11} />
                     <span className="max-w-[120px] truncate">{item.name}</span>
-                    <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
-                      isEmpty ? "bg-red-100 text-red-700" : isCritical ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"
-                    }`}>
+                    <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${isEmpty ? "bg-red-100 text-red-700" : isCritical ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"}`}>
                       {isEmpty ? "Empty" : `${qty} left`}
                     </span>
                   </div>
                 );
               })}
-              {/* Ingredients with low stock */}
               {lowStockIngredients.map(stock => {
                 const qty = stock.quantity ?? 0;
                 const isEmpty = qty <= 0;
                 const unit = stock.ingredients?.default_unit ?? "";
                 return (
-                  <div
-                    key={`ing-${stock.id}`}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${
-                      isEmpty
-                        ? "bg-red-50 border-red-200 text-red-700"
-                        : "bg-yellow-50 border-yellow-200 text-yellow-700"
-                    }`}
-                  >
+                  <div key={`ing-${stock.id}`} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${isEmpty ? "bg-red-50 border-red-200 text-red-700" : "bg-yellow-50 border-yellow-200 text-yellow-700"}`}>
                     <Package size={11} />
                     <span className="max-w-[120px] truncate">{stock.ingredients?.name}</span>
-                    <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
-                      isEmpty ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
-                    }`}>
+                    <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${isEmpty ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
                       {isEmpty ? "Empty" : `${qty} ${unit}`}
                     </span>
                   </div>
                 );
               })}
-              {/* Due payments */}
               {dueTx.length > 0 && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-purple-50 border-purple-200 text-purple-700">
                   <AlertCircle size={11} />
                   <span>{dueTx.length} due payment{dueTx.length > 1 ? "s" : ""}</span>
-                  <span className="font-bold px-1.5 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700">
-                    {fmt(dueTx.reduce((s, t) => s + t.amount, 0))}
-                  </span>
+                  <span className="font-bold px-1.5 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700">{fmt(dueTx.reduce((s, t) => s + t.amount, 0))}</span>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* ── Row 2: Revenue chart + Payment Methods + Due Payments ──────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* ── Data rows — fill remaining height ─────────────────────────── */}
+        <div className="flex-1 min-h-0 flex flex-col gap-y-[18px]">
 
-          <div className="bg-white rounded-xl border border-border p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">
-                {(() => {
-                  if (filters.preset === "today") return "Revenue by Hour";
-                  if (filters.preset === "all_time") return "Revenue by Year";
-                  const [f, t] = getRange(filters.preset, filters.customFrom, filters.customTo);
-                  const span = f && t ? Math.ceil((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1 : 0;
-                  return span > 30 ? "Revenue by Month" : "Revenue by Day";
-                })()}
-              </h3>
-              <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-full">{selectedRestaurantName}</span>
-            </div>
-            {revenueChart.length === 0 || revenueChart.every(d => d.revenue === 0) ? (
-              <div className="h-48 flex items-center justify-center text-sm text-gray-300">No revenue data</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={192}>
-                <BarChart data={revenueChart} barSize={(() => {
-                  if (filters.preset === "all_time") return 40;
-                  if (filters.preset === "today") return 28;
-                  const [f, t] = getRange(filters.preset, filters.customFrom, filters.customTo);
-                  const span = f && t ? Math.ceil((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1 : 0;
-                  if (span > 30) return 22;
-                  if (span > 7) return 14;
-                  return 28;
-                })()}>
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={v => `৳${v}`} width={55} />
-                  <Tooltip content={<RevTooltip />} cursor={{ fill: "#fff7ed" }} />
-                  <Bar dataKey="revenue" fill="#f97316" radius={[5, 5, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
+          {/* Row A: Revenue | Expenses by Category | Orders by Hour | Payment Methods */}
+          <div className="flex-1 min-h-0 grid grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-[18px]">
 
-          <div className="bg-white rounded-xl border border-border p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Payment Methods</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowTransfer(true)}
-                  className="flex items-center gap-1.5 h-7 px-3 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs font-semibold transition-colors"
-                >
-                  <ArrowLeftRight size={12} />
-                  Transfer
-                </button>
-                <CreditCard size={16} className="text-muted-foreground" />
+            {/* Revenue chart */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900 text-sm">
+                  {(() => {
+                    if (filters.preset === "today") return "Revenue by Hour";
+                    if (filters.preset === "all_time") return "Revenue by Year";
+                    const [f, t] = getRange(filters.preset, filters.customFrom, filters.customTo);
+                    const span = f && t ? Math.ceil((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1 : 0;
+                    return span > 30 ? "Revenue by Month" : "Revenue by Day";
+                  })()}
+                </h3>
+                <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full shrink-0">{selectedRestaurantName}</span>
+              </div>
+              <div className="flex-1 min-h-0 p-4">
+                {revenueChart.length === 0 || revenueChart.every(d => d.revenue === 0) ? (
+                  <div className="h-full flex items-center justify-center text-sm text-gray-300">No revenue data</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={revenueChart} barSize={(() => {
+                      if (filters.preset === "all_time") return 40;
+                      if (filters.preset === "today") return 28;
+                      const [f, t] = getRange(filters.preset, filters.customFrom, filters.customTo);
+                      const span = f && t ? Math.ceil((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1 : 0;
+                      if (span > 30) return 22; if (span > 7) return 14; return 28;
+                    })()}>
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={v => `৳${v}`} width={55} />
+                      <Tooltip content={<RevTooltip />} cursor={{ fill: "#fff7ed" }} />
+                      <Bar dataKey="revenue" fill="#f97316" radius={[5, 5, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
-            {paymentData.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-sm text-gray-300">No payment data</div>
-            ) : (
-              <div className="flex items-center gap-4 h-48">
-                <ResponsiveContainer width="45%" height="100%">
-                  <PieChart>
-                    <Pie data={paymentData} cx="50%" cy="50%" innerRadius={48} outerRadius={76} dataKey="value" paddingAngle={3}>
-                      {paymentData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => fmt(v)} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex-1 space-y-2.5 overflow-y-auto">
-                  {paymentData.map((p, i) => {
-                    const total = paymentData.reduce((s, x) => s + x.value, 0);
-                    const pct = total > 0 ? (p.value / total) * 100 : 0;
-                    return (
-                      <div key={`${p.restaurantName ?? ""}-${p.name}-${i}`}>
+
+            {/* Expenses by Category */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900 text-sm">Expenses by Category</h3>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                {expenseCats.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-sm text-gray-300">No expenses</div>
+                ) : (
+                  <div className="space-y-3">
+                    {expenseCats.map((cat, i) => (
+                      <div key={cat.name}>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="font-medium text-gray-700 flex items-center gap-1.5 min-w-0">
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
-                            <span className="truncate">{p.name}</span>
-                            {p.restaurantName && (
-                              <span className="shrink-0 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full leading-none">
-                                {p.restaurantName}
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-gray-500 shrink-0 ml-1">{pct.toFixed(0)}%</span>
+                          <span className="font-medium text-gray-700 truncate max-w-[60%]">{cat.name}</span>
+                          <span className="text-gray-500 font-semibold shrink-0">{fmt(cat.amount)}</span>
                         </div>
                         <div className="w-full h-1.5 bg-gray-100 rounded-full">
-                          <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: COLORS[i % COLORS.length] }} />
+                          <div className="h-1.5 rounded-full" style={{ width: `${cat.pct}%`, background: COLORS[i % COLORS.length] }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Orders by Hour */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900 text-sm">Orders by Hour</h3>
+              </div>
+              <div className="flex-1 min-h-0 p-4">
+                {ordersByHour.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-sm text-gray-300">No orders</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={ordersByHour} barSize={20}>
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={24} />
+                      <Tooltip cursor={{ fill: "#fff7ed" }} formatter={(v: number) => [v, "orders"]} />
+                      <Bar dataKey="orders" fill="#fb923c" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* Payment Methods */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900 text-sm">Payment Methods</h3>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowTransfer(true)} className="flex items-center gap-1.5 h-6 px-2.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 text-[10px] font-semibold transition-colors">
+                    <ArrowLeftRight size={11} />Transfer
+                  </button>
+                  <CreditCard size={14} className="text-muted-foreground" />
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 p-4 overflow-y-auto">
+                {paymentData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-sm text-gray-300">No payment data</div>
+                ) : (
+                  <div className="flex flex-col gap-3 h-full">
+                    <div className="h-24 shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={paymentData} cx="50%" cy="50%" innerRadius={28} outerRadius={44} dataKey="value" paddingAngle={3}>
+                            {paymentData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                          </Pie>
+                          <Tooltip formatter={(v: number) => fmt(v)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex-1 overflow-y-auto space-y-2">
+                      {paymentData.map((p, i) => {
+                        const total = paymentData.reduce((s, x) => s + x.value, 0);
+                        const pct = total > 0 ? (p.value / total) * 100 : 0;
+                        return (
+                          <div key={`${p.restaurantName ?? ""}-${p.name}-${i}`}>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="font-medium text-gray-700 flex items-center gap-1.5 min-w-0">
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+                                <span className="truncate">{p.name}</span>
+                                {p.restaurantName && <span className="shrink-0 text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{p.restaurantName}</span>}
+                              </span>
+                              <span className="text-gray-500 shrink-0 ml-1">{pct.toFixed(0)}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-gray-100 rounded-full">
+                              <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: COLORS[i % COLORS.length] }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Row B: Top Selling Items | Due Payments | Transactions */}
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-x-4 gap-y-[18px]">
+
+            {/* Top Selling Items */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900 text-sm">Top Selling Items</h3>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                {topItems.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-sm text-gray-300">No sales data</div>
+                ) : (
+                  <div className="space-y-3">
+                    {topItems.map((item, i) => (
+                      <div key={item.name} className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-300 w-4 shrink-0">#{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between text-xs mb-0.5">
+                            <span className="font-medium text-gray-700 truncate">{item.name}</span>
+                            <span className="text-orange-500 font-semibold shrink-0 ml-1">{item.qty}×</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-gray-100 rounded-full">
+                            <div className="h-1.5 rounded-full bg-orange-400" style={{ width: `${(item.qty / maxQty) * 100}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Due Payments */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={15} className="text-amber-500" />
+                  <h3 className="font-semibold text-gray-900 text-sm">Due Payments</h3>
+                  {dueTx.length > 0 && <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{dueTx.length}</span>}
+                </div>
+                {dueTx.length > 0 && (
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-400">Total Due</p>
+                    <p className="text-sm font-bold text-amber-600">{fmt(dueTx.reduce((s, t) => s + t.amount, 0))}</p>
+                  </div>
+                )}
+              </div>
+              {dueTx.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 text-gray-300">
+                  <CheckCircle2 size={28} />
+                  <p className="text-xs font-medium">All clear — no due payments</p>
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-gray-50">
+                  {dueTx.map(tx => {
+                    const isOverdue = tx.transaction_date < isoDate(new Date());
+                    return (
+                      <div key={tx.id} className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center gap-2">
+                          <div className={`shrink-0 text-center w-8 ${isOverdue ? "text-red-500" : "text-gray-400"}`}>
+                            <p className="text-xs font-bold leading-none">{new Date(tx.transaction_date + "T12:00:00").toLocaleDateString("en-BD", { day: "numeric" })}</p>
+                            <p className="text-[10px] leading-none mt-0.5">{new Date(tx.transaction_date + "T12:00:00").toLocaleDateString("en-BD", { month: "short" })}</p>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-gray-800 truncate">{tx.description || "—"}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {isOverdue && <span className="text-[10px] font-semibold text-red-400 bg-red-50 px-1 py-0.5 rounded-full">Overdue</span>}
+                              {tx.expense_categories?.name && <span className="text-[10px] text-gray-400 truncate">{tx.expense_categories.name}</span>}
+                            </div>
+                          </div>
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-gray-800">{fmt(tx.amount)}</span>
+                            <button onClick={() => markAsPaid(tx.id)} disabled={markingPaid === tx.id}
+                              className="h-6 px-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-[10px] font-semibold transition-colors disabled:opacity-50 flex items-center gap-1">
+                              {markingPaid === tx.id ? <Loader2 size={9} className="animate-spin" /> : <CheckCircle2 size={9} />}Paid
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Due Payments ── now inline in Row 2 */}
-          <div className="bg-white rounded-xl border border-border overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-              <div className="flex items-center gap-2">
-                <AlertCircle size={16} className="text-amber-500" />
-                <h3 className="font-semibold text-gray-900">Due Payments</h3>
-                {dueTx.length > 0 && (
-                  <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                    {dueTx.length}
-                  </span>
-                )}
-              </div>
-              {dueTx.length > 0 && (
-                <div className="text-right">
-                  <p className="text-xs text-gray-400">Total Due</p>
-                  <p className="text-sm font-bold text-amber-600">
-                    {fmt(dueTx.reduce((s, t) => s + t.amount, 0))}
-                  </p>
-                </div>
               )}
             </div>
-            {dueTx.length === 0 ? (
-              <div className="flex flex-col items-center justify-center flex-1 gap-2 text-gray-300 py-8">
-                <CheckCircle2 size={28} />
-                <p className="text-xs font-medium">All clear — no due payments</p>
+
+            {/* Transactions */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-semibold text-gray-900 text-sm">Transactions</h3>
+                  <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{filteredTx.length}</span>
+                </div>
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+                  {(["all", "income", "expense"] as const).map(chip => (
+                    <button key={chip} onClick={() => setTxChip(chip)}
+                      className={`px-3 h-9 font-medium transition-colors ${txChip === chip ? "bg-[#111827] text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+                      {chip === "all" ? "All" : chip === "income" ? "Income" : "Expense"}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div className="divide-y divide-gray-50 overflow-y-auto" style={{ maxHeight: 232 }}>
-                {dueTx.map(tx => {
-                  const isOverdue = tx.transaction_date < isoDate(new Date());
-                  return (
-                    <div key={tx.id} className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <div className={`shrink-0 text-center w-8 ${isOverdue ? "text-red-500" : "text-gray-400"}`}>
-                          <p className="text-xs font-bold leading-none">
-                            {new Date(tx.transaction_date + "T12:00:00").toLocaleDateString("en-BD", { day: "numeric" })}
-                          </p>
-                          <p className="text-[10px] leading-none mt-0.5">
-                            {new Date(tx.transaction_date + "T12:00:00").toLocaleDateString("en-BD", { month: "short" })}
-                          </p>
+              {(() => {
+                const list = txChip === "all" ? filteredTx : filteredTx.filter(t => t.type === txChip);
+                if (list.length === 0) return (
+                  <div className="flex-1 flex items-center justify-center text-sm text-gray-300">No transactions for this period</div>
+                );
+                return (
+                  <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-gray-50">
+                    {list.slice(0, 50).map((tx: any) => (
+                      <div key={tx.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${tx.type === "income" ? "bg-green-50" : "bg-red-50"}`}>
+                          {tx.type === "income" ? <TrendingUp size={12} className="text-green-600" /> : <TrendingDown size={12} className="text-red-500" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-gray-800 truncate">{tx.description || "—"}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            {isOverdue && (
-                              <span className="text-[10px] font-semibold text-red-400 bg-red-50 px-1 py-0.5 rounded-full">Overdue</span>
-                            )}
-                            {tx.expense_categories?.name && (
-                              <span className="text-[10px] text-gray-400 truncate">{tx.expense_categories.name}</span>
-                            )}
-                          </div>
+                          <p className="text-sm font-medium text-gray-800 truncate">{tx.description || "—"}</p>
+                          <p className="text-xs text-gray-400">
+                            {tx.expense_categories?.name ?? ""}{tx.expense_categories?.name && tx.payment_methods?.name ? " · " : ""}{tx.payment_methods?.name ?? ""}
+                          </p>
                         </div>
-                        <div className="shrink-0 flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-gray-800">{fmt(tx.amount)}</span>
-                          <button
-                            onClick={() => markAsPaid(tx.id)}
-                            disabled={markingPaid === tx.id}
-                            className="h-6 px-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-[10px] font-semibold transition-colors disabled:opacity-50 flex items-center gap-1"
-                          >
-                            {markingPaid === tx.id ? <Loader2 size={9} className="animate-spin" /> : <CheckCircle2 size={9} />}
-                            Paid
-                          </button>
+                        <div className="text-right shrink-0">
+                          <p className={`text-sm font-bold ${tx.type === "income" ? "text-green-600" : "text-red-500"}`}>
+                            {tx.type === "income" ? "+" : "-"}{fmt(tx.amount)}
+                          </p>
+                          <p className="text-[10px] text-gray-400">{tx.transaction_date}</p>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Row 3: Expenses + Orders by Hour + Top Items ───────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-          <div className="bg-white rounded-xl border border-border p-5">
-            <h3 className="font-semibold text-gray-900 mb-4">Expenses by Category</h3>
-            {expenseCats.length === 0 ? (
-              <div className="h-40 flex items-center justify-center text-sm text-gray-300">No expenses</div>
-            ) : (
-              <div className="space-y-3 overflow-y-auto max-h-48">
-                {expenseCats.map((cat, i) => (
-                  <div key={cat.name}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-medium text-gray-700 truncate max-w-[60%]">{cat.name}</span>
-                      <span className="text-gray-500 font-semibold shrink-0">{fmt(cat.amount)}</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-gray-100 rounded-full">
-                      <div className="h-1.5 rounded-full" style={{ width: `${cat.pct}%`, background: COLORS[i % COLORS.length] }} />
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-xl border border-border p-5">
-            <h3 className="font-semibold text-gray-900 mb-4">Orders by Hour</h3>
-            {ordersByHour.length === 0 ? (
-              <div className="h-40 flex items-center justify-center text-sm text-gray-300">No orders</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={ordersByHour} barSize={20}>
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={24} />
-                  <Tooltip cursor={{ fill: "#fff7ed" }} formatter={(v: number) => [v, "orders"]} />
-                  <Bar dataKey="orders" fill="#fb923c" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          <div className="bg-white rounded-xl border border-border p-5">
-            <h3 className="font-semibold text-gray-900 mb-4">Top Selling Items</h3>
-            {topItems.length === 0 ? (
-              <div className="h-40 flex items-center justify-center text-sm text-gray-300">No sales data</div>
-            ) : (
-              <div className="space-y-3">
-                {topItems.map((item, i) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-300 w-4 shrink-0">#{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between text-xs mb-0.5">
-                        <span className="font-medium text-gray-700 truncate">{item.name}</span>
-                        <span className="text-orange-500 font-semibold shrink-0 ml-1">{item.qty}×</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-gray-100 rounded-full">
-                        <div className="h-1.5 rounded-full bg-orange-400" style={{ width: `${(item.qty / maxQty) * 100}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-
-        {/* ── Transactions ───────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-border overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <h3 className="font-semibold text-gray-900">Transactions</h3>
-              <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                {filteredTx.length}
-              </span>
+                );
+              })()}
             </div>
-            {/* Income/Expense chips */}
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
-              {(["all", "income", "expense"] as const).map(chip => (
-                <button
-                  key={chip}
-                  onClick={() => setTxChip(chip)}
-                  className={`px-3 py-1.5 font-medium capitalize transition-colors ${
-                    txChip === chip ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"
-                  }`}
-                >
-                  {chip === "all" ? "All" : chip === "income" ? "Income" : "Expense"}
-                </button>
-              ))}
-            </div>
+
           </div>
-          {(() => {
-            const list = txChip === "all" ? filteredTx : filteredTx.filter(t => t.type === txChip);
-            if (list.length === 0) return (
-              <div className="py-12 text-center text-sm text-gray-300">No transactions for this period</div>
-            );
-            return (
-              <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
-                {list.slice(0, 50).map((tx: any) => (
-                  <div key={tx.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${tx.type === "income" ? "bg-green-50" : "bg-red-50"}`}>
-                      {tx.type === "income"
-                        ? <TrendingUp size={12} className="text-green-600" />
-                        : <TrendingDown size={12} className="text-red-500" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{tx.description || "—"}</p>
-                      <p className="text-xs text-gray-400">
-                        {tx.expense_categories?.name ?? ""}{tx.expense_categories?.name && tx.payment_methods?.name ? " · " : ""}{tx.payment_methods?.name ?? ""}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className={`text-sm font-bold ${tx.type === "income" ? "text-green-600" : "text-red-500"}`}>
-                        {tx.type === "income" ? "+" : "-"}{fmt(tx.amount)}
-                      </p>
-                      <p className="text-[10px] text-gray-400">{tx.transaction_date}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
         </div>
 
       </div>

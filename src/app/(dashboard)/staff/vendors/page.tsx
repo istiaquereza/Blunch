@@ -74,7 +74,7 @@ export default function VendorsPage() {
     <div>
       <Header title="Vendor Management" />
       <div className="p-6">
-        <div className="bg-white rounded-xl border border-border p-12 text-center">
+        <div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
           <Truck size={40} className="text-gray-200 mx-auto mb-3" />
           <p className="font-medium text-gray-500">No restaurant selected</p>
           <p className="text-sm text-gray-400 mt-1">Go to <strong>Settings</strong> to add a restaurant first</p>
@@ -86,10 +86,10 @@ export default function VendorsPage() {
   return (
     <div>
       <Header title="Vendor Management" />
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
 
         {/* Toolbar */}
-        <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3 flex-wrap">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto">
           <div className="flex items-center gap-2 flex-1">
             <Button size="sm" onClick={openAdd}>
               <Plus size={14} /> Add Vendor
@@ -107,8 +107,8 @@ export default function VendorsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-border overflow-hidden overflow-x-auto">
-          <div className="px-5 py-3.5 border-b border-border">
+        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
             <h3 className="font-semibold text-gray-900 text-sm">
               Vendors <span className="text-gray-400 font-normal">({filtered.length})</span>
             </h3>

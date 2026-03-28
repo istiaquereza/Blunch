@@ -172,10 +172,14 @@ export interface ProductRequisition {
   notes?: string;
   memo_url?: string;
   vendor_id?: string;
+  payment_method_id?: string;
+  bazar_category_id?: string;
   created_at: string;
   updated_at: string;
   product_requisition_items?: ProductRequisitionItem[];
   vendors?: Vendor | null;
+  payment_methods?: { id: string; name: string } | null;
+  bazar_categories?: { id: string; name: string } | null;
 }
 
 export interface Vendor {

@@ -23,6 +23,7 @@ import {
   Pencil, X, Check, ImagePlus, Loader2, Search,
   Globe, Instagram, Facebook, Twitter, Youtube, Link2, ChevronRight, ChevronDown,
   Users, Crown, Briefcase, ShoppingCart, Eye, ShieldCheck, UserPlus, KeyRound,
+  ToggleLeft, ToggleRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -218,8 +219,8 @@ function RestaurantsTab({ search = "" }: { search?: string }) {
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-border">
-        <div className="p-5 border-b border-border flex items-center justify-between">
+      <div className="bg-white rounded-xl border border-border shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h2 className="font-semibold text-gray-900">Restaurants & Outlets</h2>
             <p className="text-sm text-gray-500 mt-0.5">Add your restaurants and outlets</p>
@@ -372,8 +373,8 @@ function PaymentMethodsTab({ rid, onChangeRid, restaurants }: { rid: string; onC
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-border">
-        <div className="p-5 border-b border-border flex items-center justify-between">
+      <div className="bg-white rounded-xl border border-border shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h2 className="font-semibold text-gray-900">Payment Methods</h2>
             <p className="text-sm text-gray-500 mt-0.5">Configure accepted payment options</p>
@@ -406,7 +407,7 @@ function PaymentMethodsTab({ rid, onChangeRid, restaurants }: { rid: string; onC
                       <td className="px-5 py-3 font-medium text-gray-900">{m.name}</td>
                       <td className="px-5 py-3 text-gray-500">{m.fee_type === "percentage" ? "Percentage" : "Fixed Amount"}</td>
                       <td className="px-5 py-3 text-gray-700">{m.fee_type === "percentage" ? `${m.fee_value}%` : `৳${m.fee_value}`}</td>
-                      <td className="px-5 py-3"><Switch checked={m.is_active} onCheckedChange={(v) => update(m.id, { is_active: v })} label={m.is_active ? "Active" : "Inactive"} /></td>
+                      <td className="px-5 py-3"><Switch checked={m.is_active} onCheckedChange={(v) => update(m.id, { is_active: v })} label={undefined} /></td>
                       <td className="px-5 py-3">
                         <div className="flex gap-1 justify-end">
                           <button onClick={() => openEdit(m)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors"><Edit2 size={14} /></button>
@@ -482,8 +483,8 @@ function BillingTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRi
 
   return (
     <div className="space-y-5">
-      <div className="bg-white rounded-xl border border-border">
-        <div className="p-5 border-b border-border flex items-center justify-between">
+      <div className="bg-white rounded-xl border border-border shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h2 className="font-semibold text-gray-900">VAT & Service Charge</h2>
             <p className="text-sm text-gray-500 mt-0.5">Configure tax and service charge for orders</p>
@@ -501,8 +502,8 @@ function BillingTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRi
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-border">
-        <div className="p-5 border-b border-border flex items-center justify-between">
+      <div className="bg-white rounded-xl border border-border shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div><h2 className="font-semibold text-gray-900">Discounts</h2><p className="text-sm text-gray-500 mt-0.5">Create reusable discounts for orders</p></div>
           <Button size="md" onClick={openAddDiscount}><Plus size={14} /> Add Discount</Button>
           {/* no extra picker here — VAT section already has it */}
@@ -520,7 +521,7 @@ function BillingTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRi
                       <td className="px-5 py-3 text-gray-500">{d.discount_type === "percentage" ? "Percentage" : "Fixed"}</td>
                       <td className="px-5 py-3 font-medium">{d.discount_type === "percentage" ? `${d.discount_value}%` : `৳${d.discount_value}`}</td>
                       <td className="px-5 py-3"><Badge variant="info">{d.apply_on}</Badge></td>
-                      <td className="px-5 py-3"><Switch checked={d.is_active} onCheckedChange={(v) => update(d.id, { is_active: v })} label={d.is_active ? "Active" : "Off"} /></td>
+                      <td className="px-5 py-3"><Switch checked={d.is_active} onCheckedChange={(v) => update(d.id, { is_active: v })} label={undefined} /></td>
                       <td className="px-5 py-3">
                         <div className="flex gap-1 justify-end">
                           <button onClick={() => openEditDiscount(d)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors"><Edit2 size={14} /></button>
@@ -617,8 +618,8 @@ function TablesTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid
   );
 
   return (
-    <div className="bg-white rounded-xl border border-border">
-      <div className="p-5 border-b border-border flex items-center justify-between">
+    <div className="bg-white rounded-xl border border-border shadow-sm">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
         <div>
           <h2 className="font-semibold text-gray-900">Order Tracking — Tables</h2>
           <p className="text-sm text-gray-500 mt-0.5">Manage seating tables and sections</p>
@@ -654,7 +655,7 @@ function TablesTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid
                       <span className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">{t.name.slice(0, 2).toUpperCase()}</span>
                       <div><p className="font-medium text-sm text-gray-800">{t.name}</p><p className="text-xs text-gray-400">{t.capacity} seats</p></div>
                     </div>
-                    <Switch checked={t.is_active} onCheckedChange={(v) => update(t.id, { is_active: v })} label={t.is_active ? "Active" : "Inactive"} />
+                    <Switch checked={t.is_active} onCheckedChange={(v) => update(t.id, { is_active: v })} label={undefined} />
                     <button onClick={() => { setEditId(t.id); setEditName(t.name); setEditCap(String(t.capacity)); }} className="w-7 h-7 rounded-lg text-gray-400 hover:bg-gray-100 flex items-center justify-center"><Pencil size={12} /></button>
                     <button onClick={() => { if (confirm(`Delete table "${t.name}"?`)) remove(t.id); }} className="w-7 h-7 rounded-lg text-red-400 hover:bg-red-50 flex items-center justify-center"><Trash2 size={12} /></button>
                   </>
@@ -693,8 +694,8 @@ function PrintTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid:
   );
 
   return (
-    <div className="bg-white rounded-xl border border-border">
-      <div className="p-5 border-b border-border flex items-center justify-between">
+    <div className="bg-white rounded-xl border border-border shadow-sm">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
         <div>
           <h2 className="font-semibold text-gray-900">Print Settings</h2>
           <p className="text-sm text-gray-500 mt-0.5">Configure what appears on printed bills and receipts</p>
@@ -871,8 +872,8 @@ function TeamTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid: 
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-border">
-        <div className="p-5 border-b border-border flex items-center justify-between">
+      <div className="bg-white rounded-xl border border-border shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h2 className="font-semibold text-gray-900">Team Members</h2>
             <p className="text-sm text-gray-500 mt-0.5">Control who has access to this restaurant</p>
@@ -940,11 +941,11 @@ function TeamTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid: 
                         <td className="px-5 py-3">
                           <button
                             onClick={() => toggleActive(m.id, !m.is_active)}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                              m.is_active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                              m.is_active ? "bg-green-100 text-green-700 hover:bg-red-50 hover:text-red-600" : "bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600"
                             }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.is_active ? "bg-green-500" : "bg-gray-400"}`} />
-                            {m.is_active ? "Active" : "Suspended"}
+                            {m.is_active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
+                            {m.is_active ? "Active" : "Inactive"}
                           </button>
                         </td>
                         <td className="px-5 py-3">
@@ -1027,10 +1028,10 @@ export default function SettingsPage() {
   return (
     <div>
       <Header title="Settings" hideRestaurantSelector />
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="p-6 space-y-4">
         {/* Tab bar card */}
         <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-          <div className="bg-white border border-border rounded-xl p-3 flex items-center gap-3">
+          <div className="bg-white border border-border rounded-xl shadow-sm p-3 flex items-center gap-3">
             <Tabs.List className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-1 overflow-x-auto">
               {TABS.map(({ id, label, icon: Icon }) => (
                 <Tabs.Trigger key={id} value={id}

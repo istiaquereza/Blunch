@@ -21,17 +21,19 @@ export async function GET(
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
 
-  // Fetch restaurant, tables, billing settings, and discounts in parallel
+  // Fetch restaurant, tables, billing settings, discounts, and payment methods in parallel
   const [
     { data: restaurant, error: restaurantErr },
     { data: tables },
     { data: billing },
     { data: discounts },
+    { data: paymentMethods },
   ] = await Promise.all([
     supabase.from("restaurants").select("id, name, logo_url").eq("id", rid).single(),
     supabase.from("tables").select("id, name, table_number").eq("restaurant_id", rid).eq("is_active", true).order("name"),
     supabase.from("billing_settings").select("vat_percentage, service_charge_percentage").eq("restaurant_id", rid).maybeSingle(),
     supabase.from("discounts").select("id, name, discount_type, discount_value").eq("restaurant_id", rid).eq("is_active", true).eq("apply_on", "order"),
+    supabase.from("payment_methods").select("id, name").eq("restaurant_id", rid).eq("is_active", true).order("name"),
   ]);
 
   if (!restaurant) {
@@ -81,5 +83,6 @@ export async function GET(
     tables: cleanTables,
     billing: billing ?? { vat_percentage: 0, service_charge_percentage: 0 },
     discounts: discounts ?? [],
+    paymentMethods: paymentMethods ?? [],
   });
 }
