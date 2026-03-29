@@ -848,7 +848,7 @@ export default function StaffPayrollPage() {
         </div>
 
         {/* ── Payroll Table ── */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto">
           {staffLoading || loadingPayroll ? (
             <div className="p-8 flex items-center justify-center gap-2 text-sm text-gray-400">
               <Loader2 size={16} className="animate-spin" /> Loading payroll data…
@@ -862,31 +862,31 @@ export default function StaffPayrollPage() {
           ) : (
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Staff</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 hidden sm:table-cell">Role</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 hidden md:table-cell">Restaurant</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Salary</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Paid</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Due</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Actions</th>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Staff</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Role</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Restaurant</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Salary</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Paid</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Due</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-100">
                 {filtered.map((row) => (
-                  <tr key={row.staffId} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
+                  <tr key={row.staffId} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-4 py-3.5">
                       <div>
                         <p className="text-sm font-medium text-gray-800">{row.name}</p>
                         <p className="text-xs text-gray-400 sm:hidden">{row.jobRole ?? "—"}</p>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500 hidden sm:table-cell">
+                    <td className="px-4 py-3.5 text-sm text-gray-500 hidden sm:table-cell">
                       {row.jobRole ?? <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       {row.staffType === "kitchen" ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
                           <ChefHat size={9} /> Kitchen
@@ -899,23 +899,23 @@ export default function StaffPayrollPage() {
                         <span className="text-gray-300 text-xs">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500 hidden md:table-cell">
+                    <td className="px-4 py-3.5 text-sm text-gray-500 hidden md:table-cell">
                       {row.restaurantName ?? <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700">
+                    <td className="px-4 py-3.5 text-right text-sm font-semibold text-gray-700">
                       {fmt(row.monthlySalary)}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-semibold text-green-600">
+                    <td className="px-4 py-3.5 text-right text-sm font-semibold text-green-600">
                       {row.paid > 0 ? fmt(row.paid) : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-semibold">
+                    <td className="px-4 py-3.5 text-right text-sm font-semibold">
                       {row.due > 0 ? (
                         <span className="text-amber-600">{fmt(row.due)}</span>
                       ) : (
                         <span className="text-gray-300">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-3.5 text-center">
                       {row.status === "fully_paid" ? (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
                           <CheckCircle2 size={10} /> Paid
@@ -930,7 +930,7 @@ export default function StaffPayrollPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         {row.paid > 0 && (
                           <button

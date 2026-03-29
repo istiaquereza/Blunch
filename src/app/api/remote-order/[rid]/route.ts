@@ -25,6 +25,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
     { data: discounts },
     { data: activeOrders },
     { data: customers },
+    { data: txns },
   ] = await Promise.all([
     supabase.from("restaurants").select("id, name, logo_url").eq("id", rid).single(),
     supabase.from("food_items")
@@ -39,6 +40,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
     supabase.from("discounts").select("id, name, discount_type, discount_value").eq("restaurant_id", rid).eq("is_active", true).eq("apply_on", "order"),
     supabase.from("orders").select("table_id").eq("restaurant_id", rid).in("status", ["active", "billed"]).not("table_id", "is", null),
     supabase.from("customers").select("id, name, phone").eq("restaurant_id", rid).order("name").limit(300),
+    supabase.from("transactions").select("payment_method_id, type, amount").eq("restaurant_id", rid).eq("status", "paid"),
   ]);
 
   if (!restaurant) return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
@@ -50,6 +52,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
   }
 
   const occupiedTableIds = (activeOrders ?? []).map((o: any) => o.table_id).filter(Boolean);
+
+  const pmBalances: Record<string, number> = {};
+  for (const pm of paymentMethods ?? []) pmBalances[(pm as any).id] = 0;
+  for (const t of txns ?? []) {
+    const pmId = (t as any).payment_method_id;
+    if (!pmId) continue;
+    pmBalances[pmId] = (pmBalances[pmId] ?? 0) + ((t as any).type === "income" ? (t as any).amount : -(t as any).amount);
+  }
 
   return NextResponse.json({
     restaurant,
@@ -65,6 +75,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
     occupiedTableIds,
     customers: (customers ?? []).map((c: any) => ({ id: c.id, name: c.name, phone: c.phone ?? "" })),
     paymentMethods: paymentMethods ?? [],
+    pmBalances,
     billing: billing ?? { vat_percentage: 0, service_charge_percentage: 0 },
     discounts: discounts ?? [],
   });

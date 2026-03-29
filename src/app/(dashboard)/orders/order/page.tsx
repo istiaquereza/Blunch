@@ -271,6 +271,7 @@ function OrderCard({
   tables,
   usedTableIds,
   paymentMethods,
+  pmBalances,
   discounts,
   billing,
   customers,
@@ -290,6 +291,7 @@ function OrderCard({
   tables: { id: string; table_number?: string; name?: string; is_active: boolean }[];
   usedTableIds: Set<string>;
   paymentMethods: { id: string; name: string; is_active: boolean }[];
+  pmBalances: Record<string, number>;
   discounts: { id: string; name: string; discount_type: string; discount_value: number; is_active: boolean; apply_on: string }[];
   billing: { vat_percentage: number; service_charge_percentage: number } | null;
   customers: Customer[];
@@ -737,7 +739,10 @@ function OrderCard({
               <select value={draft.paymentMethodId} onChange={(e) => onUpdate({ paymentMethodId: e.target.value })}
                 className="w-full h-7 pl-6 pr-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400 bg-white appearance-none">
                 <option value="">Payment method *</option>
-                {activePayments.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {activePayments.map((p) => {
+                  const bal = pmBalances[p.id];
+                  return <option key={p.id} value={p.id}>{p.name}{bal !== undefined ? ` — ৳${bal.toLocaleString("en-BD", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : ""}</option>;
+                })}
               </select>
             </div>
           </div>
@@ -831,6 +836,22 @@ export default function NewOrderPage() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [pmBalances, setPmBalances] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!activeRestaurant?.id || paymentMethods.length === 0) return;
+    const supabase = createClient();
+    supabase.from("transactions").select("payment_method_id, type, amount")
+      .eq("restaurant_id", activeRestaurant.id).eq("status", "paid")
+      .then(({ data }) => {
+        const bal: Record<string, number> = {};
+        for (const pm of paymentMethods) bal[pm.id] = 0;
+        for (const t of data ?? []) {
+          if (!t.payment_method_id) continue;
+          bal[t.payment_method_id] = (bal[t.payment_method_id] ?? 0) + (t.type === "income" ? t.amount : -t.amount);
+        }
+        setPmBalances(bal);
+      });
+  }, [activeRestaurant?.id, paymentMethods]);
 
   // Staff selector — persists across sessions per restaurant
   const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
@@ -1542,6 +1563,7 @@ export default function NewOrderPage() {
                   tables={tables as any}
                   usedTableIds={new Set(drafts.filter(d => d.draftId !== draft.draftId && d.tableId && d.stage !== "done").map(d => d.tableId))}
                   paymentMethods={paymentMethods as any}
+                  pmBalances={pmBalances}
                   discounts={discounts as any}
                   billing={billing as any}
                   customers={customers}

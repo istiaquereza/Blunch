@@ -118,6 +118,7 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
   const [occupiedTableIds, setOccupiedTableIds] = useState<string[]>([]);
   const [crmCustomers, setCrmCustomers] = useState<CrmCustomer[]>([]);
   const [payMethods, setPayMethods] = useState<PayMethod[]>([]);
+  const [pmBalances, setPmBalances] = useState<Record<string, number>>({});
   const [billingCfg, setBillingCfg] = useState<BillingCfg>({ vat_percentage: 0, service_charge_percentage: 0 });
   const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -210,6 +211,7 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
         setOccupiedTableIds(d.occupiedTableIds ?? []);
         setCrmCustomers(d.customers ?? []);
         setPayMethods(d.paymentMethods);
+        setPmBalances(d.pmBalances ?? {});
         setBillingCfg(d.billing);
         setDiscounts(d.discounts);
         try {
@@ -590,12 +592,20 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
         <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment Method *</p>
           <div className="grid grid-cols-2 gap-2">
-            {payMethods.map(m => (
-              <button key={m.id} onClick={() => setPayMethodId(m.id)}
-                className={`py-3 rounded-xl text-sm font-medium border transition-all ${payMethodId === m.id ? "bg-gray-900 text-white border-gray-900" : "bg-gray-50 text-gray-700 border-gray-200"}`}>
-                {m.name}
-              </button>
-            ))}
+            {payMethods.map(m => {
+              const bal = pmBalances[m.id];
+              return (
+                <button key={m.id} onClick={() => setPayMethodId(m.id)}
+                  className={`py-3 px-3 rounded-xl text-sm font-medium border transition-all flex flex-col items-center gap-0.5 ${payMethodId === m.id ? "bg-gray-900 text-white border-gray-900" : "bg-gray-50 text-gray-700 border-gray-200"}`}>
+                  <span>{m.name}</span>
+                  {bal !== undefined && (
+                    <span className={`text-[11px] font-normal ${payMethodId === m.id ? "text-white/70" : "text-gray-400"}`}>
+                      ৳{bal.toLocaleString("en-BD", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 

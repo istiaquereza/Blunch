@@ -701,6 +701,28 @@ export default function IncomeExpensesPage() {
   const net = totalIncome - totalExpense;
   const totalDue = transactions.filter((t) => t.type === "expense" && t.status === "due").reduce((s, t) => s + t.amount, 0);
 
+  const incomeByCat = useMemo(() => {
+    const map: Record<string, { name: string; total: number }> = {};
+    transactions.filter((t) => t.type === "income").forEach((t) => {
+      const key = t.expense_categories?.id ?? "__none__";
+      const name = t.expense_categories?.name ?? "Uncategorized";
+      if (!map[key]) map[key] = { name, total: 0 };
+      map[key].total += t.amount;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  }, [transactions]);
+
+  const expenseByCat = useMemo(() => {
+    const map: Record<string, { name: string; total: number }> = {};
+    transactions.filter((t) => t.type === "expense").forEach((t) => {
+      const key = t.expense_categories?.id ?? "__none__";
+      const name = t.expense_categories?.name ?? "Uncategorized";
+      if (!map[key]) map[key] = { name, total: 0 };
+      map[key].total += t.amount;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  }, [transactions]);
+
   const reqIdFromDesc = (desc?: string | null) => {
     if (!desc) return null;
     const m = desc.match(/^(REQ-[A-Z0-9]+):/);
@@ -843,8 +865,83 @@ export default function IncomeExpensesPage() {
           </div>
         </div>
 
+        {/* ── Category breakdown cards ── */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Income Summary */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-gray-100">
+              <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                <TrendingUp size={15} className="text-green-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800">Income Summary</p>
+                <p className="text-xs text-gray-400">{incomeByCat.length} {incomeByCat.length === 1 ? "category" : "categories"}</p>
+              </div>
+              <span className="text-sm font-bold text-green-600 shrink-0">{fmt(totalIncome)}</span>
+            </div>
+            <div className="p-5">
+              {incomeByCat.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">No income in this period</p>
+              ) : (
+                <div className="space-y-3">
+                  {incomeByCat.map((row) => {
+                    const pct = totalIncome > 0 ? (row.total / totalIncome) * 100 : 0;
+                    return (
+                      <div key={row.name}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-gray-700 truncate mr-2">{row.name}</span>
+                          <span className="text-xs font-semibold text-gray-800 shrink-0">{fmt(row.total)}</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Expense Summary */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-gray-100">
+              <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                <TrendingDown size={15} className="text-red-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800">Expense Summary</p>
+                <p className="text-xs text-gray-400">{expenseByCat.length} {expenseByCat.length === 1 ? "category" : "categories"}</p>
+              </div>
+              <span className="text-sm font-bold text-red-500 shrink-0">{fmt(totalExpense)}</span>
+            </div>
+            <div className="p-5">
+              {expenseByCat.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">No expenses in this period</p>
+              ) : (
+                <div className="space-y-3">
+                  {expenseByCat.map((row) => {
+                    const pct = totalExpense > 0 ? (row.total / totalExpense) * 100 : 0;
+                    return (
+                      <div key={row.name}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-gray-700 truncate mr-2">{row.name}</span>
+                          <span className="text-xs font-semibold text-gray-800 shrink-0">{fmt(row.total)}</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-red-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Loading transactions…</div>
           ) : !activeRestaurant ? (
@@ -859,7 +956,7 @@ export default function IncomeExpensesPage() {
             <div className="overflow-x-auto">
             <table className="w-full min-w-[640px]">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
+                <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</th>
@@ -870,15 +967,15 @@ export default function IncomeExpensesPage() {
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-100">
                 {filtered.map((t) => (
-                  <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                  <tr key={t.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-4 py-3.5 text-sm text-gray-600">
                       {new Date(t.transaction_date + "T12:00:00").toLocaleDateString("en-GB", {
                         day: "numeric", month: "short",
                       })}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       {t.type === "income" ? (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                           <ArrowUpCircle size={11} /> Income
@@ -889,7 +986,7 @@ export default function IncomeExpensesPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 max-w-[240px]">
+                    <td className="px-4 py-3.5 text-sm text-gray-700 max-w-[240px]">
                       {(() => {
                         const reqId = reqIdFromDesc(t.description);
                         const rawItems = reqId && t.description
@@ -918,15 +1015,15 @@ export default function IncomeExpensesPage() {
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
+                    <td className="px-4 py-3.5 hidden md:table-cell">
                       {t.expense_categories?.name
                         ? <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${t.type === "income" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>{t.expense_categories.name}</span>
                         : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500 hidden md:table-cell">
+                    <td className="px-4 py-3.5 text-sm text-gray-500 hidden md:table-cell">
                       {t.payment_methods?.name ?? <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         t.status === "paid"
                           ? "bg-green-50 text-green-700"
@@ -935,12 +1032,12 @@ export default function IncomeExpensesPage() {
                         {t.status === "paid" ? "Paid" : "Due"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3.5 text-right">
                       <span className={`text-sm font-semibold ${t.type === "income" ? "text-green-600" : "text-red-500"}`}>
                         {t.type === "income" ? "+" : "-"}{fmt(t.amount)}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         {t.type === "expense" && t.status === "due" && (
                           <button

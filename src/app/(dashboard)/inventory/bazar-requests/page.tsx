@@ -949,16 +949,9 @@ export default function BazarRequestsPage() {
       <div className="p-6 space-y-4">
         {/* ── Toolbar — above the cards ── */}
         <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
-            {/* Search */}
-            <div className="relative flex-1 min-w-[160px] max-w-xs">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search requests…"
-                className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500" />
-            </div>
-
             {/* Status */}
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm">
               <option value="">All Status</option>
               <option value="submitted">Under Review</option>
               <option value="approved">Approved</option>
@@ -967,7 +960,7 @@ export default function BazarRequestsPage() {
 
             {/* Date preset */}
             <select value={datePreset} onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm">
               {DATE_PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
@@ -977,17 +970,17 @@ export default function BazarRequestsPage() {
             {datePreset === "custom" && (
               <>
                 <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm" />
                 <span className="text-gray-400 text-xs">→</span>
                 <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                  className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm" />
               </>
             )}
 
             <div className="flex-1" />
             <button
               onClick={() => setManageCatOpen(true)}
-              className="h-9 px-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-xs font-medium flex items-center gap-1.5 transition-colors"
+              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] bg-white hover:bg-gray-50 text-gray-600 text-xs font-medium flex items-center gap-1.5 transition-colors shadow-sm"
             >
               <Tag size={13} /> Manage Categories
             </button>
@@ -998,6 +991,12 @@ export default function BazarRequestsPage() {
               <Zap size={13} /> Requisition Automation
             </button>
             <Button size="sm" onClick={openCreate}><Plus size={14} /> New Requisition</Button>
+            {/* Search — rightmost */}
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search requests…"
+                className="w-48 h-9 pl-9 pr-3 rounded-lg border border-[#e5e7eb] text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm" />
+            </div>
         </div>
 
         {/* Summary Cards */}

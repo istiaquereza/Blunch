@@ -581,7 +581,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* ── Food Sales Report ── */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 flex-wrap gap-2">
             <div>
               <h2 className="text-sm font-semibold text-gray-800">Food Sales Report</h2>
@@ -633,7 +633,7 @@ export default function AnalyticsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[620px]">
                   <thead>
-                    <tr className="border-b border-gray-100">
+                    <tr className="bg-gray-50 border-b border-gray-100">
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10">#</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Category</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Items</th>
@@ -643,11 +643,11 @@ export default function AnalyticsPage() {
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">% of Total</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-gray-100">
                     {categorySalesRows.map((row, idx) => (
-                      <tr key={row.name} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-xs text-gray-400 font-medium">{idx + 1}</td>
-                        <td className="px-4 py-3">
+                      <tr key={row.name} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-4 py-3.5 text-xs text-gray-400 font-medium">{idx + 1}</td>
+                        <td className="px-4 py-3.5">
                           <div className="flex items-center gap-2">
                             <span
                               className="w-2.5 h-2.5 rounded-full shrink-0"
@@ -702,7 +702,7 @@ export default function AnalyticsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[750px]">
                   <thead>
-                    <tr className="border-b border-gray-100">
+                    <tr className="bg-gray-50 border-b border-gray-100">
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10">#</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-orange-600 select-none" onClick={() => handleSort("name")}>
                         Food Item <SortIcon field="name" sortField={sortField} sortDir={sortDir} />
@@ -722,7 +722,7 @@ export default function AnalyticsPage() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-gray-100">
                     {(tableLimit ? filteredSorted.slice(0, tableLimit) : filteredSorted).map((row, idx) => {
                       const pct = totalRevenue > 0 ? (row.revenue / totalRevenue) * 100 : 0;
                       return (
@@ -877,7 +877,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* ── Profit Margin Analysis ── */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
             <h2 className="text-sm font-semibold text-gray-800">Profit Margin Analysis</h2>
             <p className="text-xs text-gray-400">Top 10 items by margin (based on ingredient costs)</p>
