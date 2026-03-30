@@ -150,7 +150,7 @@ function RestaurantsTab({ search = "" }: { search?: string }) {
       parent_id: form.parent_id || undefined,
       location: form.location || undefined, address: form.address || undefined,
       phone: form.phone || undefined, logo_url: form.logo_url || undefined,
-      social_links: form.social_links.length > 0 ? form.social_links : undefined,
+      // social_links column not yet in DB schema — omit to avoid PostgREST error
     };
     const { error } = editing ? await update(editing.id, payload) : await create(payload);
     if (error) toast.error(error.message);
@@ -599,14 +599,16 @@ function TablesTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid
 
   const handleAdd = async () => {
     if (!newName.trim() || !rid) return;
+    if (!newCap || parseInt(newCap) < 1) return toast.error("Seat count must be at least 1");
     setAdding(true);
-    const { error } = await create(newName.trim(), parseInt(newCap) || 4);
+    const { error } = await create(newName.trim(), parseInt(newCap));
     if (error) toast.error(error.message); else { setNewName(""); setNewCap("4"); toast.success("Table added!"); }
     setAdding(false);
   };
   const handleUpdate = async (t: Table) => {
     if (!editName.trim()) return;
-    const { error } = await update(t.id, { name: editName.trim(), capacity: parseInt(editCap) || t.capacity });
+    if (!editCap || parseInt(editCap) < 1) return toast.error("Seat count must be at least 1");
+    const { error } = await update(t.id, { name: editName.trim(), capacity: parseInt(editCap) });
     if (error) toast.error(error.message); else { setEditId(null); toast.success("Updated!"); }
   };
 
@@ -621,7 +623,7 @@ function TablesTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid
     <div className="bg-white rounded-xl border border-border shadow-sm">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
         <div>
-          <h2 className="font-semibold text-gray-900">Order Tracking — Tables</h2>
+          <h2 className="font-semibold text-gray-900">Table Management</h2>
           <p className="text-sm text-gray-500 mt-0.5">Manage seating tables and sections</p>
         </div>
         <RestaurantPicker restaurants={restaurants} rid={rid} onChangeRid={onChangeRid} />
@@ -639,25 +641,32 @@ function TablesTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid
       {loading ? <div className="p-6 text-center text-sm text-gray-400">Loading...</div>
         : tables.length === 0 ? (<div className="p-12 text-center"><LayoutGrid size={36} className="text-gray-200 mx-auto mb-3" /><p className="text-sm text-gray-400">No tables yet — add one above</p></div>)
         : (
-          <div className="divide-y divide-border">
+          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {tables.map((t) => (
-              <div key={t.id} className="flex items-center gap-3 px-5 py-3">
+              <div key={t.id} className="rounded-xl border border-gray-200 bg-white p-3 flex flex-col gap-2">
                 {editId === t.id ? (
                   <>
-                    <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} className="flex-1 h-8 px-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
-                    <input type="number" min="1" value={editCap} onChange={(e) => setEditCap(e.target.value)} className="w-20 h-8 px-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
-                    <button onClick={() => handleUpdate(t)} className="w-7 h-7 rounded-lg bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center"><Check size={12} /></button>
-                    <button onClick={() => setEditId(null)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center"><X size={12} /></button>
+                    <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" className="h-8 px-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 w-full" />
+                    <input type="number" min="1" value={editCap} onChange={(e) => setEditCap(e.target.value)} placeholder="Seats" className="h-8 px-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 w-full" />
+                    <div className="flex gap-1">
+                      <button onClick={() => handleUpdate(t)} className="flex-1 h-7 rounded-lg bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center"><Check size={12} /></button>
+                      <button onClick={() => setEditId(null)} className="flex-1 h-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center"><X size={12} /></button>
+                    </div>
                   </>
                 ) : (
                   <>
-                    <div className="flex-1 flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">{t.name.slice(0, 2).toUpperCase()}</span>
-                      <div><p className="font-medium text-sm text-gray-800">{t.name}</p><p className="text-xs text-gray-400">{t.capacity} seats</p></div>
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">{t.name.slice(0, 2).toUpperCase()}</div>
+                      <Switch checked={t.is_active} onCheckedChange={(v) => update(t.id, { is_active: v })} label={undefined} />
                     </div>
-                    <Switch checked={t.is_active} onCheckedChange={(v) => update(t.id, { is_active: v })} label={undefined} />
-                    <button onClick={() => { setEditId(t.id); setEditName(t.name); setEditCap(String(t.capacity)); }} className="w-7 h-7 rounded-lg text-gray-400 hover:bg-gray-100 flex items-center justify-center"><Pencil size={12} /></button>
-                    <button onClick={() => { if (confirm(`Delete table "${t.name}"?`)) remove(t.id); }} className="w-7 h-7 rounded-lg text-red-400 hover:bg-red-50 flex items-center justify-center"><Trash2 size={12} /></button>
+                    <div>
+                      <p className="font-semibold text-sm text-gray-800">{t.name}</p>
+                      <p className="text-xs text-gray-400">{t.capacity} seats · #{t.table_number ?? "—"}</p>
+                    </div>
+                    <div className="flex gap-1 mt-auto">
+                      <button onClick={() => { setEditId(t.id); setEditName(t.name); setEditCap(String(t.capacity)); }} className="flex-1 h-7 rounded-lg text-gray-400 hover:bg-gray-100 flex items-center justify-center"><Pencil size={12} /></button>
+                      <button onClick={() => { if (confirm(`Delete table "${t.name}"?`)) remove(t.id); }} className="flex-1 h-7 rounded-lg text-red-400 hover:bg-red-50 flex items-center justify-center"><Trash2 size={12} /></button>
+                    </div>
                   </>
                 )}
               </div>
@@ -1004,7 +1013,7 @@ const TABS = [
   { id: "restaurants", label: "Restaurants", icon: Building2 },
   { id: "payments",    label: "Payments",    icon: CreditCard },
   { id: "billing",     label: "Billing",     icon: Receipt },
-  { id: "tables",      label: "Order Tracking", icon: LayoutGrid },
+  { id: "tables",      label: "Table Management", icon: LayoutGrid },
   { id: "print",       label: "Print",       icon: Printer },
 ];
 

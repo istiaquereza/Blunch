@@ -332,6 +332,23 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantI
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [currentUserName, setCurrentUserName] = useState("");
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data }) => {
+      const email = data.user?.email;
+      if (!email) return;
+      const { data: role } = await supabase
+        .from("app_user_roles")
+        .select("name")
+        .eq("email", email)
+        .limit(1)
+        .single();
+      if (role?.name) setCurrentUserName(role.name);
+      else setCurrentUserName(data.user?.user_metadata?.full_name ?? email.split("@")[0]);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Payment method balances
   const [pmBalances, setPmBalances] = useState<Record<string, number>>({});
@@ -368,10 +385,10 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantI
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const filteredCats = categories.filter((c) => c.type === form.type);
 
-  // Sync form.type when tab changes (income/expense tabs only)
+  // Sync form.type when tab changes (income/expense tabs only) — only clear category when type actually differs
   useEffect(() => {
     if (tab === "income" || tab === "expense") {
-      setForm(f => ({ ...f, type: tab, category_id: "" }));
+      setForm(f => f.type === tab ? f : { ...f, type: tab, category_id: "" });
     }
   }, [tab]);
 
@@ -379,7 +396,7 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantI
     e.preventDefault();
     if (!form.amount || isNaN(parseFloat(form.amount))) { setError("Amount is required"); return; }
     if (!form.category_id) { setError("Category is required"); return; }
-    if (!form.payment_method_id) { setError("Payment method is required"); return; }
+    if (form.status === "paid" && !form.payment_method_id) { setError("Payment method is required for paid transactions"); return; }
     setSaving(true);
     const { error: err } = await onSave({
       restaurant_id: restaurantId,
@@ -390,6 +407,7 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantI
       payment_method_id: form.payment_method_id || undefined,
       status: form.status,
       transaction_date: form.transaction_date,
+      created_by_name: initial?.created_by_name ?? (currentUserName || undefined),
     });
     setSaving(false);
     if (err) { setError(String(err)); return; }
@@ -687,6 +705,8 @@ export default function IncomeExpensesPage() {
   const [viewTx, setViewTx] = useState<Transaction | null>(null);
   const [catOpen, setCatOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [markPaidTarget, setMarkPaidTarget] = useState<Transaction | null>(null);
+  const [markPaidPmId, setMarkPaidPmId] = useState("");
 
   const filtered = useMemo(() => {
     let list = transactions;
@@ -962,6 +982,7 @@ export default function IncomeExpensesPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Category</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Payment</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Person</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
@@ -1023,6 +1044,11 @@ export default function IncomeExpensesPage() {
                     <td className="px-4 py-3.5 text-sm text-gray-500 hidden md:table-cell">
                       {t.payment_methods?.name ?? <span className="text-gray-300">—</span>}
                     </td>
+                    <td className="px-4 py-3.5 hidden lg:table-cell">
+                      {t.created_by_name
+                        ? <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">{t.created_by_name}</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-4 py-3.5">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         t.status === "paid"
@@ -1041,7 +1067,7 @@ export default function IncomeExpensesPage() {
                       <div className="flex items-center justify-end gap-1">
                         {t.type === "expense" && t.status === "due" && (
                           <button
-                            onClick={() => update(t.id, { status: "paid" })}
+                            onClick={() => { setMarkPaidTarget(t); setMarkPaidPmId(""); }}
                             title="Mark as Paid"
                             className="px-2 py-1 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
                           >
@@ -1151,6 +1177,12 @@ export default function IncomeExpensesPage() {
                     <p className="text-sm text-gray-700">{viewTx.payment_methods.name}</p>
                   </div>
                 )}
+                {viewTx.created_by_name && (
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase mb-1">Added By</p>
+                    <p className="text-sm text-gray-700">{viewTx.created_by_name}</p>
+                  </div>
+                )}
               </div>
 
               {reqId && (
@@ -1197,7 +1229,7 @@ export default function IncomeExpensesPage() {
                   <Button
                     size="sm"
                     className="bg-amber-500 hover:bg-amber-600 text-white border-0"
-                    onClick={() => { update(viewTx.id, { status: "paid" }); setViewTx(null); }}
+                    onClick={() => { setMarkPaidTarget(viewTx); setMarkPaidPmId(""); setViewTx(null); }}
                   >
                     Mark as Paid
                   </Button>
@@ -1263,6 +1295,42 @@ export default function IncomeExpensesPage() {
                 }}
               >
                 Delete
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      {/* Mark Paid Dialog */}
+      <Dialog open={!!markPaidTarget} onOpenChange={(o) => !o && setMarkPaidTarget(null)} title="Mark as Paid">
+        {markPaidTarget && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Select the payment method used to settle this expense.</p>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Payment Method <span className="text-red-500">*</span></label>
+              <select
+                value={markPaidPmId}
+                onChange={(e) => setMarkPaidPmId(e.target.value)}
+                className="w-full h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 shadow-sm"
+              >
+                <option value="">Select payment method…</option>
+                {paymentMethods.map((pm) => (
+                  <option key={pm.id} value={pm.id}>{pm.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setMarkPaidTarget(null)}>Cancel</Button>
+              <Button
+                className="bg-amber-500 hover:bg-amber-600 text-white border-0"
+                onClick={async () => {
+                  if (!markPaidPmId) return;
+                  await update(markPaidTarget.id, { status: "paid", payment_method_id: markPaidPmId });
+                  setMarkPaidTarget(null);
+                }}
+                disabled={!markPaidPmId}
+              >
+                Confirm Payment
               </Button>
             </div>
           </div>

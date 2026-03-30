@@ -101,6 +101,7 @@ export default function FoodInventoryPage() {
   const { groups } = useInventoryGroups(rid);
   // Movements: food_stock_logs (both in/out from orders + manual)
   const { logs: movementLogs, loading: movementsLoading, fetchLogs: fetchMovements, createLog, clearLogs: clearMovements } = useFoodStockLogs(rid);
+  const orderDrivenLogs = movementLogs.filter((l) => l.reason !== "manual_restock" && l.quantity_change < 0);
   // Stock In Summary: transactions table (source of truth for all restocks including older ones)
   const { entries: stockInEntries, loading: stockInLoading, fetchEntries: fetchStockIn, clear: clearStockIn } = useRestockTransactions(rid);
   const { methods: paymentMethods } = usePaymentMethods(rid);
@@ -256,7 +257,9 @@ export default function FoodInventoryPage() {
 
     // Write stock log entry so Stock In Summary can show this restock
     // Use restockDate (may be backdated) as the created_at timestamp
-    const logCreatedAt = restockDate ? new Date(restockDate).toISOString() : new Date().toISOString();
+    const logCreatedAt = restockDate
+      ? (() => { const [y, m, d] = restockDate.split("-").map(Number); return new Date(y, m - 1, d, 12, 0, 0).toISOString(); })()
+      : new Date().toISOString();
     await createLog({
       ingredient_id: adjustItem.ingredient_id,
       quantity_change: qty,
@@ -507,27 +510,28 @@ export default function FoodInventoryPage() {
                 <History size={32} className="text-gray-200 mx-auto mb-2" />
                 <p className="text-sm text-gray-400">No stock changes in this period.</p>
               </div>
+            ) : orderDrivenLogs.length === 0 ? (
+              <div className="text-center py-10">
+                <History size={32} className="text-gray-200 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">No order-driven reductions in this period.</p>
+              </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Date & Time</th>
                     <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Order</th>
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Food Item</th>
                     <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Change</th>
                     <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Reason</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {movementLogs.map((log) => (
+                  {orderDrivenLogs.map((log) => (
                     <tr key={log.id}>
                       <td className="py-2.5 pr-3 text-gray-400 text-xs whitespace-nowrap">{format(new Date(log.created_at), "dd MMM, HH:mm")}</td>
                       <td className="py-2.5 pr-3 text-gray-600 text-xs">{log.order_number ?? "—"}</td>
-                      <td className="py-2.5 pr-3 text-gray-700 font-medium text-xs">{log.food_item_name ?? "—"}</td>
                       <td className="py-2.5 pr-3 text-right font-semibold text-xs">
-                        <span className={log.quantity_change < 0 ? "text-red-600" : "text-green-600"}>
-                          {log.quantity_change > 0 ? "+" : ""}{Number(log.quantity_change).toFixed(3)}
-                        </span>
+                        <span className="text-red-600">{Number(log.quantity_change).toFixed(3)}</span>
                       </td>
                       <td className="py-2.5 text-gray-400 text-xs capitalize">{log.reason.replace(/_/g, " ")}</td>
                     </tr>
@@ -595,7 +599,7 @@ export default function FoodInventoryPage() {
                     <tbody className="divide-y divide-gray-50">
                       {stockInEntries.map((entry) => (
                         <tr key={entry.id}>
-                          <td className="py-2.5 pr-3 text-gray-400 text-xs whitespace-nowrap">{format(new Date(entry.date), "dd MMM yyyy")}</td>
+                          <td className="py-2.5 pr-3 text-gray-400 text-xs whitespace-nowrap">{format(new Date(entry.createdAt), "dd MMM yyyy, HH:mm")}</td>
                           <td className="py-2.5 pr-3 text-right font-semibold text-xs text-green-600">
                             +{entry.qty.toFixed(2)} {stockInUnit}
                           </td>

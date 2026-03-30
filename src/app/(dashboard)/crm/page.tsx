@@ -89,8 +89,9 @@ const TABS: { value: CustomerTab; label: string }[] = [
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CRMPage() {
-  const { activeRestaurant } = useRestaurant();
+  const { activeRestaurant, isSuperAdmin, getUserRole } = useRestaurant();
   const { customers, loading, create, update, remove } = useCustomers(activeRestaurant?.id);
+  const canDelete = isSuperAdmin || ["owner", "super_admin"].includes(getUserRole(activeRestaurant?.id ?? "") ?? "");
 
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<CustomerTab>("all");
@@ -311,10 +312,12 @@ export default function CRMPage() {
                                 className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors" title="Edit">
                                 <Pencil size={14} />
                               </button>
-                              <button onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}
-                                className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors" title="Delete">
-                                <Trash2 size={14} />
-                              </button>
+                              {canDelete && (
+                                <button onClick={e => { e.stopPropagation(); setDeleteTarget(c); }}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors" title="Delete">
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                               <ChevronDown size={14} className={`text-gray-400 ml-1 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
                             </div>
                           </td>

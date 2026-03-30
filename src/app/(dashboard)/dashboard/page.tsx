@@ -399,6 +399,15 @@ export default function DashboardPage() {
   // Due transactions — fetched independently of date range
   const [dueTx, setDueTx]           = useState<any[]>([]);
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
+  const [markPaidDashTarget, setMarkPaidDashTarget] = useState<any | null>(null);
+  const [markPaidDashPmId, setMarkPaidDashPmId] = useState("");
+  const [dashPaymentMethods, setDashPaymentMethods] = useState<PaymentMethodRow[]>([]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from("payment_methods").select("id,name,restaurant_id").eq("is_active", true).order("name")
+      .then(({ data }) => setDashPaymentMethods(data ?? []));
+  }, []);
 
   // Transfer modal
   const [showTransfer, setShowTransfer] = useState(false);
@@ -519,12 +528,12 @@ export default function DashboardPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // ── Mark a due transaction as paid ──
-  const markAsPaid = async (txId: string) => {
+  const markAsPaid = async (txId: string, pmId: string) => {
     setMarkingPaid(txId);
     const supabase = createClient();
     const { error } = await supabase
       .from("transactions")
-      .update({ status: "paid" })
+      .update({ status: "paid", payment_method_id: pmId })
       .eq("id", txId);
     if (!error) {
       setDueTx(prev => prev.filter(t => t.id !== txId));
@@ -1075,7 +1084,7 @@ export default function DashboardPage() {
                           </div>
                           <div className="shrink-0 flex items-center gap-1.5">
                             <span className="text-xs font-bold text-gray-800">{fmt(tx.amount)}</span>
-                            <button onClick={() => markAsPaid(tx.id)} disabled={markingPaid === tx.id}
+                            <button onClick={() => { setMarkPaidDashTarget(tx); setMarkPaidDashPmId(""); }} disabled={markingPaid === tx.id}
                               className="h-6 px-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 text-[10px] font-semibold transition-colors disabled:opacity-50 flex items-center gap-1">
                               {markingPaid === tx.id ? <Loader2 size={9} className="animate-spin" /> : <CheckCircle2 size={9} />}Paid
                             </button>
@@ -1139,6 +1148,43 @@ export default function DashboardPage() {
         </div>
 
       </div>
+
+      {/* ── Mark Paid Modal ── */}
+      {markPaidDashTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Mark as Paid</h3>
+              <button onClick={() => setMarkPaidDashTarget(null)} className="w-7 h-7 rounded-lg text-gray-400 hover:bg-gray-100 flex items-center justify-center"><X size={14} /></button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Select the payment method used to settle this expense.</p>
+            <select
+              value={markPaidDashPmId}
+              onChange={(e) => setMarkPaidDashPmId(e.target.value)}
+              className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 mb-4"
+            >
+              <option value="">Select payment method…</option>
+              {dashPaymentMethods.filter(m => m.restaurant_id === markPaidDashTarget.restaurant_id).map((pm) => (
+                <option key={pm.id} value={pm.id}>{pm.name}</option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setMarkPaidDashTarget(null)} className="h-9 px-4 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button
+                disabled={!markPaidDashPmId || markingPaid === markPaidDashTarget.id}
+                onClick={async () => {
+                  await markAsPaid(markPaidDashTarget.id, markPaidDashPmId);
+                  setMarkPaidDashTarget(null);
+                }}
+                className="h-9 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {markingPaid === markPaidDashTarget?.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                Confirm Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

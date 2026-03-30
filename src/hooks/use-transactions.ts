@@ -23,6 +23,7 @@ export interface Transaction {
   transaction_date: string;
   staff_id?: string;
   payroll_month?: string;
+  created_by_name?: string;
   created_at: string;
   expense_categories?: ExpenseCategory | null;
   payment_methods?: { id: string; name: string } | null;
@@ -87,6 +88,13 @@ export function useTransactions(restaurantId?: string, dateFrom?: string, dateTo
 
   const create = async (payload: Omit<Transaction, "id" | "created_at" | "expense_categories" | "payment_methods">) => {
     const { error } = await supabase.from("transactions").insert(payload);
+    // If created_by_name column doesn't exist yet (migration not run), retry without it
+    if (error && (error as any)?.message?.includes("created_by_name")) {
+      const { created_by_name, ...rest } = payload as any;
+      const { error: retryError } = await supabase.from("transactions").insert(rest);
+      if (!retryError) fetch();
+      return { error: retryError };
+    }
     if (!error) fetch();
     return { error };
   };

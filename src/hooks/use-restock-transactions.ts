@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 export interface RestockEntry {
   id: string;
   date: string; // transaction_date YYYY-MM-DD
+  createdAt: string; // created_at ISO timestamp for accurate time display
   qty: number;
   amount: number;
   description: string;
@@ -26,7 +27,7 @@ export function useRestockTransactions(restaurantId?: string) {
 
       let q = supabase
         .from("transactions")
-        .select("id, transaction_date, amount, description")
+        .select("id, transaction_date, created_at, amount, description")
         .eq("restaurant_id", restaurantId)
         .eq("type", "expense")
         .ilike("description", `Stock restock: ${safeName}%`)
@@ -45,6 +46,7 @@ export function useRestockTransactions(restaurantId?: string) {
         return {
           id: tx.id as string,
           date: tx.transaction_date as string,
+          createdAt: tx.created_at as string,
           qty,
           amount: tx.amount as number,
           description: desc,

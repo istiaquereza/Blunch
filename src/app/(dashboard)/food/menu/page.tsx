@@ -404,7 +404,7 @@ export default function FoodMenuPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-[18px]">
             {filtered.map((item) => (
               <FoodCard key={item.id} item={item} onEdit={openEdit}
-                onDelete={async (i) => { if (!confirm(`Delete "${i.name}"?`)) return; await remove(i.id); toast.success("Deleted"); }}
+                onDelete={async (i) => { if (!confirm(`Delete "${i.name}"?`)) return; const { error } = await remove(i.id); if (error) toast.error(error.message); else toast.success("Deleted"); }}
                 onToggle={(i, v) => toggleStatus(i.id, v)}
                 onViewHistory={openHistory}
                 onViewIngredients={(i) => setIngItem(i)} />
