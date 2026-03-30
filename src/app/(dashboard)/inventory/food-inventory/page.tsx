@@ -15,7 +15,7 @@ import { useRestockTransactions } from "@/hooks/use-restock-transactions";
 import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useVendors } from "@/hooks/use-vendors";
 import { useTransactions, useExpenseCategories } from "@/hooks/use-transactions";
-import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus } from "lucide-react";
+import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import type { FoodStock } from "@/types";
@@ -201,6 +201,42 @@ export default function FoodInventoryPage() {
       const { from, to } = getDateRange(preset, movementsCustomFrom, movementsCustomTo);
       fetchMovements(movementsIngredientId, from, to);
     }
+  };
+
+  const printStockIn = () => {
+    const presetLabel: Record<string, string> = { today: "Today", week: "This Week", month: "This Month", all: "All Time", custom: `${stockInCustomFrom} – ${stockInCustomTo}` };
+    const win = window.open("", "_blank", "width=800,height=600");
+    if (!win) return;
+    win.document.write(`
+      <html><head><title>Stock In Summary — ${stockInIngredientName}</title>
+      <style>
+        body { font-family: system-ui, sans-serif; padding: 24px; color: #111; }
+        h1 { font-size: 18px; margin-bottom: 4px; }
+        p.sub { font-size: 12px; color: #666; margin-bottom: 20px; }
+        .summary { display: flex; gap: 16px; margin-bottom: 20px; }
+        .card { flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; }
+        .card .label { font-size: 10px; text-transform: uppercase; color: #6b7280; letter-spacing: .05em; margin-bottom: 4px; }
+        .card .value { font-size: 20px; font-weight: 700; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; padding: 8px 10px; border-bottom: 2px solid #e5e7eb; font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: .05em; }
+        td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+        .qty { color: #16a34a; font-weight: 600; }
+        .cost { font-weight: 500; }
+        @media print { button { display: none; } }
+      </style></head><body>
+      <h1>Stock In Summary — ${stockInIngredientName}</h1>
+      <p class="sub">Period: ${presetLabel[stockInPreset] ?? stockInPreset} &nbsp;|&nbsp; Printed: ${format(new Date(), "dd MMM yyyy, HH:mm")}</p>
+      <div class="summary">
+        <div class="card"><div class="label">Total Quantity In</div><div class="value">${totalStockIn.toFixed(2)} ${stockInUnit}</div><div style="font-size:11px;color:#6b7280;margin-top:4px">${stockInEntries.length} restock entries</div></div>
+        <div class="card"><div class="label">Total Cost</div><div class="value">৳${totalStockInCost.toFixed(2)}</div><div style="font-size:11px;color:#6b7280;margin-top:4px">৳${stockInUnitPrice.toFixed(2)} / ${stockInUnit}</div></div>
+      </div>
+      <table>
+        <thead><tr><th>Date & Time</th><th>Qty Added</th><th>Cost</th></tr></thead>
+        <tbody>${stockInEntries.map(e => `<tr><td>${format(new Date(e.createdAt), "dd MMM yyyy, HH:mm")}</td><td class="qty">+${e.qty.toFixed(2)} ${stockInUnit}</td><td class="cost">৳${e.amount.toFixed(2)}</td></tr>`).join("")}</tbody>
+      </table>
+      <script>window.onload = () => window.print();<\/script>
+      </body></html>`);
+    win.document.close();
   };
 
   const openStockIn = (ingredientId: string, ingredientName: string, unit: string, unitPrice: number) => {
@@ -548,7 +584,14 @@ export default function FoodInventoryPage() {
         open={stockInOpen}
         onOpenChange={(open) => { setStockInOpen(open); if (!open) clearStockIn(); }}
         title={`Stock In Summary — ${stockInIngredientName}`}
-        footer={<Button variant="outline" onClick={() => setStockInOpen(false)}>Close</Button>}
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <Button variant="outline" size="sm" onClick={printStockIn} disabled={stockInEntries.length === 0}>
+              <Printer size={13} /> Print / PDF
+            </Button>
+            <Button variant="outline" onClick={() => setStockInOpen(false)}>Close</Button>
+          </div>
+        }
       >
         <div className="space-y-3">
           <DateFilterBar

@@ -28,7 +28,7 @@ export function useFoodItems(restaurantId?: string) {
     setLoading(false);
   }, [restaurantId]);
 
-  // Create food item with all relations
+  // Create food item — one independent record per restaurant (so each can be edited separately)
   const create = async (
     itemData: Partial<FoodItem>,
     restaurantIds: string[],
@@ -37,61 +37,56 @@ export function useFoodItems(restaurantId?: string) {
     optionGroups: { name: string; options: string[] }[]
   ) => {
     const supabase = createClient();
+    const ids = restaurantIds.length > 0 ? restaurantIds : [];
+    if (ids.length === 0) return { error: new Error("Select at least one restaurant") };
 
-    // 1. Insert food item
-    const { data: newItem, error: itemError } = await supabase
-      .from("food_items")
-      .insert({
-        name: itemData.name,
-        food_category_id: itemData.food_category_id || null,
-        sell_price: itemData.sell_price ?? 0,
-        image_url: itemData.image_url || null,
-        is_active: itemData.is_active ?? true,
-        is_recipe: itemData.is_recipe ?? false,
-        recipe_status: itemData.recipe_status || null,
-        notes: itemData.notes || null,
-        availability_type: itemData.availability_type ?? "premade",
-        available_quantity: itemData.available_quantity ?? 0,
-      })
-      .select()
-      .single();
+    const baseItem = {
+      name: itemData.name,
+      food_category_id: itemData.food_category_id || null,
+      sell_price: itemData.sell_price ?? 0,
+      image_url: itemData.image_url || null,
+      is_active: itemData.is_active ?? true,
+      is_recipe: itemData.is_recipe ?? false,
+      recipe_status: itemData.recipe_status || null,
+      notes: itemData.notes || null,
+      availability_type: itemData.availability_type ?? "premade",
+      available_quantity: itemData.available_quantity ?? 0,
+    };
 
-    if (itemError || !newItem) return { error: itemError };
-
-    const id = newItem.id;
-
-    // 2. Link restaurants
-    if (restaurantIds.length > 0) {
-      await supabase.from("food_item_restaurants").insert(
-        restaurantIds.map((rid) => ({ food_item_id: id, restaurant_id: rid }))
-      );
-    }
-
-    // 3. Insert ingredients
-    if (ingredients.length > 0) {
-      await supabase.from("food_item_ingredients").insert(
-        ingredients.map((i) => ({ food_item_id: id, ...i }))
-      );
-    }
-
-    // 4. Insert addons
-    if (addons.length > 0) {
-      await supabase.from("food_item_addons").insert(
-        addons.map((a) => ({ food_item_id: id, ...a }))
-      );
-    }
-
-    // 5. Insert option groups + options
-    for (const group of optionGroups) {
-      const { data: grp } = await supabase
-        .from("food_item_option_groups")
-        .insert({ food_item_id: id, name: group.name })
+    // Create one independent food_items record per restaurant
+    for (const rid of ids) {
+      const { data: newItem, error: itemError } = await supabase
+        .from("food_items")
+        .insert(baseItem)
         .select()
         .single();
-      if (grp && group.options.length > 0) {
-        await supabase.from("food_item_options").insert(
-          group.options.map((label) => ({ option_group_id: grp.id, label }))
+
+      if (itemError || !newItem) return { error: itemError };
+      const id = newItem.id;
+
+      await supabase.from("food_item_restaurants").insert({ food_item_id: id, restaurant_id: rid });
+
+      if (ingredients.length > 0) {
+        await supabase.from("food_item_ingredients").insert(
+          ingredients.map((i) => ({ food_item_id: id, ...i }))
         );
+      }
+      if (addons.length > 0) {
+        await supabase.from("food_item_addons").insert(
+          addons.map((a) => ({ food_item_id: id, ...a }))
+        );
+      }
+      for (const group of optionGroups) {
+        const { data: grp } = await supabase
+          .from("food_item_option_groups")
+          .insert({ food_item_id: id, name: group.name })
+          .select()
+          .single();
+        if (grp && group.options.length > 0) {
+          await supabase.from("food_item_options").insert(
+            group.options.map((label) => ({ option_group_id: grp.id, label }))
+          );
+        }
       }
     }
 

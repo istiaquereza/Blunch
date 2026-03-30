@@ -91,85 +91,85 @@ function FoodCard({ item, onEdit, onDelete, onToggle, onViewHistory, onViewIngre
           <ChefHat size={22} className="text-orange-300" />
         )}
         {isQuantity && (
-          <div className={`absolute top-1.5 right-1.5 text-xs font-bold px-2 py-0.5 rounded-full ${
+          <div className={`absolute top-1.5 right-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
             isEmpty ? "bg-red-500 text-white" : qty <= 3 ? "bg-orange-500 text-white" : "bg-green-500 text-white"
           }`}>
             {isEmpty ? "Empty" : `${qty}`}
           </div>
         )}
         {!isQuantity && (
-          <div className="absolute top-1.5 right-1.5 bg-blue-500 text-white text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
-            <Zap size={10} /> Premade
+          <div className="absolute top-1.5 right-1.5 bg-blue-500 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            <Zap size={9} /> <span className="hidden sm:inline">Premade</span>
           </div>
         )}
         {item.recipe_status === "launch" && (
-          <div className="absolute bottom-1.5 left-1.5 bg-purple-600 text-white text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
-            <ScrollText size={10} /> Recipe
+          <div className="absolute bottom-1.5 left-1.5 bg-purple-600 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            <ScrollText size={9} /> <span className="hidden sm:inline">Recipe</span>
           </div>
         )}
       </div>
 
-      <div className="p-2.5 flex flex-col flex-1 gap-2">
-        {/* Name left + Category badge right */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          <p className="font-semibold text-gray-900 text-sm leading-tight truncate flex-1">{item.name}</p>
+      <div className="p-2 sm:p-2.5 flex flex-col flex-1 gap-1.5 sm:gap-2">
+        {/* Name + Category */}
+        <div className="min-w-0">
+          <p className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight truncate">{item.name}</p>
           {item.food_categories && (
-            <Badge variant="info" className="text-[10px] shrink-0">{item.food_categories.name}</Badge>
+            <span className="text-[9px] sm:text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full mt-0.5 inline-block truncate max-w-full">{item.food_categories.name}</span>
           )}
         </div>
 
         {/* Cost / Price / Margin */}
-        <div className="grid grid-cols-3 gap-0.5 pt-2 border-t border-gray-100">
+        <div className="grid grid-cols-3 gap-0.5 pt-1.5 border-t border-gray-100">
           <div className="text-center">
-            <p className="text-[10px] text-gray-400 leading-none">Cost</p>
-            <p className="font-bold text-gray-700 text-xs mt-0.5">৳{cost.toFixed(0)}</p>
+            <p className="text-[9px] text-gray-400 leading-none">Cost</p>
+            <p className="font-bold text-gray-700 text-[10px] sm:text-xs mt-0.5">৳{cost.toFixed(0)}</p>
           </div>
           <div className="text-center border-x border-gray-100">
-            <p className="text-[10px] text-gray-400 leading-none">Price</p>
-            <p className="font-bold text-gray-700 text-xs mt-0.5">৳{Number(item.sell_price).toFixed(0)}</p>
+            <p className="text-[9px] text-gray-400 leading-none">Price</p>
+            <p className="font-bold text-gray-700 text-[10px] sm:text-xs mt-0.5">৳{Number(item.sell_price).toFixed(0)}</p>
           </div>
           <div className="text-center">
-            <p className="text-[10px] text-gray-400 leading-none">Margin</p>
-            <p className={`font-bold text-xs mt-0.5 flex items-center justify-center gap-0.5 ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
+            <p className="text-[9px] text-gray-400 leading-none">Margin</p>
+            <p className={`font-bold text-[10px] sm:text-xs mt-0.5 flex items-center justify-center gap-0.5 ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
               {profit >= 0 ? <TrendingUp size={8} /> : <TrendingDown size={8} />}
               {pct.toFixed(0)}%
             </p>
           </div>
         </div>
 
-        {/* Bottom row: Actions left + Status toggle right */}
-        <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
+        {/* Bottom row: Actions + Status */}
+        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
           <div className="flex items-center gap-0.5">
             {item.recipe_status === "launch" && (
               <button onClick={() => onViewHistory(item)} title="Recipe research history"
-                className="w-7 h-7 rounded-md flex items-center justify-center text-purple-500 hover:bg-purple-50 transition-colors">
-                <ScrollText size={13} />
+                className="w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-purple-500 hover:bg-purple-50 transition-colors">
+                <ScrollText size={12} />
               </button>
             )}
             {ings.length > 0 && (
               <button onClick={() => onViewIngredients(item)} title="View ingredients"
-                className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
-                <Layers size={13} />
+                className="w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
+                <Layers size={12} />
               </button>
             )}
             <button onClick={() => onEdit(item)} title="Edit"
-              className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
-              <Edit2 size={13} />
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
+              <Edit2 size={12} />
             </button>
             <button onClick={() => onDelete(item)} title="Delete"
-              className="w-7 h-7 rounded-md flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors">
-              <Trash2 size={13} />
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors">
+              <Trash2 size={12} />
             </button>
           </div>
           <button
             onClick={() => onToggle(item, !item.is_active)}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+            className={`inline-flex items-center gap-1 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-xs font-semibold transition-colors ${
               item.is_active
                 ? "bg-green-100 text-green-700 hover:bg-red-50 hover:text-red-600"
                 : "bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600"
             }`}>
-            {item.is_active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
-            {item.is_active ? "Active" : "Inactive"}
+            {item.is_active ? <ToggleRight size={11} /> : <ToggleLeft size={11} />}
+            {item.is_active ? "Active" : "Off"}
           </button>
         </div>
       </div>
@@ -304,7 +304,13 @@ export default function FoodMenuPage() {
       : await create(itemData, restaurantIds, ings, addons, optGroups);
 
     if (error) toast.error((error as Error).message ?? "Save failed");
-    else { toast.success(editing ? "Updated!" : "Food added!"); setMenuOpen(false); }
+    else {
+      const msg = editing ? "Updated!" : restaurantIds.length > 1
+        ? `"${form.name}" added to ${restaurantIds.length} restaurants (each editable separately)`
+        : "Food added!";
+      toast.success(msg);
+      setMenuOpen(false);
+    }
     setSaving(false);
   };
 
@@ -355,13 +361,13 @@ export default function FoodMenuPage() {
     <div>
       <Header title="Food Menu" />
       <div className="p-6 space-y-4">
-        <div className="shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto bg-white rounded-xl border border-border">
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
+        <div className="shrink-0 flex flex-wrap items-center px-4 sm:px-6 py-3 border-b border-gray-100 gap-2 bg-white rounded-xl border border-border">
+          <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
             {/* Status tabs */}
             <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1 shrink-0">
               {(["active", "", "inactive"] as const).map((val, i) => (
                 <button key={i} onClick={() => setFilterStatus(val)}
-                  className={`h-7 px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                  className={`h-7 px-2.5 sm:px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
                     filterStatus === val ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                   }`}>
                   {val === "" ? "All" : val === "active" ? "Active" : "Inactive"}
@@ -369,7 +375,7 @@ export default function FoodMenuPage() {
               ))}
             </div>
             <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
-              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm">
+              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm max-w-[140px] sm:max-w-none">
               <option value="">All Categories</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -379,12 +385,12 @@ export default function FoodMenuPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="outline" size="md" onClick={() => setCatOpen(true)}>Categories</Button>
-            <Button size="md" onClick={openAdd}><Plus size={14} /> Add Food</Button>
+            <Button variant="outline" size="md" onClick={() => setCatOpen(true)} className="hidden sm:flex">Categories</Button>
+            <Button size="md" onClick={openAdd}><Plus size={14} /> <span className="hidden sm:inline">Add Food</span><span className="sm:hidden">Add</span></Button>
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search food..."
-                className="w-48 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..."
+                className="w-32 sm:w-48 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
             </div>
           </div>
         </div>
@@ -401,7 +407,7 @@ export default function FoodMenuPage() {
             <p className="text-sm text-gray-400">{search || filterStatus || filterCat ? "No results" : "No food items yet"}</p>
           </div>
         ) : view === "grid" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-[18px]">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 sm:gap-y-[18px]">
             {filtered.map((item) => (
               <FoodCard key={item.id} item={item} onEdit={openEdit}
                 onDelete={async (i) => { if (!confirm(`Delete "${i.name}"?`)) return; const { error } = await remove(i.id); if (error) toast.error(error.message); else toast.success("Deleted"); }}
@@ -593,7 +599,8 @@ export default function FoodMenuPage() {
 
           {/* Restaurants */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Restaurants</label>
+            <label className="block text-sm font-medium text-gray-700 mb-0.5">Restaurants</label>
+            {!editing && <p className="text-xs text-gray-400 mb-2">Selecting multiple restaurants creates an independent copy per restaurant — each can have a different price.</p>}
             <div className="flex flex-wrap gap-2">
               {restaurants.map((r) => (
                 <button key={r.id} type="button" onClick={() => toggleRestaurant(r.id)}

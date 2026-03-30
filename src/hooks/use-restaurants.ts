@@ -52,10 +52,14 @@ export function useRestaurants() {
 
   const update = async (id: string, data: Partial<Restaurant>) => {
     const supabase = createClient();
-    const { error } = await supabase
-      .from("restaurants")
-      .update(data)
-      .eq("id", id);
+    const { error } = await supabase.from("restaurants").update(data).eq("id", id);
+    // Graceful fallback: retry without social_links if column doesn't exist yet
+    if (error && (error as any)?.message?.includes("social_links")) {
+      const { social_links, ...rest } = data as any;
+      const { error: retryError } = await supabase.from("restaurants").update(rest).eq("id", id);
+      if (!retryError) await fetch();
+      return { error: retryError };
+    }
     if (!error) await fetch();
     return { error };
   };

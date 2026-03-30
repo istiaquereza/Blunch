@@ -150,7 +150,7 @@ function RestaurantsTab({ search = "" }: { search?: string }) {
       parent_id: form.parent_id || undefined,
       location: form.location || undefined, address: form.address || undefined,
       phone: form.phone || undefined, logo_url: form.logo_url || undefined,
-      // social_links column not yet in DB schema — omit to avoid PostgREST error
+      social_links: form.social_links.length > 0 ? form.social_links : undefined,
     };
     const { error } = editing ? await update(editing.id, payload) : await create(payload);
     if (error) toast.error(error.message);
