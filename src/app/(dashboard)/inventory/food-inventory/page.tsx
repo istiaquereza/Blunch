@@ -17,7 +17,7 @@ import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useVendors } from "@/hooks/use-vendors";
 import { useTransactions, useExpenseCategories } from "@/hooks/use-transactions";
 import { Select } from "@/components/ui/select";
-import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus, Printer, Pencil, RefreshCcw } from "lucide-react";
+import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus, Printer, Pencil, RefreshCcw, MoreVertical, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import type { FoodStock } from "@/types";
@@ -121,7 +121,7 @@ export default function FoodInventoryPage() {
   const { logs: movementLogs, loading: movementsLoading, fetchLogs: fetchMovements, createLog, clearLogs: clearMovements } = useFoodStockLogs(rid);
   const orderDrivenLogs = movementLogs.filter((l) => l.reason !== "manual_restock" && l.quantity_change < 0);
   // Stock In Summary: transactions table (source of truth for all restocks including older ones)
-  const { entries: stockInEntries, loading: stockInLoading, fetchEntries: fetchStockIn, clear: clearStockIn } = useRestockTransactions(rid);
+  const { entries: stockInEntries, loading: stockInLoading, fetchEntries: fetchStockIn, updateEntry: updateRestockEntry, deleteEntry: deleteRestockEntry, clear: clearStockIn } = useRestockTransactions(rid);
   const { methods: paymentMethods } = usePaymentMethods(rid);
   const { vendors } = useVendors();
   const { create: createTransaction } = useTransactions(rid);
@@ -141,6 +141,14 @@ export default function FoodInventoryPage() {
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "due">("paid");
   const [restockVendorId, setRestockVendorId] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Edit restock entry
+  const [editRestockOpen, setEditRestockOpen] = useState(false);
+  const [editRestockEntry, setEditRestockEntry] = useState<import("@/hooks/use-restock-transactions").RestockEntry | null>(null);
+  const [editRestockQty, setEditRestockQty] = useState("");
+  const [editRestockDate, setEditRestockDate] = useState("");
+  const [editRestockSaving, setEditRestockSaving] = useState(false);
+  const [restockMenuOpenId, setRestockMenuOpenId] = useState<string | null>(null);
 
   // Edit ingredient dialog
   const [editIngOpen, setEditIngOpen] = useState(false);
@@ -271,6 +279,62 @@ export default function FoodInventoryPage() {
 
     setEditIngOpen(false);
     setEditIngSaving(false);
+  };
+
+  const openEditRestock = (entry: import("@/hooks/use-restock-transactions").RestockEntry) => {
+    setEditRestockEntry(entry);
+    setEditRestockQty(String(entry.qty));
+    setEditRestockDate(entry.date);
+    setRestockMenuOpenId(null);
+    setEditRestockOpen(true);
+  };
+
+  const handleSaveRestock = async () => {
+    if (!editRestockEntry || !rid) return;
+    const newQty = parseFloat(editRestockQty);
+    if (isNaN(newQty) || newQty <= 0) { toast.error("Enter a valid quantity"); return; }
+    if (!editRestockDate) { toast.error("Date is required"); return; }
+    setEditRestockSaving(true);
+
+    const ingredient = ingredients.find((i) => i.name === stockInIngredientName);
+    const unitPrice = ingredient?.unit_price ?? stockInUnitPrice;
+    const unit = ingredient?.default_unit ?? stockInUnit;
+
+    const { error, oldQty, newQty: savedQty } = await updateRestockEntry(
+      editRestockEntry, newQty, editRestockDate, stockInIngredientName, unitPrice, unit
+    );
+    if (error) { toast.error((error as Error).message); setEditRestockSaving(false); return; }
+
+    // Adjust food_stock: remove old qty, add new qty
+    const delta = savedQty - oldQty;
+    if (delta !== 0 && ingredient) {
+      const stockItem = stock.find((s) => s.ingredient_id === ingredient.id);
+      const currentQty = stockItem?.quantity ?? 0;
+      await upsert(ingredient.id, Math.max(0, currentQty + delta));
+    }
+
+    await fetchStockIn(stockInIngredientName);
+    toast.success("Restock entry updated.");
+    setEditRestockOpen(false);
+    setEditRestockSaving(false);
+  };
+
+  const handleDeleteRestock = async (entry: import("@/hooks/use-restock-transactions").RestockEntry) => {
+    if (!rid) return;
+    setRestockMenuOpenId(null);
+    const ingredient = ingredients.find((i) => i.name === stockInIngredientName);
+    const { error } = await deleteRestockEntry(entry.id);
+    if (error) { toast.error((error as Error).message); return; }
+
+    // Subtract deleted qty from food_stock
+    if (ingredient) {
+      const stockItem = stock.find((s) => s.ingredient_id === ingredient.id);
+      const currentQty = stockItem?.quantity ?? 0;
+      await upsert(ingredient.id, Math.max(0, currentQty - entry.qty));
+    }
+
+    await fetchStockIn(stockInIngredientName);
+    toast.success("Restock entry deleted.");
   };
 
   const [reconciling, setReconciling] = useState(false);
@@ -610,7 +674,7 @@ export default function FoodInventoryPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-100">
-                        {["Ingredient", "Group", "Unit", "Unit Price", "Current Stock", "Stock Value", "Status", "Last Updated", "", "", "", ""].map((h, i) => (
+                        {["Ingredient", "Group", "Unit", "Unit Price", "Current Stock", "Stock Value", "Status", "Last Updated", "", "", ""].map((h, i) => (
                           <th key={i} className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">{h}</th>
                         ))}
                       </tr>
@@ -648,12 +712,6 @@ export default function FoodInventoryPage() {
                             <td className="px-2 py-3">
                               <Button variant="ghost" size="sm" title="Stock in summary" onClick={() => openStockIn(ingredient.id, ingredient.name, ingredient.default_unit, ingredient.unit_price)}>
                                 <PackagePlus size={13} />
-                              </Button>
-                            </td>
-                            {/* Edit Ingredient */}
-                            <td className="px-2 py-3">
-                              <Button variant="ghost" size="sm" title="Edit ingredient" onClick={() => openEditIngredient(ingredient, quantity)}>
-                                <Pencil size={13} />
                               </Button>
                             </td>
                           </tr>
@@ -780,23 +838,48 @@ export default function FoodInventoryPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Date & Time</th>
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Date</th>
                         <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Qty Added</th>
                         <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Cost</th>
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Reason</th>
+                        <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {stockInEntries.map((entry) => (
-                        <tr key={entry.id}>
-                          <td className="py-2.5 pr-3 text-gray-400 text-xs whitespace-nowrap">{format(new Date(entry.createdAt), "dd MMM yyyy, HH:mm")}</td>
+                        <tr key={entry.id} className="hover:bg-gray-50/50">
+                          <td className="py-2.5 pr-3 text-gray-500 text-xs whitespace-nowrap">{format(new Date(entry.date + "T12:00:00"), "dd MMM yyyy")}</td>
                           <td className="py-2.5 pr-3 text-right font-semibold text-xs text-green-600">
                             +{entry.qty.toFixed(2)} {stockInUnit}
                           </td>
                           <td className="py-2.5 pr-3 text-right text-xs text-gray-700 font-medium">
                             ৳{entry.amount.toFixed(2)}
                           </td>
-                          <td className="py-2.5 text-gray-400 text-xs">Manual restock</td>
+                          <td className="py-2.5 text-right">
+                            <div className="relative inline-block">
+                              <button
+                                onClick={() => setRestockMenuOpenId(restockMenuOpenId === entry.id ? null : entry.id)}
+                                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                              >
+                                <MoreVertical size={13} />
+                              </button>
+                              {restockMenuOpenId === entry.id && (
+                                <div className="absolute right-0 top-6 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
+                                  <button
+                                    onClick={() => openEditRestock(entry)}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                                  >
+                                    <Pencil size={11} /> Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteRestock(entry)}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                                  >
+                                    <Trash2 size={11} /> Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -806,6 +889,56 @@ export default function FoodInventoryPage() {
             </>
           )}
         </div>
+      </Dialog>
+
+      {/* ── Edit Restock Entry Dialog ── */}
+      <Dialog
+        open={editRestockOpen}
+        onOpenChange={setEditRestockOpen}
+        title="Edit Restock Entry"
+        footer={
+          <><Button variant="outline" onClick={() => setEditRestockOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveRestock} loading={editRestockSaving}>Save Changes</Button></>
+        }
+      >
+        {editRestockEntry && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg px-4 py-3">
+              <p className="font-medium text-gray-800">{stockInIngredientName}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Unit price: <strong>৳{stockInUnitPrice} / {stockInUnit}</strong>
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-700">Date</label>
+              <input
+                type="date"
+                value={editRestockDate}
+                max={(() => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; })()}
+                onChange={(e) => setEditRestockDate(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            </div>
+            <Input
+              label={`Quantity (${stockInUnit})`}
+              type="number" min="0.01" step="0.01"
+              value={editRestockQty}
+              onChange={(e) => setEditRestockQty(e.target.value)}
+            />
+            {parseFloat(editRestockQty) > 0 && !isNaN(parseFloat(editRestockQty)) && (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 space-y-1">
+                <p className="text-xs text-blue-700">
+                  New cost: <strong>৳{(parseFloat(editRestockQty) * stockInUnitPrice).toFixed(2)}</strong>
+                </p>
+                {parseFloat(editRestockQty) !== editRestockEntry.qty && (
+                  <p className="text-xs text-blue-500">
+                    Stock will adjust by <strong>{(parseFloat(editRestockQty) - editRestockEntry.qty) > 0 ? "+" : ""}{(parseFloat(editRestockQty) - editRestockEntry.qty).toFixed(2)} {stockInUnit}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Dialog>
 
       {/* ── Edit Ingredient Dialog ── */}

@@ -22,7 +22,6 @@ export function useRestockTransactions(restaurantId?: string) {
       if (!restaurantId) return;
       setLoading(true);
 
-      // Escape special SQL characters in ingredient name
       const safeName = ingredientName.replace(/[%_]/g, "\\$&");
 
       let q = supabase
@@ -33,7 +32,6 @@ export function useRestockTransactions(restaurantId?: string) {
         .ilike("description", `Stock restock: ${safeName}%`)
         .order("transaction_date", { ascending: false });
 
-      // transaction_date is YYYY-MM-DD — extract date part from ISO string
       if (dateFrom) q = q.gte("transaction_date", dateFrom.split("T")[0]);
       if (dateTo) q = q.lte("transaction_date", dateTo.split("T")[0]);
 
@@ -59,7 +57,31 @@ export function useRestockTransactions(restaurantId?: string) {
     [restaurantId]
   );
 
+  // Update a restock transaction: new qty and/or new date
+  // ingredientName and unitPrice are used to recalculate description + amount
+  const updateEntry = async (
+    entry: RestockEntry,
+    newQty: number,
+    newDate: string,
+    ingredientName: string,
+    unitPrice: number,
+    unit: string
+  ) => {
+    const newAmount = parseFloat((newQty * unitPrice).toFixed(2));
+    const newDesc = `Stock restock: ${ingredientName} +${newQty.toFixed(2)} ${unit}`;
+    const { error } = await supabase
+      .from("transactions")
+      .update({ amount: newAmount, description: newDesc, transaction_date: newDate })
+      .eq("id", entry.id);
+    return { error, oldQty: entry.qty, newQty, newAmount };
+  };
+
+  const deleteEntry = async (id: string) => {
+    const { error } = await supabase.from("transactions").delete().eq("id", id);
+    return { error };
+  };
+
   const clear = () => setEntries([]);
 
-  return { entries, loading, fetchEntries, clear };
+  return { entries, loading, fetchEntries, updateEntry, deleteEntry, clear };
 }
