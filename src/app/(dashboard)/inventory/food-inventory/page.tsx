@@ -15,10 +15,37 @@ import { useRestockTransactions } from "@/hooks/use-restock-transactions";
 import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useVendors } from "@/hooks/use-vendors";
 import { useTransactions, useExpenseCategories } from "@/hooks/use-transactions";
-import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus, Printer } from "lucide-react";
+import { Select } from "@/components/ui/select";
+import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus, Printer, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import type { FoodStock } from "@/types";
+
+const UNIT_OPTIONS: Record<string, string[]> = {
+  weight: ["mg", "g", "lb", "kg"],
+  volume: ["ml", "l", "cup", "tbsp"],
+  unit: ["cm", "m", "inch", "ft"],
+  quantity: ["pc", "dozen", "pack"],
+};
+const UNIT_TYPES = [
+  { value: "weight", label: "Weight" },
+  { value: "volume", label: "Volume" },
+  { value: "unit", label: "Unit (Length)" },
+  { value: "quantity", label: "Quantity" },
+];
+
+// Conversion to base unit: grams for weight, ml for volume
+const WEIGHT_BASE: Record<string, number> = { mg: 0.001, g: 1, lb: 453.592, kg: 1000 };
+const VOLUME_BASE: Record<string, number> = { ml: 1, l: 1000, cup: 236.588, tbsp: 14.787 };
+
+function convertQty(qty: number, fromUnit: string, toUnit: string, unitType: string): number {
+  if (fromUnit === toUnit || qty === 0) return qty;
+  const table = unitType === "weight" ? WEIGHT_BASE : unitType === "volume" ? VOLUME_BASE : null;
+  if (!table || !(fromUnit in table) || !(toUnit in table)) return qty;
+  return qty * (table[fromUnit] / table[toUnit]);
+}
+
+interface IngForm { name: string; unit_type: string; default_unit: string; unit_price: string; inventory_group_id: string; }
 
 const LOW_THRESHOLD = 5;
 const EMPTY_THRESHOLD = 0;
@@ -97,7 +124,7 @@ export default function FoodInventoryPage() {
   const { activeRestaurant } = useRestaurant();
   const rid = activeRestaurant?.id;
   const { stock, loading, upsert } = useFoodStock(rid);
-  const { ingredients } = useIngredients(rid);
+  const { ingredients, update: updateIngredient } = useIngredients(rid);
   const { groups } = useInventoryGroups(rid);
   // Movements: food_stock_logs (both in/out from orders + manual)
   const { logs: movementLogs, loading: movementsLoading, fetchLogs: fetchMovements, createLog, clearLogs: clearMovements } = useFoodStockLogs(rid);
@@ -123,6 +150,12 @@ export default function FoodInventoryPage() {
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "due">("paid");
   const [restockVendorId, setRestockVendorId] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Edit ingredient dialog
+  const [editIngOpen, setEditIngOpen] = useState(false);
+  const [editIngTarget, setEditIngTarget] = useState<{ id: string; current_qty: number; old_unit: string; old_unit_type: string } | null>(null);
+  const [editIngForm, setEditIngForm] = useState<IngForm>({ name: "", unit_type: "weight", default_unit: "g", unit_price: "", inventory_group_id: "" });
+  const [editIngSaving, setEditIngSaving] = useState(false);
 
   // Stock Movements dialog
   const [movementsOpen, setMovementsOpen] = useState(false);
@@ -183,6 +216,40 @@ export default function FoodInventoryPage() {
     setPaymentStatus("paid");
     setRestockVendorId("");
     setAdjustOpen(true);
+  };
+
+  const openEditIngredient = (ingredient: (typeof ingredients)[0], currentQty: number) => {
+    setEditIngTarget({ id: ingredient.id, current_qty: currentQty, old_unit: ingredient.default_unit, old_unit_type: ingredient.unit_type });
+    setEditIngForm({ name: ingredient.name, unit_type: ingredient.unit_type, default_unit: ingredient.default_unit, unit_price: String(ingredient.unit_price), inventory_group_id: ingredient.inventory_group_id ?? "" });
+    setEditIngOpen(true);
+  };
+
+  const handleSaveIngredient = async () => {
+    if (!editIngTarget) return;
+    if (!editIngForm.name.trim()) { toast.error("Name required"); return; }
+    const newPrice = parseFloat(editIngForm.unit_price);
+    if (isNaN(newPrice) || newPrice < 0) { toast.error("Valid unit price required"); return; }
+    setEditIngSaving(true);
+
+    const { error } = await updateIngredient(editIngTarget.id, {
+      name: editIngForm.name.trim(),
+      unit_type: editIngForm.unit_type as "weight" | "volume" | "unit" | "quantity",
+      default_unit: editIngForm.default_unit,
+      unit_price: newPrice,
+      inventory_group_id: editIngForm.inventory_group_id || undefined,
+    });
+    if (error) { toast.error(error.message); setEditIngSaving(false); return; }
+
+    // Auto-convert current stock quantity when unit changes
+    if (editIngTarget.old_unit !== editIngForm.default_unit && editIngTarget.current_qty > 0) {
+      const convertedQty = convertQty(editIngTarget.current_qty, editIngTarget.old_unit, editIngForm.default_unit, editIngTarget.old_unit_type);
+      const rounded = parseFloat(convertedQty.toFixed(6));
+      await upsert(editIngTarget.id, rounded);
+    }
+
+    toast.success("Ingredient updated! Stock quantity converted to new unit.");
+    setEditIngOpen(false);
+    setEditIngSaving(false);
   };
 
   const openMovements = (ingredientId: string, ingredientName: string) => {
@@ -469,7 +536,7 @@ export default function FoodInventoryPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-100">
-                        {["Ingredient", "Group", "Unit", "Unit Price", "Current Stock", "Stock Value", "Status", "Last Updated", "", "", ""].map((h, i) => (
+                        {["Ingredient", "Group", "Unit", "Unit Price", "Current Stock", "Stock Value", "Status", "Last Updated", "", "", "", ""].map((h, i) => (
                           <th key={i} className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">{h}</th>
                         ))}
                       </tr>
@@ -507,6 +574,12 @@ export default function FoodInventoryPage() {
                             <td className="px-2 py-3">
                               <Button variant="ghost" size="sm" title="Stock in summary" onClick={() => openStockIn(ingredient.id, ingredient.name, ingredient.default_unit, ingredient.unit_price)}>
                                 <PackagePlus size={13} />
+                              </Button>
+                            </td>
+                            {/* Edit Ingredient */}
+                            <td className="px-2 py-3">
+                              <Button variant="ghost" size="sm" title="Edit ingredient" onClick={() => openEditIngredient(ingredient, quantity)}>
+                                <Pencil size={13} />
                               </Button>
                             </td>
                           </tr>
@@ -658,6 +731,47 @@ export default function FoodInventoryPage() {
               )}
             </>
           )}
+        </div>
+      </Dialog>
+
+      {/* ── Edit Ingredient Dialog ── */}
+      <Dialog
+        open={editIngOpen}
+        onOpenChange={setEditIngOpen}
+        title="Edit Ingredient"
+        footer={
+          <><Button variant="outline" onClick={() => setEditIngOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveIngredient} loading={editIngSaving}>Save Changes</Button></>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Ingredient Name" value={editIngForm.name} onChange={(e) => setEditIngForm(p => ({ ...p, name: e.target.value }))} />
+          <Select label="Unit Type" value={editIngForm.unit_type}
+            onChange={(e) => setEditIngForm(p => ({ ...p, unit_type: e.target.value, default_unit: UNIT_OPTIONS[e.target.value]?.[0] ?? "" }))}
+            options={UNIT_TYPES}
+          />
+          <Select label="Default Unit" value={editIngForm.default_unit}
+            onChange={(e) => setEditIngForm(p => ({ ...p, default_unit: e.target.value }))}
+            options={(UNIT_OPTIONS[editIngForm.unit_type] ?? []).map(u => ({ value: u, label: u }))}
+          />
+          <Input label={`Unit Price (৳ per ${editIngForm.default_unit})`} type="number" min="0" step="0.01" placeholder="0.00"
+            value={editIngForm.unit_price} onChange={(e) => setEditIngForm(p => ({ ...p, unit_price: e.target.value }))}
+          />
+          {editIngTarget && editIngTarget.old_unit !== editIngForm.default_unit && editIngTarget.current_qty > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-700">
+              <p className="font-semibold mb-1">Unit conversion will apply</p>
+              <p>Current stock <strong>{editIngTarget.current_qty} {editIngTarget.old_unit}</strong> will be converted to <strong>{parseFloat(convertQty(editIngTarget.current_qty, editIngTarget.old_unit, editIngForm.default_unit, editIngTarget.old_unit_type).toFixed(6))} {editIngForm.default_unit}</strong>.</p>
+              <p className="mt-1 text-amber-600">Note: past expense transactions will not be changed. You can correct them from the Income & Expenses page.</p>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-700">Inventory Group</label>
+            <select value={editIngForm.inventory_group_id} onChange={(e) => setEditIngForm(p => ({ ...p, inventory_group_id: e.target.value }))}
+              className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+              <option value="">No group</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
         </div>
       </Dialog>
 
