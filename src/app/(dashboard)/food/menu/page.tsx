@@ -112,7 +112,7 @@ function FoodCard({ item, onEdit, onDelete, onToggle, onViewHistory, onViewIngre
       <div className="p-2 sm:p-2.5 flex flex-col flex-1 gap-1.5 sm:gap-2">
         {/* Name + Category */}
         <div className="min-w-0">
-          <p className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight truncate">{item.name}</p>
+          <p className="text-gray-700 text-xs sm:text-sm leading-tight truncate">{item.name}</p>
           {item.food_categories && (
             <span className="text-[9px] sm:text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full mt-0.5 inline-block truncate max-w-full">{item.food_categories.name}</span>
           )}
@@ -361,7 +361,7 @@ export default function FoodMenuPage() {
     <div>
       <Header title="Food Menu" />
       <div className="p-6 space-y-4">
-        <div className="shrink-0 flex flex-wrap items-center px-4 sm:px-6 py-3 border-b border-gray-100 gap-2 bg-white rounded-xl border border-border">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
           <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
             {/* Status tabs */}
             <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1 shrink-0">
@@ -375,7 +375,7 @@ export default function FoodMenuPage() {
               ))}
             </div>
             <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
-              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm max-w-[140px] sm:max-w-none">
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent max-w-[140px] sm:max-w-none">
               <option value="">All Categories</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -541,7 +541,7 @@ export default function FoodMenuPage() {
               ) : (
                 <div className="flex gap-2">
                   <select value={form.food_category_id} onChange={(e) => setForm((p) => ({ ...p, food_category_id: e.target.value }))}
-                    className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827]">
+                    className="flex-1 h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                     <option value="">No category</option>
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -633,7 +633,7 @@ export default function FoodMenuPage() {
                   return (
                     <div key={idx} className="flex items-center gap-2">
                       <select value={row.ingredient_id} onChange={(e) => setIngRow(idx, "ingredient_id", e.target.value)}
-                        className="flex-1 h-8 px-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827]">
+                        className="flex-1 h-8 px-2 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                         <option value="">Select ingredient</option>
                         {ingredients.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
                       </select>

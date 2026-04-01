@@ -222,7 +222,7 @@ function RestaurantsTab({ search = "" }: { search?: string }) {
       <div className="bg-white rounded-xl border border-border shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="font-semibold text-gray-900">Restaurants & Outlets</h2>
+            <h2 className="text-gray-700">Restaurants & Outlets</h2>
             <p className="text-sm text-gray-500 mt-0.5">Add your restaurants and outlets</p>
           </div>
           <Button onClick={openAdd} size="md"><Plus size={14} /> Add Restaurant</Button>
@@ -311,7 +311,7 @@ function RestaurantsTab({ search = "" }: { search?: string }) {
                 <select
                   value={sl.platform}
                   onChange={(e) => updateSocialLink(i, "platform", e.target.value)}
-                  className="h-9 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white shrink-0 w-36">
+                  className="h-9 px-2 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent shrink-0 w-36">
                   {SOCIAL_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
                 <input
@@ -376,7 +376,7 @@ function PaymentMethodsTab({ rid, onChangeRid, restaurants }: { rid: string; onC
       <div className="bg-white rounded-xl border border-border shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="font-semibold text-gray-900">Payment Methods</h2>
+            <h2 className="text-gray-700">Payment Methods</h2>
             <p className="text-sm text-gray-500 mt-0.5">Configure accepted payment options</p>
           </div>
           <div className="flex items-center gap-2">
@@ -486,7 +486,7 @@ function BillingTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRi
       <div className="bg-white rounded-xl border border-border shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="font-semibold text-gray-900">VAT & Service Charge</h2>
+            <h2 className="text-gray-700">VAT & Service Charge</h2>
             <p className="text-sm text-gray-500 mt-0.5">Configure tax and service charge for orders</p>
           </div>
           <RestaurantPicker restaurants={restaurants} rid={rid} onChangeRid={onChangeRid} />
@@ -504,7 +504,7 @@ function BillingTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRi
 
       <div className="bg-white rounded-xl border border-border shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-          <div><h2 className="font-semibold text-gray-900">Discounts</h2><p className="text-sm text-gray-500 mt-0.5">Create reusable discounts for orders</p></div>
+          <div><h2 className="text-gray-700">Discounts</h2><p className="text-sm text-gray-500 mt-0.5">Create reusable discounts for orders</p></div>
           <Button size="md" onClick={openAddDiscount}><Plus size={14} /> Add Discount</Button>
           {/* no extra picker here — VAT section already has it */}
         </div>
@@ -573,7 +573,7 @@ function BillingTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRi
               <select
                 value={dForm.food_item_id}
                 onChange={(e) => setDForm((p) => ({ ...p, food_item_id: e.target.value }))}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent"
+                className="w-full h-10 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 <option value="">— Select item —</option>
                 {foodItems.map((item) => (
@@ -623,7 +623,7 @@ function TablesTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid
     <div className="bg-white rounded-xl border border-border shadow-sm">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
         <div>
-          <h2 className="font-semibold text-gray-900">Table Management</h2>
+          <h2 className="text-gray-700">Table Management</h2>
           <p className="text-sm text-gray-500 mt-0.5">Manage seating tables and sections</p>
         </div>
         <RestaurantPicker restaurants={restaurants} rid={rid} onChangeRid={onChangeRid} />
@@ -706,7 +706,7 @@ function PrintTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid:
     <div className="bg-white rounded-xl border border-border shadow-sm">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
         <div>
-          <h2 className="font-semibold text-gray-900">Print Settings</h2>
+          <h2 className="text-gray-700">Print Settings</h2>
           <p className="text-sm text-gray-500 mt-0.5">Configure what appears on printed bills and receipts</p>
         </div>
         <RestaurantPicker restaurants={restaurants} rid={rid} onChangeRid={onChangeRid} />
@@ -884,7 +884,7 @@ function TeamTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid: 
       <div className="bg-white rounded-xl border border-border shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="font-semibold text-gray-900">Team Members</h2>
+            <h2 className="text-gray-700">Team Members</h2>
             <p className="text-sm text-gray-500 mt-0.5">Control who has access to this restaurant</p>
           </div>
           <div className="flex items-center gap-2">
@@ -941,7 +941,7 @@ function TeamTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid: 
                           <select
                             value={m.role}
                             onChange={(e) => updateRole(m.id, e.target.value as AppUserRoleType)}
-                            className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-gray-900 ${meta.color}`}>
+                            className={`text-sm font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${meta.color}`}>
                             {ROLE_OPTIONS.map((r) => (
                               <option key={r} value={r}>{ROLE_META[r].label}</option>
                             ))}
@@ -989,7 +989,7 @@ function TeamTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid: 
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-gray-700">Role</label>
               <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as AppUserRoleType }))}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white">
+                className="w-full h-10 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 {ROLE_OPTIONS.map((r) => (
                   <option key={r} value={r}>{ROLE_META[r].label}</option>
                 ))}

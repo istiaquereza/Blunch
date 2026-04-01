@@ -178,7 +178,7 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
   const initials = userName ? userName[0].toUpperCase() : userEmail ? userEmail[0].toUpperCase() : "U";
 
   return (
-    <aside className="w-64 shrink-0 h-full flex flex-col" style={{ backgroundColor: "#F4F4F5" }}>
+    <aside className="w-64 shrink-0 h-full flex flex-col" style={{ backgroundColor: "#F9F8F5" }}>
       {/* Logo */}
       <div className="px-5 pt-6 pb-5 flex items-center justify-between">
         <p

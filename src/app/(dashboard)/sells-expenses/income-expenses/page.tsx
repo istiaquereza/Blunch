@@ -204,7 +204,7 @@ function PayrollForm({
         <select
           value={staffId}
           onChange={(e) => { setStaffId(e.target.value); setError(""); }}
-          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
         >
           <option value="">Select staff…</option>
           {staff.map((s) => (
@@ -299,7 +299,7 @@ function PayrollForm({
         <select
           value={paymentMethodId}
           onChange={(e) => setPaymentMethodId(e.target.value)}
-          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
         >
           <option value="">Not specified</option>
           {paymentMethods.map((pm) => (
@@ -550,7 +550,7 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantI
               <select
                 value={form.category_id}
                 onChange={(e) => { set("category_id", e.target.value); setError(""); }}
-                className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${!form.category_id ? "border-orange-300" : "border-gray-200"}`}
+                className={`w-full h-9 px-3 rounded-md bg-white shadow-sm text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${!form.category_id ? "ring-1 ring-inset ring-orange-300" : "border border-gray-200"}`}
               >
                 <option value="">Select category…</option>
                 {filteredCats.map((c) => (
@@ -565,7 +565,7 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantI
             <select
               value={form.payment_method_id}
               onChange={(e) => { set("payment_method_id", e.target.value); setError(""); }}
-              className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${!form.payment_method_id ? "border-orange-300" : "border-gray-200"}`}
+              className={`w-full h-9 px-3 rounded-md bg-white shadow-sm text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${!form.payment_method_id ? "ring-1 ring-inset ring-orange-300" : "border border-gray-200"}`}
             >
               <option value="">Select payment method…</option>
               {paymentMethods.map((pm) => {
@@ -647,7 +647,7 @@ function CategoryManager({ categories, onCreate, onRemove }: CategoryManagerProp
         <select
           value={type}
           onChange={(e) => setType(e.target.value as "expense" | "income")}
-          className="h-9 px-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="h-9 px-2 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
         >
           <option value="expense">Expense</option>
           <option value="income">Income</option>
@@ -770,7 +770,7 @@ export default function IncomeExpensesPage() {
                   setDateTo(to);
                 }
               }}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             >
               {PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -792,7 +792,7 @@ export default function IncomeExpensesPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
@@ -1311,7 +1311,7 @@ export default function IncomeExpensesPage() {
               <select
                 value={markPaidPmId}
                 onChange={(e) => setMarkPaidPmId(e.target.value)}
-                className="w-full h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 shadow-sm"
+                className="w-full h-9 px-[14px] rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 <option value="">Select payment method…</option>
                 {paymentMethods.map((pm) => (

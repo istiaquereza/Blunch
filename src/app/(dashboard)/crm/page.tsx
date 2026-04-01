@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -64,14 +65,20 @@ function CustomerForm({ initial, onSave, onClose }: CustomerFormProps) {
   );
 }
 
-function DeleteConfirm({ customer, onConfirm, onClose }: { customer: Customer; onConfirm: () => Promise<void>; onClose: () => void }) {
+function DeleteConfirm({ customer, onConfirm, onClose }: { customer: Customer; onConfirm: () => Promise<{ error: any }>; onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-600">Remove <span className="font-semibold text-gray-900">{customer.name}</span> from your customer list? This action cannot be undone.</p>
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button variant="danger" loading={loading} onClick={async () => { setLoading(true); await onConfirm(); setLoading(false); onClose(); }}>Remove Customer</Button>
+        <Button variant="danger" loading={loading} onClick={async () => {
+          setLoading(true);
+          const { error } = await onConfirm();
+          setLoading(false);
+          if (error) { toast.error("Failed to remove: " + (error?.message ?? "Unknown error")); return; }
+          onClose();
+        }}>Remove Customer</Button>
       </div>
     </div>
   );
@@ -387,7 +394,7 @@ export default function CRMPage() {
         {editTarget && <CustomerForm initial={editTarget} onSave={(name, phone) => update(editTarget.id, name, phone)} onClose={() => setEditTarget(null)} />}
       </Dialog>
       <Dialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }} title="Remove Customer">
-        {deleteTarget && <DeleteConfirm customer={deleteTarget} onConfirm={async () => { await remove(deleteTarget.id); }} onClose={() => setDeleteTarget(null)} />}
+        {deleteTarget && <DeleteConfirm customer={deleteTarget} onConfirm={() => remove(deleteTarget.id)} onClose={() => setDeleteTarget(null)} />}
       </Dialog>
     </>
   );

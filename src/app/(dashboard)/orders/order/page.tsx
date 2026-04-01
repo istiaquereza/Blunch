@@ -391,10 +391,10 @@ function OrderCard({
       className={`w-full md:flex-shrink-0 md:w-72 flex flex-col bg-white rounded-2xl border-2 transition-all overflow-y-auto shadow-sm ${
         isActive ? "border-orange-400 shadow-orange-100 shadow-md" : "border-gray-200 hover:border-gray-300 cursor-pointer"
       }`}
-      style={{ maxHeight: "calc(100vh - 140px)" }}
+      style={{ maxHeight: "calc(100vh - 220px)" }}
     >
       {/* Card header */}
-      <div className={`flex items-center justify-between px-3 py-2.5 border-b ${isActive ? "bg-orange-50 border-orange-100" : "bg-gray-50 border-gray-100"}`}>
+      <div className={`shrink-0 flex items-center justify-between px-3 py-2.5 border-b ${isActive ? "bg-orange-50 border-orange-100" : "bg-gray-50 border-gray-100"}`}>
         <div className="flex items-center gap-2">
           <span className={`text-xs font-bold ${isActive ? "text-orange-700" : "text-gray-600"}`}>
             {draft.orderNumber ?? draft.label}
@@ -430,7 +430,7 @@ function OrderCard({
       </div>
 
       {/* Order type + table */}
-      <div className="px-3 py-2 border-b border-gray-50 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+      <div className="shrink-0 px-3 py-2 border-b border-gray-50 space-y-1.5" onClick={(e) => e.stopPropagation()}>
         <div className="flex rounded-lg border border-gray-200 overflow-hidden">
           {(["dine_in", "takeaway"] as const).map((t) => (
             <button
@@ -450,7 +450,7 @@ function OrderCard({
             disabled={locked}
             value={draft.tableId}
             onChange={(e) => onUpdate({ tableId: e.target.value })}
-            className={`w-full h-7 px-2 rounded-lg border text-xs disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400 ${!draft.tableId && !locked ? "border-red-400 bg-red-50" : "border-gray-200"}`}
+            className={`w-full h-7 px-2 rounded-md bg-white shadow-sm text-sm text-gray-700 hover:bg-gray-50 disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${!draft.tableId && !locked ? "ring-1 ring-inset ring-red-400" : "border border-gray-200"}`}
           >
             <option value="">Select table…</option>
             {activeTables.map((t) => {
@@ -607,7 +607,7 @@ function OrderCard({
                 const newTotals = calcTotals(draft.cart, discounts, newId, billing, newId ? "none" : draft.customDiscountType, draft.customDiscountValue);
                 onUpdate({ discountId: newId, customDiscountType: newId ? "none" : draft.customDiscountType, savedTotals: newTotals });
               }}
-              className="w-full h-7 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none"
+              className="w-full h-7 px-2 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             >
               <option value="">— Campaign discount —</option>
               {activeDiscounts.map((d) => (
@@ -737,7 +737,7 @@ function OrderCard({
             <div className="relative">
               <CreditCard size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 z-10" />
               <select value={draft.paymentMethodId} onChange={(e) => onUpdate({ paymentMethodId: e.target.value })}
-                className="w-full h-7 pl-6 pr-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400 bg-white appearance-none">
+                className="w-full h-7 pl-6 pr-2 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent appearance-none">
                 <option value="">Payment method *</option>
                 {activePayments.map((p) => {
                   const bal = pmBalances[p.id];
@@ -1150,12 +1150,13 @@ export default function NewOrderPage() {
     const draft = drafts.find((d) => d.draftId === draftId);
     if (!draft) return;
 
-    if (draft.stage === "billing" && draft.savedOrderId) {
-      // Billed orders need confirmation before cancelling
-      setCancelConfirmId(draftId);
-    } else {
-      // Building stage (or done) — cancel in DB silently if needed, then remove
+    const hasActivity = draft.cart.length > 0 || !!draft.savedOrderId;
+    if (draft.stage === "done" || !hasActivity) {
+      // Empty / completed orders — remove silently
       performClose(draftId);
+    } else {
+      // Has items or is already saved — always ask before cancelling
+      setCancelConfirmId(draftId);
     }
   };
 
@@ -1467,126 +1468,126 @@ export default function NewOrderPage() {
     <>
       <Header title="New Order" />
 
-      <div className="flex h-[calc(100vh-56px)] md:h-[calc(100vh-56px)] overflow-hidden">
+      <div className="flex flex-col h-[calc(100vh-62px)] overflow-hidden p-4 gap-4 bg-[#FAFAFA]">
 
-        {/* ── LEFT: Menu ── */}
-        <div className={`hidden md:flex w-full md:w-[340px] md:shrink-0 flex-col border-r border-gray-100 bg-white overflow-hidden`}>
-          {/* Search + category */}
-          <div className="p-3 space-y-2 border-b border-gray-100">
-            <div className="relative">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search menu…"
-                className="w-full h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <button onClick={() => setActiveCategory("all")}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === "all" ? "bg-[#111827] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                All
-              </button>
-              {categories.map((cat) => (
-                <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat.id ? "bg-[#111827] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                  {cat.name}
-                </button>
+        {/* ── Toolbar card ── */}
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-700">Active Orders</span>
+            <span className="bg-orange-100 text-orange-600 text-xs font-bold px-2 py-0.5 rounded-full">
+              {drafts.filter((d) => d.stage !== "done").length}
+            </span>
+            {loadingOrders && <span className="text-xs text-gray-400">Loading…</span>}
+          </div>
+          <div className="flex-1" />
+          {/* Staff selector */}
+          {staffList.length > 0 && (
+            <select
+              value={currentStaffName}
+              onChange={(e) => selectStaff(e.target.value)}
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            >
+              <option value="">🧑‍🍳 Staff</option>
+              {staffList.map((s) => (
+                <option key={s.id} value={s.name}>{s.name}</option>
               ))}
-            </div>
-          </div>
-
-          {/* Menu grid */}
-          <div className="flex-1 overflow-y-auto p-3">
-            {menuLoading ? (
-              <p className="text-center text-sm text-gray-400 py-8">Loading menu…</p>
-            ) : !activeRestaurant ? (
-              <p className="text-center text-sm text-gray-400 py-8">Select a restaurant first.</p>
-            ) : menuItems.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-8">No items found.</p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 gap-2">
-                {menuItems.map((item) => (
-                  <MenuCard
-                    key={item.id}
-                    item={item}
-                    onAdd={() => addToCart(item)}
-                    disabled={!activeDraft || activeDraft.stage !== "building"}
-                    cartQty={drafts.filter(d => d.stage !== "done").reduce((sum, d) => sum + (d.cart.find(c => c.foodItem.id === item.id)?.quantity ?? 0), 0)}
-                    stockInfo={itemStockInfo.get(item.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+            </select>
+          )}
+          <button
+            onClick={addNewOrder}
+            className="h-9 px-4 rounded-lg bg-[#111827] hover:bg-black text-white text-sm font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+          >
+            <Plus size={15} /> New Order
+          </button>
         </div>
 
-        {/* ── RIGHT: Order cards ── */}
-        <div className={`flex flex-1 overflow-hidden flex-col bg-gray-50`}>
-          {/* Toolbar */}
-          <div className="shrink-0 h-[62px] flex items-center justify-between px-6 border-b border-gray-100 bg-white gap-4 overflow-x-auto">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700">Active Orders</span>
-              <span className="bg-orange-100 text-orange-600 text-xs font-bold px-2 py-0.5 rounded-full">
-                {drafts.filter((d) => d.stage !== "done").length}
-              </span>
-              {loadingOrders && <span className="text-xs text-gray-400">Loading…</span>}
+        {/* ── Content card: menu left | orders right ── */}
+        <div className="flex-1 bg-white rounded-xl border border-border shadow-sm overflow-hidden flex min-h-0">
+
+          {/* LEFT: Menu */}
+          <div className="hidden md:flex w-[320px] shrink-0 flex-col border-r border-border overflow-hidden">
+            {/* Search + category */}
+            <div className="p-3 space-y-2 border-b border-border shrink-0">
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search menu…"
+                  className="w-full h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => setActiveCategory("all")}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === "all" ? "bg-[#111827] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  All
+                </button>
+                {categories.map((cat) => (
+                  <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat.id ? "bg-[#111827] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {/* Staff selector */}
-              {staffList.length > 0 && (
-                <select
-                  value={currentStaffName}
-                  onChange={(e) => selectStaff(e.target.value)}
-                  className="h-9 px-3 rounded-xl border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-                >
-                  <option value="">🧑‍🍳 Staff</option>
-                  {staffList.map((s) => (
-                    <option key={s.id} value={s.name}>{s.name}</option>
+            {/* Menu grid */}
+            <div className="flex-1 overflow-y-auto p-3">
+              {menuLoading ? (
+                <p className="text-center text-sm text-gray-400 py-8">Loading menu…</p>
+              ) : !activeRestaurant ? (
+                <p className="text-center text-sm text-gray-400 py-8">Select a restaurant first.</p>
+              ) : menuItems.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-8">No items found.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {menuItems.map((item) => (
+                    <MenuCard
+                      key={item.id}
+                      item={item}
+                      onAdd={() => addToCart(item)}
+                      disabled={!activeDraft || activeDraft.stage !== "building"}
+                      cartQty={drafts.filter(d => d.stage !== "done").reduce((sum, d) => sum + (d.cart.find(c => c.foodItem.id === item.id)?.quantity ?? 0), 0)}
+                      stockInfo={itemStockInfo.get(item.id)}
+                    />
                   ))}
-                </select>
+                </div>
               )}
-              <button
-                onClick={addNewOrder}
-                className="h-9 px-4 rounded-xl bg-[#111827] hover:bg-black text-white text-sm font-semibold flex items-center gap-1.5 transition-colors"
-              >
-                <Plus size={15} /> New Order
-              </button>
             </div>
           </div>
 
-          {/* Cards area — vertical scroll on mobile, horizontal on desktop */}
-          <div className="flex-1 overflow-y-auto md:overflow-x-auto md:overflow-y-hidden">
-            <div className="flex flex-col md:flex-row gap-4 p-6 md:h-full md:items-start">
-              {drafts.map((draft) => (
-                <OrderCard
-                  key={draft.draftId}
-                  draft={draft}
-                  isActive={draft.draftId === activeDraftId}
-                  restaurantName={activeRestaurant?.name ?? "Restaurant"}
-                  tables={tables as any}
-                  usedTableIds={new Set(drafts.filter(d => d.draftId !== draft.draftId && d.tableId && d.stage !== "done").map(d => d.tableId))}
-                  paymentMethods={paymentMethods as any}
-                  pmBalances={pmBalances}
-                  discounts={discounts as any}
-                  billing={billing as any}
-                  customers={customers}
-                  onActivate={() => setActiveDraftId(draft.draftId)}
-                  onClose={() => handleCloseRequest(draft.draftId)}
-                  onUpdate={(patch) => updateDraft(draft.draftId, patch)}
-                  onKitchenPrint={() => handleKitchenPrint(draft.draftId)}
-                  onBill={() => handleBill(draft.draftId)}
-                  onComplete={() => handleComplete(draft.draftId)}
-                  onAddFood={() => { setActiveDraftId(draft.draftId); setMobileMenuOpen(true); }}
-                  onConfirmCustomerOrder={draft.isCustomerOrder ? () => { setConfirmModalDraftId(draft.draftId); setConfirmMinutes("25"); } : undefined}
-                  saving={savingDraftId === draft.draftId}
-                />
-              ))}
-
-              {/* Add new order card */}
-              <button
-                onClick={addNewOrder}
-                className="w-full md:flex-shrink-0 md:w-44 min-h-[80px] md:min-h-[200px] rounded-2xl border-2 border-dashed border-gray-200 hover:border-orange-300 hover:bg-orange-50 flex flex-col items-center justify-center gap-2 text-gray-300 hover:text-orange-400 transition-all"
-              >
-                <Plus size={28} />
-                <span className="text-sm font-medium">New Order</span>
-              </button>
+          {/* RIGHT: Order cards */}
+          <div className="flex-1 overflow-hidden flex flex-col bg-gray-50/40">
+            <div className="flex-1 overflow-y-auto md:overflow-x-auto">
+              <div className="flex flex-col md:flex-row gap-4 p-4 md:h-full md:items-start">
+                {drafts.map((draft) => (
+                  <OrderCard
+                    key={draft.draftId}
+                    draft={draft}
+                    isActive={draft.draftId === activeDraftId}
+                    restaurantName={activeRestaurant?.name ?? "Restaurant"}
+                    tables={tables as any}
+                    usedTableIds={new Set(drafts.filter(d => d.draftId !== draft.draftId && d.tableId && d.stage !== "done").map(d => d.tableId))}
+                    paymentMethods={paymentMethods as any}
+                    pmBalances={pmBalances}
+                    discounts={discounts as any}
+                    billing={billing as any}
+                    customers={customers}
+                    onActivate={() => setActiveDraftId(draft.draftId)}
+                    onClose={() => handleCloseRequest(draft.draftId)}
+                    onUpdate={(patch) => updateDraft(draft.draftId, patch)}
+                    onKitchenPrint={() => handleKitchenPrint(draft.draftId)}
+                    onBill={() => handleBill(draft.draftId)}
+                    onComplete={() => handleComplete(draft.draftId)}
+                    onAddFood={() => { setActiveDraftId(draft.draftId); setMobileMenuOpen(true); }}
+                    onConfirmCustomerOrder={draft.isCustomerOrder ? () => { setConfirmModalDraftId(draft.draftId); setConfirmMinutes("25"); } : undefined}
+                    saving={savingDraftId === draft.draftId}
+                  />
+                ))}
+                {/* Add new order card */}
+                <button
+                  onClick={addNewOrder}
+                  className="w-full md:flex-shrink-0 md:w-44 min-h-[80px] md:min-h-[200px] rounded-2xl border-2 border-dashed border-gray-200 hover:border-orange-300 hover:bg-orange-50 flex flex-col items-center justify-center gap-2 text-gray-300 hover:text-orange-400 transition-all"
+                >
+                  <Plus size={28} />
+                  <span className="text-sm font-medium">New Order</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1661,7 +1662,9 @@ export default function NewOrderPage() {
                   <h3 className="text-lg font-bold text-gray-900">Cancel Order?</h3>
                   <p className="text-sm text-gray-500 mt-1">
                     <span className="font-semibold text-gray-700">{draft?.orderNumber ?? draft?.label}</span>
-                    {" "}is already billed. Cancelling will mark it as cancelled and cannot be undone.
+                    {draft?.stage === "billing"
+                      ? " is already billed. Cancelling will mark it as cancelled and cannot be undone."
+                      : " has items added. Cancelling will discard this order."}
                   </p>
                 </div>
               </div>

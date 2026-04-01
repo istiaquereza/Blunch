@@ -140,7 +140,7 @@ function CustomTooltip({ active, payload, label }: {
     <div className="bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs">
       <p className="text-gray-500 mb-1">{label}</p>
       {payload.map((p, i) => (
-        <p key={i} className="font-semibold text-gray-900">
+        <p key={i} className="text-gray-700">
           {typeof p.value === "number" && p.name === "revenue"
             ? fmt(p.value)
             : p.value}
@@ -481,13 +481,13 @@ export default function AnalyticsPage() {
       <div className="p-6 space-y-5">
 
         {/* ── Filter bar ── */}
-        <div className="shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto bg-white rounded-xl border border-border">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
             {/* Restaurant selector */}
             {restaurants.length > 1 && (
               <select
                 value={selectedRestaurantId}
                 onChange={(e) => setSelectedRestaurantId(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 <option value="all">All Restaurants</option>
                 {restaurants.map((r) => (
@@ -500,7 +500,7 @@ export default function AnalyticsPage() {
             <select
               value={preset}
               onChange={(e) => handlePreset(e.target.value as DatePreset)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             >
               {PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -608,7 +608,7 @@ export default function AnalyticsPage() {
               <select
                 value={tableLimit ?? "all"}
                 onChange={(e) => setTableLimit(e.target.value === "all" ? null : Number(e.target.value))}
-                className="h-8 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#111827]"
+                className="h-8 px-2 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 <option value="all">Show all</option>
                 <option value="30">30</option>
@@ -658,7 +658,7 @@ export default function AnalyticsPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500">{row.itemCount} items</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{row.timesOrdered}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">{row.qtySold}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{row.qtySold}</td>
                         <td className="px-4 py-3 text-sm font-semibold text-green-600">{fmt(row.revenue)}</td>
                         <td className="px-4 py-3 min-w-[140px]">
                           <div className="flex items-center gap-2">
@@ -733,7 +733,7 @@ export default function AnalyticsPage() {
                             <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 text-xs">{row.category}</span>
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700">{row.timesOrdered}</td>
-                          <td className="px-4 py-3 text-sm font-semibold text-gray-900">{row.qtySold}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{row.qtySold}</td>
                           <td className="px-4 py-3 text-sm font-semibold text-green-600">{fmt(row.revenue)}</td>
                           <td className="px-4 py-3 min-w-[120px]">
                             <div className="flex items-center gap-2">
@@ -797,7 +797,7 @@ export default function AnalyticsPage() {
                           style={{ background: COLORS[i % COLORS.length] }}
                         />
                         <span className="text-xs text-gray-700 flex-1 truncate">{c.name}</span>
-                        <span className="text-xs font-semibold text-gray-900">{pct.toFixed(1)}%</span>
+                        <span className="text-xs text-gray-700">{pct.toFixed(1)}%</span>
                       </div>
                     );
                   })}
@@ -911,7 +911,7 @@ export default function AnalyticsPage() {
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.name}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{fmt(row.sellPrice)}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{fmt(row.ingredientCost)}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                        <td className="px-4 py-3 text-sm text-gray-700">
                           {row.profit >= 0 ? "+" : ""}{fmt(row.profit)}
                         </td>
                         <td className="px-4 py-3">

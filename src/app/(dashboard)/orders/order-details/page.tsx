@@ -811,7 +811,7 @@ export default function OrderDetailsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white appearance-none cursor-pointer"
+              className="h-9 pl-3 pr-8 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent appearance-none cursor-pointer"
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -874,7 +874,7 @@ export default function OrderDetailsPage() {
         ) : (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-              <p className="text-sm font-semibold text-gray-900">Orders</p>
+              <p className="text-sm text-gray-700">Orders</p>
               <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full font-medium">
                 {filteredOrders.length} {filteredOrders.length === 1 ? "order" : "orders"}
               </span>

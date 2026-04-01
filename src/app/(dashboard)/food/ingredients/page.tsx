@@ -111,27 +111,26 @@ export default function IngredientsPage() {
       <Header title="Food Ingredients" hideRestaurantSelector={true} />
       <div className="p-6 space-y-4">
         {/* Toolbar */}
-        <div className="shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto bg-white rounded-xl border border-border">
-          <div className="flex items-center gap-2 flex-1">
-            <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value="">All Groups</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-            <Button variant="outline" size="sm" onClick={() => setGroupOpen(true)}>Manage Groups</Button>
-            <Button size="sm" onClick={openAdd}><Plus size={14} /> Add Ingredient</Button>
-          </div>
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
+          <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
+            className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+            <option value="">All Groups</option>
+            {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+          <div className="flex-1" />
+          <Button variant="outline" size="sm" className="h-9" onClick={() => setGroupOpen(true)}>Manage Groups</Button>
+          <Button size="sm" className="h-9" onClick={openAdd}><Plus size={14} /> Add Ingredient</Button>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ingredients..."
-              className="w-56 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+              className="w-52 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
           </div>
         </div>
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-            <h3 className="font-semibold text-gray-900 text-sm">Food Ingredients <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
+            <h3 className="text-gray-700 text-sm">Food Ingredients <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
           </div>
           {loading ? <div className="p-8 text-center text-sm text-gray-400">Loading...</div>
             : filtered.length === 0 ? (
@@ -182,7 +181,7 @@ export default function IngredientsPage() {
             <label className="block text-sm font-medium text-gray-700">Inventory Group</label>
             <div className="flex gap-2">
               <select value={form.inventory_group_id} onChange={(e) => f("inventory_group_id", e.target.value)}
-                className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                className="flex-1 h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 <option value="">No group</option>
                 {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>

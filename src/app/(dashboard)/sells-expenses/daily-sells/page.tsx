@@ -81,7 +81,7 @@ function DayRow({ group }: { group: DayGroup }) {
         <div className="flex items-center gap-3">
           {expanded ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />}
           <div>
-            <p className="text-sm font-semibold text-gray-900">{fmtDateLong(group.date)}</p>
+            <p className="text-sm text-gray-700">{fmtDateLong(group.date)}</p>
             <p className="text-xs text-gray-400">{allTx.length} transactions</p>
           </div>
         </div>
@@ -332,7 +332,7 @@ export default function DailySellsPage() {
             <select
               value={preset}
               onChange={(e) => handlePreset(e.target.value as Preset)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             >
               {PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>

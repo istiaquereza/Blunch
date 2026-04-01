@@ -5,11 +5,134 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
-import { useRestaurant } from "@/contexts/restaurant-context";
-import { useVendors } from "@/hooks/use-vendors";
-import { Plus, Edit2, Trash2, Search, Truck, Phone, MapPin } from "lucide-react";
+import { useVendors, useVendorRequisitions } from "@/hooks/use-vendors";
+import {
+  Plus, Edit2, Trash2, Search, Truck, Phone, MapPin,
+  ChevronDown, ChevronUp, Package, CheckCircle, XCircle, Clock,
+} from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import type { Vendor } from "@/types";
+import type { VendorRequisition } from "@/hooks/use-vendors";
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+type Tab = "vendors" | "requests";
+
+function shortReqId(id: string) {
+  return "REQ-" + id.replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+
+const fmt = (n: number) =>
+  "৳" + n.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtDate = (d: string) => {
+  try { return format(new Date(d), "dd MMM yyyy"); } catch { return d; }
+};
+
+const statusConfig = {
+  submitted: { label: "Under Review", icon: Clock,         bg: "bg-amber-50",  text: "text-amber-700",  dot: "bg-amber-400"  },
+  approved:  { label: "Approved",     icon: CheckCircle,   bg: "bg-green-50",  text: "text-green-700",  dot: "bg-green-500"  },
+  rejected:  { label: "Rejected",     icon: XCircle,       bg: "bg-red-50",    text: "text-red-700",    dot: "bg-red-400"    },
+};
+
+const payConfig = {
+  paid: { label: "Paid", bg: "bg-blue-50",  text: "text-blue-700"  },
+  due:  { label: "Due",  bg: "bg-rose-50",  text: "text-rose-700"  },
+};
+
+// ─── Requisition card under each vendor ─────────────────────────────────────
+
+function ReqCard({ req }: { req: VendorRequisition }) {
+  const [expanded, setExpanded] = useState(false);
+  const total = req.product_requisition_items?.reduce((s, i) => s + i.total_price, 0) ?? 0;
+  const st = statusConfig[req.status] ?? statusConfig.submitted;
+  const pay = payConfig[req.payment_status] ?? payConfig.due;
+  const restaurantName = (req as any).restaurants?.name ?? null;
+
+  return (
+    <div className="border border-gray-100 rounded-xl overflow-hidden">
+      {/* Row header */}
+      <button
+        onClick={() => setExpanded((p) => !p)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors text-left"
+      >
+        {/* REQ ID + date */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-gray-800 font-mono">{shortReqId(req.id)}</span>
+            <span className="text-xs text-gray-400">{fmtDate(req.requisition_date)}</span>
+            {restaurantName && (
+              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                {restaurantName}
+              </span>
+            )}
+          </div>
+          {req.notes && (
+            <p className="text-xs text-gray-400 truncate mt-0.5">{req.notes}</p>
+          )}
+        </div>
+
+        {/* Badges + total */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${st.bg} ${st.text}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+            {st.label}
+          </span>
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${pay.bg} ${pay.text}`}>
+            {pay.label}
+          </span>
+          <span className="text-xs font-bold text-gray-800 w-24 text-right">{fmt(total)}</span>
+          {expanded
+            ? <ChevronUp size={13} className="text-gray-400 shrink-0" />
+            : <ChevronDown size={13} className="text-gray-400 shrink-0" />}
+        </div>
+      </button>
+
+      {/* Expanded items */}
+      {expanded && (
+        <div className="border-t border-gray-100 bg-gray-50/40 px-4 py-3">
+          {(!req.product_requisition_items || req.product_requisition_items.length === 0) ? (
+            <p className="text-xs text-gray-400 text-center py-2">No items</p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-400 uppercase tracking-wide text-[10px]">
+                  <th className="text-left pb-2 font-semibold">Item</th>
+                  <th className="text-right pb-2 font-semibold">Qty</th>
+                  <th className="text-right pb-2 font-semibold">Unit</th>
+                  <th className="text-right pb-2 font-semibold">Unit Price</th>
+                  <th className="text-right pb-2 font-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {req.product_requisition_items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="py-1.5 text-gray-700 font-medium">
+                      {item.ingredients?.name ?? "—"}
+                    </td>
+                    <td className="py-1.5 text-right text-gray-600">{item.quantity}</td>
+                    <td className="py-1.5 text-right text-gray-500">{item.unit ?? item.ingredients?.default_unit ?? "—"}</td>
+                    <td className="py-1.5 text-right text-gray-600">{fmt(item.unit_price)}</td>
+                    <td className="py-1.5 text-right font-semibold text-gray-800">{fmt(item.total_price)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-gray-200">
+                  <td colSpan={4} className="pt-2 text-right text-xs font-bold text-gray-600">Grand Total</td>
+                  <td className="pt-2 text-right text-xs font-bold text-orange-600">{fmt(total)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Vendor form types ───────────────────────────────────────────────────────
 
 interface VendorForm {
   name: string;
@@ -19,12 +142,17 @@ interface VendorForm {
 
 const emptyForm: VendorForm = { name: "", phone: "", address: "" };
 
-export default function VendorsPage() {
-  const { activeRestaurant } = useRestaurant();
-  const rid = activeRestaurant?.id;
-  const { vendors, loading, create, update, remove } = useVendors(rid);
+// ─── Page ───────────────────────────────────────────────────────────────────
 
+export default function VendorsPage() {
+  const { vendors, loading: vendorsLoading, create, update, remove } = useVendors();
+  const { groups, loading: reqLoading } = useVendorRequisitions();
+
+  const [tab, setTab] = useState<Tab>("vendors");
   const [search, setSearch] = useState("");
+  const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
+
+  // Vendor Names tab state
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [form, setForm] = useState<VendorForm>(emptyForm);
@@ -32,12 +160,30 @@ export default function VendorsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const filtered = useMemo(() =>
+  // ── Filtered data ──────────────────────────────────────────────────────────
+
+  const filteredVendors = useMemo(() =>
     vendors.filter((v) =>
       v.name.toLowerCase().includes(search.toLowerCase()) ||
-      v.phone.toLowerCase().includes(search.toLowerCase()) ||
-      v.address.toLowerCase().includes(search.toLowerCase())
+      (v.phone ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (v.address ?? "").toLowerCase().includes(search.toLowerCase())
     ), [vendors, search]);
+
+  const filteredGroups = useMemo(() => {
+    if (!search.trim()) return groups;
+    const q = search.toLowerCase();
+    return groups
+      .filter((g) =>
+        g.vendor.name.toLowerCase().includes(q) ||
+        g.requisitions.some((r) =>
+          r.product_requisition_items?.some((i) =>
+            i.ingredients?.name?.toLowerCase().includes(q)
+          ) || shortReqId(r.id).toLowerCase().includes(q)
+        )
+      );
+  }, [groups, search]);
+
+  // ── Vendor form handlers ───────────────────────────────────────────────────
 
   const f = (k: keyof VendorForm, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -51,11 +197,10 @@ export default function VendorsPage() {
   const handleSave = async () => {
     if (!form.name.trim()) return toast.error("Vendor name is required");
     if (!form.phone.trim()) return toast.error("Phone number is required");
-    if (!rid) return toast.error("Select a restaurant first");
     setSaving(true);
     const payload = { name: form.name.trim(), phone: form.phone.trim(), address: form.address.trim() };
     const { error } = editing ? await update(editing.id, payload) : await create(payload);
-    if (error) toast.error((error as Error).message);
+    if (error) toast.error((error as any)?.message ?? "Failed to save vendor");
     else { toast.success(editing ? "Vendor updated!" : "Vendor added!"); setOpen(false); }
     setSaving(false);
   };
@@ -64,109 +209,207 @@ export default function VendorsPage() {
     if (!deleteId) return;
     setDeleting(true);
     const { error } = await remove(deleteId);
-    if (error) toast.error((error as Error).message);
+    if (error) toast.error((error as any)?.message ?? "Failed to delete vendor");
     else toast.success("Vendor deleted");
     setDeleteId(null);
     setDeleting(false);
   };
 
-  if (!rid) return (
-    <div>
-      <Header title="Vendor Management" />
-      <div className="p-6">
-        <div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
-          <Truck size={40} className="text-gray-200 mx-auto mb-3" />
-          <p className="font-medium text-gray-500">No restaurant selected</p>
-          <p className="text-sm text-gray-400 mt-1">Go to <strong>Settings</strong> to add a restaurant first</p>
-        </div>
-      </div>
-    </div>
-  );
+  const toggleVendor = (vid: string) =>
+    setExpandedVendors((prev) => {
+      const next = new Set(prev);
+      next.has(vid) ? next.delete(vid) : next.add(vid);
+      return next;
+    });
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div>
-      <Header title="Vendor Management" />
+      <Header title="Vendor Management" hideRestaurantSelector />
       <div className="p-6 space-y-4">
 
         {/* Toolbar */}
-        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto">
-          <div className="flex items-center gap-2 flex-1">
-            <Button size="sm" onClick={openAdd}>
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
+          {/* Tab group */}
+          <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1 shrink-0">
+            {([
+              { value: "vendors",  label: "Vendor Names" },
+              { value: "requests", label: "Vendor Items Request" },
+            ] as { value: Tab; label: string }[]).map((t) => (
+              <button
+                key={t.value}
+                onClick={() => { setTab(t.value); setSearch(""); }}
+                className={`h-7 px-3 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                  tab === t.value
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1" />
+
+          {/* Add Vendor button — only on vendors tab */}
+          {tab === "vendors" && (
+            <Button size="sm" className="h-9" onClick={openAdd}>
               <Plus size={14} /> Add Vendor
             </Button>
-          </div>
+          )}
+
+          {/* Search */}
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search vendors..."
-              className="w-56 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder={tab === "vendors" ? "Search vendors…" : "Search vendor or item…"}
+              className="w-52 h-9 pl-9 pr-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             />
           </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-            <h3 className="font-semibold text-gray-900 text-sm">
-              Vendors <span className="text-gray-400 font-normal">({filtered.length})</span>
-            </h3>
-          </div>
-
-          {loading ? (
-            <div className="p-8 text-center text-sm text-gray-400">Loading...</div>
-          ) : filtered.length === 0 ? (
-            <div className="p-12 text-center">
-              <Truck size={36} className="text-gray-200 mx-auto mb-3" />
-              <p className="text-sm text-gray-400">
-                {search ? "No vendors match your search" : "No vendors yet — add your first vendor"}
-              </p>
+        {/* ── Vendor Names tab ──────────────────────────────────────────────── */}
+        {tab === "vendors" && (
+          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h3 className="font-semibold text-gray-900 text-sm">
+                Vendors <span className="text-gray-400 font-normal">({filteredVendors.length})</span>
+              </h3>
             </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-gray-50/60">
-                  {["Name", "Phone", "Address", "Actions"].map((h) => (
-                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.map((v) => (
-                  <tr key={v.id} className="hover:bg-gray-50/50">
-                    <td className="px-5 py-3 font-medium text-gray-900">{v.name}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-1.5 text-gray-600">
-                        <Phone size={12} className="text-gray-400 shrink-0" />
-                        {v.phone || <span className="text-gray-300">—</span>}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-1.5 text-gray-600">
-                        <MapPin size={12} className="text-gray-400 shrink-0" />
-                        {v.address || <span className="text-gray-300">—</span>}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(v)}>
-                          <Edit2 size={13} />
-                        </Button>
-                        <Button variant="danger" size="sm" onClick={() => setDeleteId(v.id)}>
-                          <Trash2 size={13} />
-                        </Button>
-                      </div>
-                    </td>
+
+            {vendorsLoading ? (
+              <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
+            ) : filteredVendors.length === 0 ? (
+              <div className="p-12 text-center">
+                <Truck size={36} className="text-gray-200 mx-auto mb-3" />
+                <p className="text-sm text-gray-400">
+                  {search ? "No vendors match your search" : "No vendors yet — add your first vendor"}
+                </p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-gray-50/60">
+                    {["Name", "Phone", "Address", "Actions"].map((h) => (
+                      <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredVendors.map((v) => (
+                    <tr key={v.id} className="hover:bg-gray-50/50">
+                      <td className="px-5 py-3 font-medium text-gray-900">{v.name}</td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-1.5 text-gray-600">
+                          <Phone size={12} className="text-gray-400 shrink-0" />
+                          {v.phone || <span className="text-gray-300">—</span>}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-1.5 text-gray-600">
+                          <MapPin size={12} className="text-gray-400 shrink-0" />
+                          {v.address || <span className="text-gray-300">—</span>}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(v)}>
+                            <Edit2 size={13} />
+                          </Button>
+                          <Button variant="danger" size="sm" onClick={() => setDeleteId(v.id)}>
+                            <Trash2 size={13} />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* ── Vendor Items Request tab ──────────────────────────────────────── */}
+        {tab === "requests" && (
+          <div className="space-y-3">
+            {reqLoading ? (
+              <div className="bg-white rounded-xl border border-border shadow-sm p-8 text-center text-sm text-gray-400">
+                Loading requisitions…
+              </div>
+            ) : filteredGroups.length === 0 ? (
+              <div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
+                <Package size={36} className="text-gray-200 mx-auto mb-3" />
+                <p className="text-sm text-gray-400">
+                  {search
+                    ? "No vendors or items match your search"
+                    : "No vendor-linked requisitions yet — assign a vendor when creating a bazar request"}
+                </p>
+              </div>
+            ) : (
+              filteredGroups.map((group) => {
+                const isOpen = expandedVendors.has(group.vendor.id);
+                return (
+                  <div key={group.vendor.id} className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+                    {/* Vendor header — click to expand/collapse */}
+                    <button
+                      onClick={() => toggleVendor(group.vendor.id)}
+                      className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors text-left"
+                    >
+                      {/* Icon */}
+                      <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+                        <Truck size={16} className="text-orange-500" />
+                      </div>
+
+                      {/* Vendor info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-900">{group.vendor.name}</p>
+                        {group.vendor.phone && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Phone size={10} className="text-gray-400" />
+                            <span className="text-xs text-gray-400">{group.vendor.phone}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Stats */}
+                      <div className="flex items-center gap-4 shrink-0">
+                        <div className="text-right">
+                          <p className="text-xs text-gray-400">Requests</p>
+                          <p className="text-sm font-bold text-gray-700">{group.requisitions.length}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-400">Total Spend</p>
+                          <p className="text-sm font-bold text-orange-600">{fmt(group.totalSpend)}</p>
+                        </div>
+                        <div className="w-6 flex items-center justify-center">
+                          {isOpen
+                            ? <ChevronUp size={15} className="text-gray-400" />
+                            : <ChevronDown size={15} className="text-gray-400" />}
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Requisitions list */}
+                    {isOpen && (
+                      <div className="border-t border-gray-100 px-4 py-3 space-y-2 bg-gray-50/30">
+                        {group.requisitions.map((req) => (
+                          <ReqCard key={req.id} req={req} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Add / Edit Dialog */}
+      {/* ── Add / Edit Vendor Dialog ───────────────────────────────────────── */}
       <Dialog
         open={open}
         onOpenChange={setOpen}
@@ -206,7 +449,7 @@ export default function VendorsPage() {
         </div>
       </Dialog>
 
-      {/* Delete Confirm Dialog */}
+      {/* ── Delete Confirm Dialog ──────────────────────────────────────────── */}
       <Dialog
         open={!!deleteId}
         onOpenChange={(o) => { if (!o) setDeleteId(null); }}

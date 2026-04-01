@@ -386,7 +386,7 @@ function PayDialog({
         <select
           value={paymentMethodId}
           onChange={(e) => { setPaymentMethodId(e.target.value); setError(""); }}
-          className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${!paymentMethodId ? "border-orange-300" : "border-gray-200"}`}
+          className={`w-full h-9 px-3 rounded-md bg-white shadow-sm text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${!paymentMethodId ? "ring-1 ring-inset ring-orange-300" : "border border-gray-200"}`}
         >
           <option value="">Select payment method…</option>
           {paymentMethods.map((pm) => (
@@ -489,7 +489,7 @@ function BonusDialog({
         <select
           value={bonusType}
           onChange={(e) => { setBonusType(e.target.value); setError(""); }}
-          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
         >
           {BONUS_TYPES.map((t) => (
             <option key={t} value={t}>{t}</option>
@@ -545,7 +545,7 @@ function BonusDialog({
         <select
           value={paymentMethodId}
           onChange={(e) => { setPaymentMethodId(e.target.value); setError(""); }}
-          className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${!paymentMethodId ? "border-orange-300" : "border-gray-200"}`}
+          className={`w-full h-9 px-3 rounded-md bg-white shadow-sm text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${!paymentMethodId ? "ring-1 ring-inset ring-orange-300" : "border border-gray-200"}`}
         >
           <option value="">Select payment method…</option>
           {paymentMethods.map((pm) => (

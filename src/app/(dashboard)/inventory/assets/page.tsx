@@ -187,12 +187,12 @@ export default function AssetsPage() {
         {/* Toolbar */}
         <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
             <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">All Groups</option>
               {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
             <select value={filterCondition} onChange={(e) => setFilterCondition(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">All Conditions</option>
               <option value="good">Good</option>
               <option value="average">Average</option>
@@ -227,7 +227,7 @@ export default function AssetsPage() {
         {/* Table */}
         <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-            <h3 className="font-semibold text-gray-900 text-sm">Assets <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
+            <h3 className="text-gray-700 text-sm">Assets <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
             {filtered.length > 0 && <span className="text-sm text-gray-500">Total: <strong className="text-gray-900">৳{totalValue.toLocaleString()}</strong></span>}
           </div>
           {loading ? <div className="p-8 text-center text-sm text-gray-400">Loading...</div>
@@ -315,7 +315,7 @@ export default function AssetsPage() {
             <label className="block text-sm font-medium text-gray-700">Asset Group</label>
             <div className="flex gap-2">
               <select value={form.asset_group_id} onChange={(e) => f("asset_group_id", e.target.value)}
-                className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                className="flex-1 h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 <option value="">No group</option>
                 {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>

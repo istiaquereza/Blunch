@@ -19,7 +19,7 @@ export interface StaffMember {
   name: string;
   job_role: string | null;
   salary: number;
-  staff_type: "kitchen" | "hall" | null;
+  staff_type: "chefs" | "senior_chefs" | "waiter" | "pickupman" | "hall_operations" | "dishwasher" | null;
   phone: string | null;
   address: string | null;
   photo_url: string | null;
@@ -94,14 +94,11 @@ export function useBenefitPackages(restaurantId?: string) {
   const [loading, setLoading] = useState(true);
 
   const fetchPackages = useCallback(async () => {
-    if (!restaurantId) { setPackages([]); setLoading(false); return; }
     setLoading(true);
     const supabase = createClient();
-    const { data } = await supabase
-      .from("benefit_packages")
-      .select("*")
-      .eq("restaurant_id", restaurantId)
-      .order("name");
+    let q = supabase.from("benefit_packages").select("*").order("name");
+    if (restaurantId) q = q.eq("restaurant_id", restaurantId);
+    const { data } = await q;
     setPackages((data as BenefitPackage[]) ?? []);
     setLoading(false);
   }, [restaurantId]);
@@ -169,8 +166,11 @@ export function useStaffLeaves(restaurantId?: string) {
     const supabase = createClient();
     // Build one row per day in range
     const rows: object[] = [];
-    const start = new Date(data.leave_date);
-    const end = new Date(data.leave_date_end);
+    // Parse as local date (not UTC) to avoid timezone day-shift
+    const [sy, sm, sd] = data.leave_date.split("-").map(Number);
+    const [ey, em, ed] = data.leave_date_end.split("-").map(Number);
+    const start = new Date(sy, sm - 1, sd);
+    const end   = new Date(ey, em - 1, ed);
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const ymd = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
       rows.push({
@@ -193,7 +193,14 @@ export function useStaffLeaves(restaurantId?: string) {
     return { error };
   };
 
-  return { leaves, loading, assignLeave, assignLeaveRange, deleteLeave, refresh: fetchLeaves };
+  const updateLeave = async (id: string, data: { leave_type?: string; notes?: string | null }) => {
+    const supabase = createClient();
+    const { error } = await supabase.from("staff_leaves").update(data).eq("id", id);
+    if (!error) await fetchLeaves();
+    return { error };
+  };
+
+  return { leaves, loading, assignLeave, assignLeaveRange, deleteLeave, updateLeave, refresh: fetchLeaves };
 }
 
 // ─── All restaurants hooks ──────────────────────────────────────────────────

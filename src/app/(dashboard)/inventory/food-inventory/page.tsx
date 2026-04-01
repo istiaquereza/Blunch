@@ -105,7 +105,7 @@ export default function FoodInventoryPage() {
   // Stock In Summary: transactions table (source of truth for all restocks including older ones)
   const { entries: stockInEntries, loading: stockInLoading, fetchEntries: fetchStockIn, clear: clearStockIn } = useRestockTransactions(rid);
   const { methods: paymentMethods } = usePaymentMethods(rid);
-  const { vendors } = useVendors(rid);
+  const { vendors } = useVendors();
   const { create: createTransaction } = useTransactions(rid);
   const { categories: expenseCategories, create: createExpenseCategory } = useExpenseCategories();
 
@@ -356,12 +356,12 @@ export default function FoodInventoryPage() {
         {/* ── Toolbar ── */}
         <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
             <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">All Groups</option>
               {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">All Status</option>
               <option value="empty">Empty</option>
               <option value="low">Low Stock</option>
@@ -455,7 +455,7 @@ export default function FoodInventoryPage() {
           {activeTab === "stock" && (
             <>
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <h3 className="font-semibold text-gray-900 text-sm">Stock Levels <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
+                <h3 className="text-gray-700 text-sm">Stock Levels <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
               </div>
               {loading ? (
                 <div className="p-8 text-center text-sm text-gray-400">Loading...</div>
@@ -483,7 +483,7 @@ export default function FoodInventoryPage() {
                             <td className="px-4 py-3">{ingredient.inventory_groups ? <Badge variant="purple">{ingredient.inventory_groups.name}</Badge> : <span className="text-gray-300 text-xs">—</span>}</td>
                             <td className="px-4 py-3 text-gray-500">{ingredient.default_unit}</td>
                             <td className="px-4 py-3 text-gray-600">৳{Number(ingredient.unit_price).toFixed(2)}</td>
-                            <td className="px-4 py-3 font-semibold text-gray-900">{quantity}</td>
+                            <td className="px-4 py-3 text-gray-700">{quantity}</td>
                             <td className="px-4 py-3 text-gray-600">৳{(quantity * ingredient.unit_price).toFixed(2)}</td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${status.variant === "success" ? "bg-green-50 text-green-700" : status.variant === "warning" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
@@ -734,7 +734,7 @@ export default function FoodInventoryPage() {
                 <div>
                   <p className="text-xs text-gray-500 mb-1.5">Payment Method</p>
                   <select value={paymentMethodId} onChange={(e) => setPaymentMethodId(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                     <option value="">Select payment method…</option>
                     {activePayments.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -742,7 +742,7 @@ export default function FoodInventoryPage() {
                 <div>
                   <p className="text-xs text-gray-500 mb-1.5">Vendor <span className="text-gray-400">(optional)</span></p>
                   <select value={restockVendorId} onChange={(e) => setRestockVendorId(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                     <option value="">Select vendor…</option>
                     {vendors.map((v: any) => <option key={v.id} value={v.id}>{v.name}{v.phone ? ` · ${v.phone}` : ""}</option>)}
                   </select>

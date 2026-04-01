@@ -117,7 +117,7 @@ function RecipeCard({
       <div className="p-4 flex flex-col flex-1 space-y-3">
         {/* Title + actions */}
         <div className="flex items-start justify-between gap-2">
-          <p className="font-semibold text-gray-900 text-sm leading-tight">{item.name}</p>
+          <p className="text-gray-700 text-sm leading-tight">{item.name}</p>
           <div className="flex items-center gap-1 shrink-0">
             <button onClick={() => onEdit(item)}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
@@ -281,7 +281,7 @@ function RecipeCard({
             <div className="space-y-1.5 border-t border-gray-100 pt-2">
               <div className="flex gap-1.5">
                 <select value={logStatus} onChange={(e) => onLogStatusChange(e.target.value)}
-                  className="flex-1 h-7 px-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-500">
+                  className="flex-1 h-7 px-1.5 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                   <option value="">Stage *</option>
                   {RECIPE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
@@ -601,15 +601,15 @@ export default function RecipePage() {
       <Header title="Food Recipe" />
       <div className="p-6 space-y-4">
         {/* Toolbar */}
-        <div className="shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto bg-white rounded-xl border border-border">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">All Categories</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">All Stages</option>
               {RECIPE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
@@ -693,7 +693,7 @@ export default function RecipePage() {
                 <Rocket size={22} className="text-green-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">Launch to Food Menu</h3>
+                <h3 className="text-gray-700">Launch to Food Menu</h3>
                 <p className="text-sm text-gray-500 mt-0.5">
                   Move <strong>&ldquo;{launchItem.name}&rdquo;</strong> from recipe R&D to the live Food Menu?
                 </p>
@@ -761,7 +761,7 @@ export default function RecipePage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
               <select value={form.food_category_id} onChange={(e) => setForm((p) => ({ ...p, food_category_id: e.target.value }))}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 <option value="">No category</option>
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -769,7 +769,7 @@ export default function RecipePage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Recipe Stage</label>
               <select value={form.recipe_status} onChange={(e) => setForm((p) => ({ ...p, recipe_status: e.target.value }))}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 {RECIPE_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
@@ -817,7 +817,7 @@ export default function RecipePage() {
                   return (
                     <div key={idx} className="flex items-center gap-2">
                       <select value={row.ingredient_id} onChange={(e) => setIngRow(idx, "ingredient_id", e.target.value)}
-                        className="flex-1 h-8 px-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        className="flex-1 h-8 px-2 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                         <option value="">Select ingredient</option>
                         {ingredients.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
                       </select>

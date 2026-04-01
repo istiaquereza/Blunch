@@ -45,6 +45,8 @@ export function useCustomers(restaurantId?: string) {
   };
 
   const remove = async (id: string) => {
+    // Unlink from orders first to avoid FK constraint violation
+    await supabase.from("orders").update({ customer_id: null }).eq("customer_id", id);
     const { error } = await supabase.from("customers").delete().eq("id", id);
     if (!error) fetch();
     return { error };

@@ -44,7 +44,7 @@ const emptyStaffForm = (rid?: string) => ({
   restaurant_id: rid ?? "",
   name: "",
   job_role: "",
-  staff_type: "" as "" | "kitchen" | "hall",
+  staff_type: "" as "" | "chefs" | "senior_chefs" | "waiter" | "pickupman" | "hall_operations" | "dishwasher",
   salary: "",
   phone: "",
   address: "",
@@ -222,7 +222,8 @@ export default function StaffInformationPage() {
   const rid = activeRestaurant?.id;
   // fetch all staff across restaurants; filter client-side
   const { staff, loading, createStaff, updateStaff, deleteStaff } = useStaff();
-  const { packages, createPackage, updatePackage, deletePackage } = useBenefitPackages(rid);
+  // Packages are universal — fetch all, not filtered by restaurant
+  const { packages, createPackage, updatePackage, deletePackage } = useBenefitPackages();
   const { categories } = useFoodCategories(rid);
 
   // ── Staff dialog ──
@@ -274,7 +275,7 @@ export default function StaffInformationPage() {
       restaurant_id: s.restaurant_id,
       name: s.name,
       job_role: s.job_role ?? "",
-      staff_type: (s.staff_type ?? "") as "" | "kitchen" | "hall",
+      staff_type: (s.staff_type ?? "") as "" | "chefs" | "senior_chefs" | "waiter" | "pickupman" | "hall_operations" | "dishwasher",
       salary: s.salary ? String(s.salary) : "",
       phone: s.phone ?? "",
       address: s.address ?? "",
@@ -351,10 +352,13 @@ export default function StaffInformationPage() {
   };
 
   const handleSavePkg = async () => {
-    if (!pkgForm.name.trim() || !rid) return;
+    if (!pkgForm.name.trim()) return;
+    // Use the active restaurant or the first available restaurant for package ownership
+    const pkgRid = rid ?? restaurants[0]?.id;
+    if (!pkgRid) { toast.error("No restaurant available"); return; }
     setPkgSaving(true);
     const payload = {
-      restaurant_id: rid,
+      restaurant_id: pkgRid,
       name: pkgForm.name.trim(),
       details: pkgForm.details.filter((d) => d.label.trim()),
     };
@@ -378,31 +382,30 @@ export default function StaffInformationPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Staff Information" />
+      <Header title="Staff Information" hideRestaurantSelector />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
         {/* Toolbar */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={filterRid}
-              onChange={(e) => setFilterRid(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500">
-              <option value="">All Restaurants</option>
-              {restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-            <Button variant="outline" size="sm" onClick={() => setPkgListOpen(true)}>
-              <Package size={14} /> Benefit Packages
-            </Button>
-            <Button size="sm" onClick={openAdd}>
-              <Plus size={14} /> Add Staff
-            </Button>
-          </div>
+        <div className="bg-white rounded-xl border border-border shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap">
+          <select
+            value={filterRid}
+            onChange={(e) => setFilterRid(e.target.value)}
+            className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+            <option value="">All Restaurants</option>
+            {restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+          <div className="flex-1" />
+          <Button variant="outline" size="sm" className="h-9" onClick={() => setPkgListOpen(true)}>
+            <Package size={14} /> Benefit Packages
+          </Button>
+          <Button size="sm" className="h-9" onClick={openAdd}>
+            <Plus size={14} /> Add Staff
+          </Button>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, role or phone…"
-            className="h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 w-64"
+            className="h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 w-56"
           />
         </div>
 
@@ -412,16 +415,16 @@ export default function StaffInformationPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-gray-50/60">
-                  {["Photo", "Name & Role", "Restaurant", "Joining Date", "Salary", "Benefit Package", "Next Increment", "Actions"].map((h, i) => (
+                  {["Photo", "Name & Role", "Phone", "Staff Type", ...(filterRid === "" ? ["Restaurant"] : []), "Joining Date", "Salary", "Benefit Package", "Next Increment", "Actions"].map((h, i) => (
                     <th key={`h-${i}`} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-400">Loading…</td></tr>
+                  <tr><td colSpan={filterRid === "" ? 10 : 9} className="px-4 py-12 text-center text-sm text-gray-400">Loading…</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-400">
+                  <tr><td colSpan={filterRid === "" ? 10 : 9} className="px-4 py-12 text-center text-sm text-gray-400">
                     {search ? "No staff match your search." : 'No staff yet. Click "Add Staff" to get started.'}
                   </td></tr>
                 ) : filtered.map((s) => {
@@ -429,6 +432,18 @@ export default function StaffInformationPage() {
                   const catNames = (s.food_category_ids ?? [])
                     .map((id) => categories.find((c) => c.id === id)?.name)
                     .filter(Boolean) as string[];
+                  const staffTypeLabel: Record<string, string> = {
+                    chefs: "Chefs", senior_chefs: "Senior Chefs", waiter: "Waiter",
+                    pickupman: "Pickupman", hall_operations: "Hall Operations", dishwasher: "Dishwasher",
+                  };
+                  const staffTypeBadgeColor: Record<string, string> = {
+                    chefs: "bg-orange-50 text-orange-700 border-orange-100",
+                    senior_chefs: "bg-red-50 text-red-700 border-red-100",
+                    waiter: "bg-blue-50 text-blue-700 border-blue-100",
+                    pickupman: "bg-cyan-50 text-cyan-700 border-cyan-100",
+                    hall_operations: "bg-indigo-50 text-indigo-700 border-indigo-100",
+                    dishwasher: "bg-gray-100 text-gray-600 border-gray-200",
+                  };
                   return (
                     <tr key={s.id} className="hover:bg-gray-50/50">
                       <td className="px-4 py-3">
@@ -441,11 +456,26 @@ export default function StaffInformationPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{s.name}</p>
-                        {s.job_role  && <p className="text-xs text-orange-600 font-medium">{s.job_role}</p>}
-                        {s.phone && <p className="text-xs text-gray-400">{s.phone}</p>}
+                        <p className="text-gray-700">{s.name}</p>
+                        {s.job_role && <p className="text-xs text-orange-600 font-medium">{s.job_role}</p>}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{s.restaurants?.name ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {s.phone ?? <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {s.staff_type ? (
+                          <span className={`text-xs font-semibold px-2 py-1 rounded-lg border ${staffTypeBadgeColor[s.staff_type] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                            {staffTypeLabel[s.staff_type] ?? s.staff_type}
+                          </span>
+                        ) : <span className="text-gray-300 text-xs">—</span>}
+                      </td>
+                      {filterRid === "" && (
+                        <td className="px-4 py-3">
+                          {s.restaurants?.name ? (
+                            <span className="bg-orange-50 text-orange-700 text-xs font-semibold px-2 py-1 rounded-lg border border-orange-100">{s.restaurants.name}</span>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(s.joining_date)}</td>
                       <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
                         {s.salary ? fmtSalary(s.salary) : <span className="text-gray-300">—</span>}
@@ -552,7 +582,7 @@ export default function StaffInformationPage() {
             </label>
             <select value={form.restaurant_id}
               onChange={(e) => setForm((p) => ({ ...p, restaurant_id: e.target.value }))}
-              className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+              className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">Select restaurant…</option>
               {restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
@@ -582,11 +612,15 @@ export default function StaffInformationPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 <Users size={13} className="inline mr-1" />Staff Type
               </label>
-              <select value={form.staff_type} onChange={(e) => setForm((p) => ({ ...p, staff_type: e.target.value as "" | "kitchen" | "hall" }))}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <select value={form.staff_type} onChange={(e) => setForm((p) => ({ ...p, staff_type: e.target.value as "" | "chefs" | "senior_chefs" | "waiter" | "pickupman" | "hall_operations" | "dishwasher" }))}
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 <option value="">Select type…</option>
-                <option value="kitchen">Kitchen Staff</option>
-                <option value="hall">Hall Staff</option>
+                <option value="senior_chefs">Senior Chefs</option>
+                <option value="chefs">Chefs</option>
+                <option value="waiter">Waiter</option>
+                <option value="pickupman">Pickupman</option>
+                <option value="hall_operations">Hall Operations</option>
+                <option value="dishwasher">Dishwasher</option>
               </select>
             </div>
           </div>
@@ -632,8 +666,8 @@ export default function StaffInformationPage() {
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none" />
           </div>
 
-          {/* Food Expertise — kitchen staff only */}
-          {form.staff_type === "kitchen" && (
+          {/* Food Expertise — chefs, senior chefs, pickupman only */}
+          {(form.staff_type === "chefs" || form.staff_type === "senior_chefs" || form.staff_type === "pickupman") && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <ChefHat size={13} className="inline mr-1" />Food Expertise
@@ -665,7 +699,7 @@ export default function StaffInformationPage() {
             <div className="flex gap-2">
               <select value={form.benefit_package_id}
                 onChange={(e) => setForm((p) => ({ ...p, benefit_package_id: e.target.value }))}
-                className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                className="flex-1 h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 <option value="">Select package…</option>
                 {packages.map((pkg) => (
                   <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
@@ -802,7 +836,7 @@ export default function StaffInformationPage() {
           ) : packages.map((pkg) => (
             <div key={pkg.id} className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="font-semibold text-gray-900">{pkg.name}</span>
+                <span className="text-gray-700">{pkg.name}</span>
                 <div className="flex gap-1">
                   <button onClick={() => { setPkgListOpen(false); openEditPkg(pkg); }}
                     className="w-7 h-7 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-600 flex items-center justify-center"><Pencil size={12} /></button>

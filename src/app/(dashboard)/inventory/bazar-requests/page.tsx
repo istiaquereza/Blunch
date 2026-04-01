@@ -444,7 +444,7 @@ function RequisitionAutomationModal({
               <Zap size={15} className="text-purple-600" />
             </div>
             <div>
-              <h2 className="font-semibold text-gray-900">Requisition Automation</h2>
+              <h2 className="text-gray-700">Requisition Automation</h2>
               <p className="text-xs text-gray-400">Compute ingredients needed from sales or food selection, then create a requisition</p>
             </div>
           </div>
@@ -494,7 +494,7 @@ function RequisitionAutomationModal({
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm font-medium text-gray-700">Pick Menu Items</label>
                     {savedLists.length > 0 && (
-                      <select className="h-7 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none" defaultValue=""
+                      <select className="h-7 px-2 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" defaultValue=""
                         onChange={e => { const list = savedLists[parseInt(e.target.value)]; if (list) loadList(list); }}>
                         <option value="">Load saved list…</option>
                         {savedLists.map((l, i) => <option key={i} value={i}>{l.name}</option>)}
@@ -710,7 +710,7 @@ export default function BazarRequestsPage() {
   const { requisitions, loading, create, updateRequisition, approve, reject, remove } = useProductRequisitions(rid);
   const { ingredients } = useIngredients(rid);
   const { groups } = useInventoryGroups(rid);
-  const { vendors } = useVendors(rid);
+  const { vendors } = useVendors();
   const { methods: paymentMethods } = usePaymentMethods(rid);
   const { categories, create: createCategory, update: updateCategory, remove: removeCategory } = useBazarCategories(rid);
 
@@ -951,7 +951,7 @@ export default function BazarRequestsPage() {
         <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
             {/* Status */}
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm">
+              className="h-9 px-[14px] rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">All Status</option>
               <option value="submitted">Under Review</option>
               <option value="approved">Approved</option>
@@ -960,7 +960,7 @@ export default function BazarRequestsPage() {
 
             {/* Date preset */}
             <select value={datePreset} onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-              className="h-9 px-[14px] rounded-lg border border-[#e5e7eb] text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm">
+              className="h-9 px-[14px] rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               {DATE_PRESETS.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
@@ -1018,7 +1018,7 @@ export default function BazarRequestsPage() {
         {/* Requisition Table */}
         <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-            <h3 className="font-semibold text-gray-900 text-sm">Requisitions <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
+            <h3 className="text-gray-700 text-sm">Requisitions <span className="text-gray-400 font-normal">({filtered.length})</span></h3>
           </div>
           {loading ? <div className="p-8 text-center text-sm text-gray-400">Loading...</div>
             : filtered.length === 0 ? (
@@ -1096,7 +1096,7 @@ export default function BazarRequestsPage() {
                               : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-4 py-3 text-right text-gray-700">{itemCount}</td>
-                          <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">
+                          <td className="px-4 py-3 text-right text-gray-700 whitespace-nowrap">
                             ৳{reqTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
                           <td className="px-4 py-3">
@@ -1198,7 +1198,7 @@ export default function BazarRequestsPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Restaurant</label>
               <select value={reqRestaurantId} onChange={(e) => setReqRestaurantId(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 <option value="">Select restaurant</option>
                 {restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
@@ -1210,7 +1210,7 @@ export default function BazarRequestsPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Vendor <span className="text-gray-400 font-normal">(optional)</span></label>
               <select value={reqVendorId} onChange={(e) => setReqVendorId(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 <option value="">Select vendor</option>
                 {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.phone ? ` · ${v.phone}` : ""}</option>)}
               </select>
@@ -1218,7 +1218,7 @@ export default function BazarRequestsPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Payment Method <span className="text-red-500">*</span></label>
               <select value={reqPaymentMethodId} onChange={(e) => setReqPaymentMethodId(e.target.value)}
-                className={`w-full h-9 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${reqPaymentMethodId === "" ? "border-red-300" : "border-gray-200"}`}>
+                className={`w-full h-9 px-3 rounded-md bg-white shadow-sm text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${reqPaymentMethodId === "" ? "ring-1 ring-inset ring-red-300" : "border border-gray-200"}`}>
                 <option value="">Select payment method</option>
                 {paymentMethods.filter(m => m.is_active).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
@@ -1280,7 +1280,7 @@ export default function BazarRequestsPage() {
               </div>
             ) : (
               <select value={reqCategoryId} onChange={(e) => setReqCategoryId(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                 <option value="">No category</option>
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -1448,7 +1448,7 @@ export default function BazarRequestsPage() {
                     <tr key={idx}>
                       <td className="px-2 py-1.5">
                         <select value={item.ingredient_id} onChange={(e) => updateItemRow(idx, "ingredient_id", e.target.value)}
-                          className="w-full h-8 px-2 rounded-md border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500">
+                          className="w-full h-8 px-2 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                           <option value="">Select ingredient</option>
                           {groups.length > 0 ? groups.map((g) => (
                             <optgroup key={g.id} label={g.name}>

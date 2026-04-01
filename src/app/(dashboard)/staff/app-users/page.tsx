@@ -613,7 +613,7 @@ export default function AppUsersPage() {
               <select
                 value={restaurantFilter ?? "all"}
                 onChange={(e) => setRestaurantFilter(e.target.value === "all" ? "" : e.target.value)}
-                className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#111827] bg-white"
+                className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 <option value="all">All Restaurants</option>
                 {restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -742,7 +742,7 @@ export default function AppUsersPage() {
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="font-semibold text-gray-900 text-sm">{currentUser.name}</p>
+                              <p className="text-gray-700 text-sm">{currentUser.name}</p>
                               <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${isSuperAdmin ? "bg-amber-500/10 text-amber-700" : "bg-blue-500/10 text-blue-700"}`}><Zap size={9} /> You</span>
                             </div>
                             <p className="text-xs text-gray-400">{currentUser.email}</p>
@@ -794,7 +794,7 @@ export default function AppUsersPage() {
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="font-semibold text-gray-900 text-sm">{g.name}</p>
+                              <p className="text-gray-700 text-sm">{g.name}</p>
                               {!authEmails.has(g.email) && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-700" title="No login account">
                                   <KeyRound size={9} /> No login
@@ -960,7 +960,7 @@ export default function AppUsersPage() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center"><ShieldCheck size={15} className="text-purple-600" /></div>
-                <h2 className="font-semibold text-gray-900">{editing ? "Edit User" : "Add New User"}</h2>
+                <h2 className="text-gray-700">{editing ? "Edit User" : "Add New User"}</h2>
               </div>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={16} /></button>
             </div>
@@ -1130,7 +1130,7 @@ export default function AppUsersPage() {
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0"><Trash2 size={16} className="text-red-500" /></div>
               <div>
-                <h3 className="font-semibold text-gray-900">Remove User</h3>
+                <h3 className="text-gray-700">Remove User</h3>
                 <p className="text-sm text-gray-500 mt-0.5">This will remove all restaurant access for <strong>{confirmDelete.name}</strong>.</p>
               </div>
             </div>

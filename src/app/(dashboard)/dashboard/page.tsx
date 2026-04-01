@@ -219,7 +219,7 @@ function TransferModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <ArrowLeftRight size={16} className="text-orange-500" />
-            <h2 className="font-semibold text-gray-900">Transfer Between Methods</h2>
+            <h2 className="text-gray-700">Transfer Between Methods</h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={16} />
@@ -237,14 +237,14 @@ function TransferModal({
               <select
                 value={fromRestaurant}
                 onChange={e => handleFromRestaurant(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
               <select
                 value={fromMethod}
                 onChange={e => setFromMethod(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 <option value="">Select method…</option>
                 {fromMethods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -275,14 +275,14 @@ function TransferModal({
               <select
                 value={toRestaurant}
                 onChange={e => handleToRestaurant(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
               <select
                 value={toMethod}
                 onChange={e => setToMethod(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 <option value="">Select method…</option>
                 {toMethods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -750,12 +750,12 @@ export default function DashboardPage() {
       />
 
       {/* ── Filter Bar ────────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-6 border-b border-gray-100 h-[62px] flex items-center gap-4 overflow-x-auto">
+      <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto mx-6 mt-6">
         {/* Restaurant */}
         <div className="relative shrink-0">
           <Store size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <select value={filters.restaurantId} onChange={e => setFilters(f => ({ ...f, restaurantId: e.target.value }))}
-            className="h-9 pl-7 pr-7 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer">
+            className="h-9 pl-7 pr-7 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent cursor-pointer">
             <option value="all">All Restaurants</option>
             {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
@@ -879,7 +879,7 @@ export default function DashboardPage() {
             {/* Revenue chart */}
             <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900 text-sm">
+                <h3 className="text-gray-700 text-sm">
                   {(() => {
                     if (filters.preset === "today") return "Revenue by Hour";
                     if (filters.preset === "all_time") return "Revenue by Year";
@@ -915,7 +915,7 @@ export default function DashboardPage() {
             {/* Expenses by Category */}
             <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900 text-sm">Expenses by Category</h3>
+                <h3 className="text-gray-700 text-sm">Expenses by Category</h3>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto p-4">
                 {expenseCats.length === 0 ? (
@@ -941,7 +941,7 @@ export default function DashboardPage() {
             {/* Orders by Hour */}
             <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900 text-sm">Orders by Hour</h3>
+                <h3 className="text-gray-700 text-sm">Orders by Hour</h3>
               </div>
               <div className="flex-1 min-h-0 p-4">
                 {ordersByHour.length === 0 ? (
@@ -962,7 +962,7 @@ export default function DashboardPage() {
             {/* Payment Methods */}
             <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900 text-sm">Payment Methods</h3>
+                <h3 className="text-gray-700 text-sm">Payment Methods</h3>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setShowTransfer(true)} className="flex items-center gap-1.5 h-6 px-2.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 text-[10px] font-semibold transition-colors">
                     <ArrowLeftRight size={11} />Transfer
@@ -1018,7 +1018,7 @@ export default function DashboardPage() {
             {/* Top Selling Items */}
             <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900 text-sm">Top Selling Items</h3>
+                <h3 className="text-gray-700 text-sm">Top Selling Items</h3>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto p-4">
                 {topItems.length === 0 ? (
@@ -1049,7 +1049,7 @@ export default function DashboardPage() {
               <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <AlertCircle size={15} className="text-amber-500" />
-                  <h3 className="font-semibold text-gray-900 text-sm">Due Payments</h3>
+                  <h3 className="text-gray-700 text-sm">Due Payments</h3>
                   {dueTx.length > 0 && <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{dueTx.length}</span>}
                 </div>
                 {dueTx.length > 0 && (
@@ -1101,7 +1101,7 @@ export default function DashboardPage() {
             <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <h3 className="font-semibold text-gray-900 text-sm">Transactions</h3>
+                  <h3 className="text-gray-700 text-sm">Transactions</h3>
                   <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{filteredTx.length}</span>
                 </div>
                 <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
@@ -1154,14 +1154,14 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Mark as Paid</h3>
+              <h3 className="text-gray-700">Mark as Paid</h3>
               <button onClick={() => setMarkPaidDashTarget(null)} className="w-7 h-7 rounded-lg text-gray-400 hover:bg-gray-100 flex items-center justify-center"><X size={14} /></button>
             </div>
             <p className="text-sm text-gray-500 mb-4">Select the payment method used to settle this expense.</p>
             <select
               value={markPaidDashPmId}
               onChange={(e) => setMarkPaidDashPmId(e.target.value)}
-              className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 mb-4"
+              className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent mb-4"
             >
               <option value="">Select payment method…</option>
               {dashPaymentMethods.filter(m => m.restaurant_id === markPaidDashTarget.restaurant_id).map((pm) => (

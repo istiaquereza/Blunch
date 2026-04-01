@@ -473,7 +473,7 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
                 : <span className="text-orange-600 font-bold text-sm">{s.name[0]}</span>}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-semibold text-gray-900 text-sm">{s.name}</p>
+              <p className="text-gray-700 text-sm">{s.name}</p>
               {s.job_role && <p className="text-xs text-gray-400">{s.job_role}</p>}
             </div>
             <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${s.staff_type === "kitchen" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"}`}>
@@ -688,8 +688,8 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
           <div className="px-4 pb-2">
             <select value={activeSession.tableId}
               onChange={e => updateSession(activeSession.localId, { tableId: e.target.value })}
-              className={`h-8 px-3 rounded-lg border text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 w-full ${
-                !activeSession.tableId ? "border-orange-300 bg-orange-50 text-orange-700" : "border-gray-200"
+              className={`h-8 px-3 rounded-md bg-white shadow-sm text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent w-full ${
+                !activeSession.tableId ? "ring-1 ring-inset ring-orange-300 bg-orange-50 text-orange-700" : "border border-gray-200"
               }`}>
               <option value="">Select table *</option>
               {tables.map(t => {
@@ -753,7 +753,7 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
                 )}
               </div>
               <div className="p-3 flex-1 flex flex-col">
-                <p className="font-semibold text-gray-900 text-sm leading-tight">{item.name}</p>
+                <p className="text-gray-700 text-sm leading-tight">{item.name}</p>
                 <p className="text-orange-600 font-bold text-sm mt-1">{fmt(item.sell_price)}</p>
                 <div className="mt-2">
                   {unavailable ? (
@@ -869,7 +869,7 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
                         <Trash2 size={12} className="text-red-500" />
                       </button>
                     </div>
-                    <span className="text-sm font-semibold text-gray-900 w-20 text-right">{fmt(c.sell_price * c.quantity)}</span>
+                    <span className="text-sm text-gray-700 w-20 text-right">{fmt(c.sell_price * c.quantity)}</span>
                   </div>
                 ))}
               </div>
@@ -879,7 +879,7 @@ export default function RemotePage({ params }: { params: Promise<{ rid: string }
                 <div className="px-4 pb-3">
                   <select value={activeSession.discountId}
                     onChange={e => updateSession(activeSession.localId, { discountId: e.target.value })}
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-700">
+                    className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                     <option value="">No discount</option>
                     {discounts.map(d => (
                       <option key={d.id} value={d.id}>{d.name} — {d.discount_type === "percentage" ? `${d.discount_value}%` : fmt(d.discount_value)}</option>

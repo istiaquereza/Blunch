@@ -184,7 +184,7 @@ export interface ProductRequisition {
 
 export interface Vendor {
   id: string;
-  restaurant_id: string;
+  restaurant_id?: string | null;
   name: string;
   phone: string;
   address: string;

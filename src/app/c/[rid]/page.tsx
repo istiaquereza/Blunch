@@ -420,7 +420,7 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
           <details className="bg-white rounded-2xl border border-gray-100 shadow-sm group" open>
             <summary className="flex items-center justify-between p-4 cursor-pointer select-none list-none">
               <div>
-                <p className="text-sm font-semibold text-gray-900">Order Summary</p>
+                <p className="text-sm text-gray-700">Order Summary</p>
                 <p className="text-xs text-gray-400 mt-0.5">{cartCount} item{cartCount !== 1 ? "s" : ""} · {fmt(grandTotal)}</p>
               </div>
               <ChevronDown size={15} className="text-gray-400 transition-transform group-open:rotate-180" />
@@ -502,7 +502,7 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
             </div>
             {tables.length > 0 && (
               <select value={selectedTableId} onChange={(e) => setSelectedTableId(e.target.value)}
-                className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${!selectedTableId ? "border-orange-300 bg-orange-50 text-orange-700" : "border-gray-200 text-gray-700"}`}>
+                className={`w-full h-10 px-3 rounded-md bg-white shadow-sm text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${!selectedTableId ? "ring-1 ring-inset ring-orange-300 bg-orange-50 text-orange-700" : "border border-gray-200"}`}>
                 <option value="">Select your table *</option>
                 {tables.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -611,7 +611,7 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
                 : <div className="w-full h-28 bg-orange-50 flex items-center justify-center"><UtensilsCrossed size={24} className="text-orange-200" /></div>
               }
               <div className="p-3 flex-1 flex flex-col">
-                <p className="font-semibold text-gray-900 text-sm leading-tight">{item.name}</p>
+                <p className="text-gray-700 text-sm leading-tight">{item.name}</p>
                 <p className="text-orange-600 font-bold text-sm mt-1">{fmt(item.sell_price)}</p>
                 <div className="mt-2">
                   {inCart ? (
@@ -692,7 +692,7 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
                         <Trash2 size={12} className="text-red-500" />
                       </button>
                     </div>
-                    <span className="text-sm font-semibold text-gray-900 w-20 text-right">{fmt(c.sell_price * c.quantity)}</span>
+                    <span className="text-sm text-gray-700 w-20 text-right">{fmt(c.sell_price * c.quantity)}</span>
                   </div>
                 ))}
               </div>
@@ -701,7 +701,7 @@ export default function CustomerOrderPage({ params }: { params: Promise<{ rid: s
               {discounts.length > 0 && (
                 <div className="px-4 pb-3">
                   <select value={selectedDiscountId} onChange={(e) => setSelectedDiscountId(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-700">
+                    className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
                     <option value="">No discount</option>
                     {discounts.map(d => (
                       <option key={d.id} value={d.id}>{d.name} — {d.discount_type === "percentage" ? `${d.discount_value}%` : fmt(d.discount_value)}</option>
