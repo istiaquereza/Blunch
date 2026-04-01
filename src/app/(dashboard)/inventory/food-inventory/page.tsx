@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,16 +35,6 @@ const UNIT_TYPES = [
   { value: "quantity", label: "Quantity" },
 ];
 
-// Conversion to base unit: grams for weight, ml for volume
-const WEIGHT_BASE: Record<string, number> = { mg: 0.001, g: 1, lb: 453.592, kg: 1000 };
-const VOLUME_BASE: Record<string, number> = { ml: 1, l: 1000, cup: 236.588, tbsp: 14.787 };
-
-function convertQty(qty: number, fromUnit: string, toUnit: string, unitType: string): number {
-  if (fromUnit === toUnit || qty === 0) return qty;
-  const table = unitType === "weight" ? WEIGHT_BASE : unitType === "volume" ? VOLUME_BASE : null;
-  if (!table || !(fromUnit in table) || !(toUnit in table)) return qty;
-  return qty * (table[fromUnit] / table[toUnit]);
-}
 
 interface IngForm { name: string; unit_type: string; default_unit: string; unit_price: string; inventory_group_id: string; }
 
@@ -153,7 +144,7 @@ export default function FoodInventoryPage() {
 
   // Edit ingredient dialog
   const [editIngOpen, setEditIngOpen] = useState(false);
-  const [editIngTarget, setEditIngTarget] = useState<{ id: string; current_qty: number; old_unit: string; old_unit_type: string } | null>(null);
+  const [editIngTarget, setEditIngTarget] = useState<{ id: string; current_qty: number; old_unit: string; old_unit_type: string; old_unit_price: number; old_name: string } | null>(null);
   const [editIngForm, setEditIngForm] = useState<IngForm>({ name: "", unit_type: "weight", default_unit: "g", unit_price: "", inventory_group_id: "" });
   const [editIngSaving, setEditIngSaving] = useState(false);
 
@@ -219,13 +210,13 @@ export default function FoodInventoryPage() {
   };
 
   const openEditIngredient = (ingredient: (typeof ingredients)[0], currentQty: number) => {
-    setEditIngTarget({ id: ingredient.id, current_qty: currentQty, old_unit: ingredient.default_unit, old_unit_type: ingredient.unit_type });
+    setEditIngTarget({ id: ingredient.id, current_qty: currentQty, old_unit: ingredient.default_unit, old_unit_type: ingredient.unit_type, old_unit_price: ingredient.unit_price, old_name: ingredient.name });
     setEditIngForm({ name: ingredient.name, unit_type: ingredient.unit_type, default_unit: ingredient.default_unit, unit_price: String(ingredient.unit_price), inventory_group_id: ingredient.inventory_group_id ?? "" });
     setEditIngOpen(true);
   };
 
   const handleSaveIngredient = async () => {
-    if (!editIngTarget) return;
+    if (!editIngTarget || !rid) return;
     if (!editIngForm.name.trim()) { toast.error("Name required"); return; }
     const newPrice = parseFloat(editIngForm.unit_price);
     if (isNaN(newPrice) || newPrice < 0) { toast.error("Valid unit price required"); return; }
@@ -240,14 +231,44 @@ export default function FoodInventoryPage() {
     });
     if (error) { toast.error(error.message); setEditIngSaving(false); return; }
 
-    // Auto-convert current stock quantity when unit changes
-    if (editIngTarget.old_unit !== editIngForm.default_unit && editIngTarget.current_qty > 0) {
-      const convertedQty = convertQty(editIngTarget.current_qty, editIngTarget.old_unit, editIngForm.default_unit, editIngTarget.old_unit_type);
-      const rounded = parseFloat(convertedQty.toFixed(6));
-      await upsert(editIngTarget.id, rounded);
+    // Reconcile past restock transactions: keep the qty number as-is (the user's intended amount),
+    // update the unit label in the description and recalculate the amount with the new price.
+    // This fixes cases where the ingredient was set up with wrong unit/price (e.g. "g"/1.4 instead of "kg"/1400).
+    const unitChanged = editIngTarget.old_unit !== editIngForm.default_unit;
+    const priceChanged = editIngTarget.old_unit_price !== newPrice;
+    if ((unitChanged || priceChanged) && rid) {
+      const supabase = createClient();
+      const safeName = editIngTarget.old_name.replace(/[%_]/g, "\\$&");
+      const { data: txRows } = await supabase
+        .from("transactions")
+        .select("id, description")
+        .eq("restaurant_id", rid)
+        .eq("type", "expense")
+        .ilike("description", `Stock restock: ${safeName} +%`);
+
+      let updatedCount = 0;
+      for (const tx of txRows ?? []) {
+        const match = tx.description?.match(/\+([0-9.]+)/);
+        if (!match) continue;
+        const qty = parseFloat(match[1]);
+        if (isNaN(qty)) continue;
+        const newAmount = parseFloat((qty * newPrice).toFixed(2));
+        const newDesc = tx.description.replace(
+          /\+[0-9.]+\s*\S*$/,
+          `+${qty.toFixed(2)} ${editIngForm.default_unit}`
+        );
+        await supabase.from("transactions").update({ amount: newAmount, description: newDesc }).eq("id", tx.id);
+        updatedCount++;
+      }
+      if (updatedCount > 0) {
+        toast.success(`Ingredient updated! ${updatedCount} past transaction${updatedCount > 1 ? "s" : ""} recalculated.`);
+      } else {
+        toast.success("Ingredient updated!");
+      }
+    } else {
+      toast.success("Ingredient updated!");
     }
 
-    toast.success("Ingredient updated! Stock quantity converted to new unit.");
     setEditIngOpen(false);
     setEditIngSaving(false);
   };
@@ -757,11 +778,13 @@ export default function FoodInventoryPage() {
           <Input label={`Unit Price (৳ per ${editIngForm.default_unit})`} type="number" min="0" step="0.01" placeholder="0.00"
             value={editIngForm.unit_price} onChange={(e) => setEditIngForm(p => ({ ...p, unit_price: e.target.value }))}
           />
-          {editIngTarget && editIngTarget.old_unit !== editIngForm.default_unit && editIngTarget.current_qty > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-700">
-              <p className="font-semibold mb-1">Unit conversion will apply</p>
-              <p>Current stock <strong>{editIngTarget.current_qty} {editIngTarget.old_unit}</strong> will be converted to <strong>{parseFloat(convertQty(editIngTarget.current_qty, editIngTarget.old_unit, editIngForm.default_unit, editIngTarget.old_unit_type).toFixed(6))} {editIngForm.default_unit}</strong>.</p>
-              <p className="mt-1 text-amber-600">Note: past expense transactions will not be changed. You can correct them from the Income & Expenses page.</p>
+          {editIngTarget && (editIngTarget.old_unit !== editIngForm.default_unit || editIngTarget.old_unit_price !== parseFloat(editIngForm.unit_price || "0")) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-700 space-y-1">
+              <p className="font-semibold">Past transactions will be recalculated</p>
+              <p>All <em>Stock restock</em> entries for this ingredient will be updated — the quantity number stays the same but the unit label and cost will reflect the new settings.</p>
+              {editIngTarget.old_unit !== editIngForm.default_unit && (
+                <p>Example: <strong>+105.00 {editIngTarget.old_unit}</strong> → <strong>+105.00 {editIngForm.default_unit || "…"}</strong> at ৳{editIngForm.unit_price || "0"}/{editIngForm.default_unit || "…"} = ৳{(105 * parseFloat(editIngForm.unit_price || "0")).toLocaleString()}</p>
+              )}
             </div>
           )}
           <div className="space-y-1.5">
