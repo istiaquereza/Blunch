@@ -44,7 +44,7 @@ interface PayrollRow {
   staffId: string;
   name: string;
   jobRole: string | null;
-  staffType: "kitchen" | "hall" | null;
+  staffType: "chefs" | "senior_chefs" | "waiter" | "pickupman" | "hall_operations" | "dishwasher" | null;
   restaurantName: string | null;
   restaurantId: string;
   monthlySalary: number;
@@ -699,8 +699,8 @@ export default function StaffPayrollPage() {
   const totalPaid = rows.reduce((s, r) => s + r.paid, 0);
   const totalDue = rows.reduce((s, r) => s + r.due, 0);
   const fullyPaid = rows.filter(r => r.status === "fully_paid").length;
-  const hallCount = rows.filter(r => r.staffType === "hall").length;
-  const kitchenCount = rows.filter(r => r.staffType === "kitchen").length;
+  const hallCount = rows.filter(r => r.staffType === "waiter" || r.staffType === "hall_operations").length;
+  const kitchenCount = rows.filter(r => r.staffType === "chefs" || r.staffType === "senior_chefs").length;
 
   // Month navigation
   const prevMonth = () => {
@@ -887,13 +887,13 @@ export default function StaffPayrollPage() {
                       {row.jobRole ?? <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3.5">
-                      {row.staffType === "kitchen" ? (
+                      {(row.staffType === "chefs" || row.staffType === "senior_chefs") ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
-                          <ChefHat size={9} /> Kitchen
+                          <ChefHat size={9} /> {row.staffType === "senior_chefs" ? "Senior Chef" : "Chef"}
                         </span>
-                      ) : row.staffType === "hall" ? (
+                      ) : (row.staffType === "waiter" || row.staffType === "hall_operations") ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
-                          <Utensils size={9} /> Hall
+                          <Utensils size={9} /> {row.staffType === "waiter" ? "Waiter" : "Hall Ops"}
                         </span>
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>

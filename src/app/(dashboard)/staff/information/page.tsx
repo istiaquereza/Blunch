@@ -297,8 +297,8 @@ export default function StaffInformationPage() {
     if (!form.phone.trim())             { toast.error("Phone number is required"); return; }
     if (!form.joining_date)             { toast.error("Joining date is required"); return; }
     if (!form.benefit_package_id)       { toast.error("Please select a benefit package"); return; }
-    if (form.staff_type === "kitchen" && form.food_category_ids.length === 0) {
-      toast.error("Select at least one food expertise for kitchen staff"); return;
+    if (["chefs", "senior_chefs", "pickupman"].includes(form.staff_type!) && form.food_category_ids.length === 0) {
+      toast.error("Select at least one food expertise for this staff type"); return;
     }
     if (!form.restaurant_id) { toast.error("Please select a restaurant"); return; }
     setSaving(true);
