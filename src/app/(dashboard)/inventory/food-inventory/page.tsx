@@ -17,7 +17,7 @@ import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useVendors } from "@/hooks/use-vendors";
 import { useTransactions, useExpenseCategories } from "@/hooks/use-transactions";
 import { Select } from "@/components/ui/select";
-import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus, Printer, Pencil } from "lucide-react";
+import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus, Printer, Pencil, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import type { FoodStock } from "@/types";
@@ -273,6 +273,56 @@ export default function FoodInventoryPage() {
     setEditIngSaving(false);
   };
 
+  const [reconciling, setReconciling] = useState(false);
+
+  // Reconcile ALL restock transactions for ALL ingredients:
+  // For each ingredient, find every "Stock restock: {name} +{qty}" transaction and
+  // rewrite the amount as qty × current_unit_price and fix the unit label.
+  const handleReconcileAll = async () => {
+    if (!rid || ingredients.length === 0) return;
+    setReconciling(true);
+    const supabase = createClient();
+    let totalFixed = 0;
+
+    for (const ing of ingredients) {
+      const safeName = ing.name.replace(/[%_]/g, "\\$&");
+      const { data: txRows } = await supabase
+        .from("transactions")
+        .select("id, description, amount")
+        .eq("restaurant_id", rid)
+        .eq("type", "expense")
+        .ilike("description", `Stock restock: ${safeName} +%`);
+
+      for (const tx of txRows ?? []) {
+        const match = tx.description?.match(/\+([0-9.]+)/);
+        if (!match) continue;
+        const qty = parseFloat(match[1]);
+        if (isNaN(qty)) continue;
+        const correctAmount = parseFloat((qty * ing.unit_price).toFixed(2));
+        // Fix description: replace "+{old_qty} {old_unit}" with "+{qty} {current_unit}"
+        const newDesc = (tx.description as string).replace(
+          /\+[0-9.]+\s*\S*$/,
+          `+${qty.toFixed(2)} ${ing.default_unit}`
+        );
+        const amountWrong = Math.abs(tx.amount - correctAmount) > 0.001;
+        const descWrong = tx.description !== newDesc;
+        if (amountWrong || descWrong) {
+          await supabase.from("transactions")
+            .update({ amount: correctAmount, description: newDesc })
+            .eq("id", tx.id);
+          totalFixed++;
+        }
+      }
+    }
+
+    setReconciling(false);
+    if (totalFixed > 0) {
+      toast.success(`Fixed ${totalFixed} transaction${totalFixed > 1 ? "s" : ""}. Reload Income & Expenses to see updated values.`);
+    } else {
+      toast.info("All restock transactions are already correct.");
+    }
+  };
+
   const openMovements = (ingredientId: string, ingredientName: string) => {
     setMovementsIngredientId(ingredientId);
     setMovementsIngredientName(ingredientName);
@@ -456,6 +506,9 @@ export default function FoodInventoryPage() {
               <option value="sufficient">Sufficient</option>
             </select>
           <div className="flex-1" />
+          <Button variant="outline" size="sm" onClick={handleReconcileAll} loading={reconciling} title="Recalculate all restock transaction costs from current ingredient prices">
+            <RefreshCcw size={13} /> Reconcile Costs
+          </Button>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ingredients..."
