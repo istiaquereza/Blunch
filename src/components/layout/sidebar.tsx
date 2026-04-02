@@ -5,13 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown, ChevronUp, X, LifeBuoy, LogOut, Bell, Globe, Package, AlertCircle, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { navItems, type NavItem } from "./nav-config";
+import { navItems, type NavItem, type LinkNavItem } from "./nav-config";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { createClient } from "@/lib/supabase/client";
 import { useRestaurant } from "@/contexts/restaurant-context";
 import { toast } from "sonner";
 
-function NavLink({ item, depth = 0, badges = {} }: { item: NavItem; depth?: number; badges?: Record<string, number> }) {
+function NavLink({ item, depth = 0, badges = {} }: { item: LinkNavItem; depth?: number; badges?: Record<string, number> }) {
   const pathname = usePathname();
   const { closeSidebar } = useSidebar();
   const hasChildren = item.children && item.children.length > 0;
@@ -199,9 +199,19 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-        {navItems.map((item) => (
-          <NavLink key={item.href} item={item} badges={{ "/orders/order": activeOrderCount }} />
-        ))}
+        {navItems.map((item, i) => {
+          if (item.kind === "divider") {
+            return <div key={`divider-${i}`} className="my-2 border-t border-sidebar-border/50" />;
+          }
+          if (item.kind === "section") {
+            return (
+              <p key={`section-${i}`} className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/30">
+                {item.label}
+              </p>
+            );
+          }
+          return <NavLink key={(item as any).href} item={item as any} badges={{ "/orders/order": activeOrderCount }} />;
+        })}
       </nav>
 
       {/* Support link */}

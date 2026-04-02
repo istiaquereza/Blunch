@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const authRoutes = ["/login", "/signup", "/forgot-password"];
-  const publicRoutes = ["/c/", "/remote/"]; // customer-facing & staff remote order pages
+  const publicRoutes = ["/c/", "/remote/", "/daily-bazar/", "/staff-support/"]; // customer-facing & staff remote order pages
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
   const isPublicRoute =
     pathname === "/" || // landing page — always public
