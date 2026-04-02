@@ -18,7 +18,7 @@ function NavLink({ item, depth = 0, badges = {} }: { item: LinkNavItem; depth?: 
   const isActive = hasChildren
     ? pathname === item.href
     : pathname === item.href ||
-      (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
+    (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
   const isExpanded = (pathname === item.href || pathname.startsWith(item.href + "/")) && hasChildren;
   const [open, setOpen] = useState(isExpanded);
   const badge = badges[item.href] ?? 0;
@@ -112,8 +112,8 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
   const userRole = isSuperAdmin
     ? "Super Admin"
     : activeRestaurant
-    ? (getUserRole(activeRestaurant.id) ?? "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-    : "";
+      ? (getUserRole(activeRestaurant.id) ?? "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+      : "";
 
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => {
@@ -199,9 +199,21 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-        {navItems.map((item) => (
-          <NavLink key={item.href} item={item} badges={{ "/orders/order": activeOrderCount }} />
-        ))}
+        {navItems.map((item, index) => {
+          // If it's a divider, render a simple line instead of a NavLink
+          if ("kind" in item && item.kind === "divider") {
+            return <hr key={`divider-${index}`} className="my-2 border-gray-200" />;
+          }
+
+          // Otherwise, render the NavLink and use a fallback for the key
+          return (
+            <NavLink
+              key={item.href || `item-${index}`}
+              item={item}
+              badges={{ "/orders/order": activeOrderCount }}
+            />
+          );
+        })}
       </nav>
 
       {/* Support link */}
