@@ -199,19 +199,9 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-        {navItems.map((item, i) => {
-          if (item.kind === "divider") {
-            return <div key={`divider-${i}`} className="mx-3 border-t border-sidebar-border/50" style={{ marginTop: 18, marginBottom: 18 }} />;
-          }
-          if (item.kind === "section") {
-            return (
-              <p key={`section-${i}`} className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/30">
-                {item.label}
-              </p>
-            );
-          }
-          return <NavLink key={(item as any).href} item={item as any} badges={{ "/orders/order": activeOrderCount }} />;
-        })}
+        {navItems.map((item) => (
+          <NavLink key={item.href} item={item} badges={{ "/orders/order": activeOrderCount }} />
+        ))}
       </nav>
 
       {/* Support link */}
