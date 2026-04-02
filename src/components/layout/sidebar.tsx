@@ -199,34 +199,32 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-        {navItems.map((item, index) => {
-          // If it's a divider, render a simple line instead of a NavLink
-          if ("kind" in item && item.kind === "divider") {
-            return <hr key={`divider-${index}`} className="my-2 border-gray-200" />;
-          }
-
-          // Otherwise, render the NavLink and use a fallback for the key
-          {
-            navItems.map((item, index) => {
-              // 1. Check if it's a section or divider first
-              if (item.kind === 'section') {
-                return <div key={`section-${index}`} className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">{item.label}</div>;
-              }
-
-              if (item.kind === 'divider') {
-                return <hr key={`divider-${index}`} className="my-2" />;
-              }
-
-              // 2. Now TypeScript knows 'item' MUST be a link, so 'item.href' is safe to use
+        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+          {navItems.map((item, index) => {
+            // 1. Handle Section headers
+            if (item.kind === 'section') {
               return (
-                <NavLink
-                  key={item.href}
-                  item={item}
-                  badges={{ "/orders/order": activeOrderCount }}
-                />
+                <div key={`section-${index}`} className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                  {item.label}
+                </div>
               );
-            })
-          }
+            }
+
+            // 2. Handle Divider lines
+            if (item.kind === 'divider') {
+              return <hr key={`divider-${index}`} className="my-2 border-gray-200" />;
+            }
+
+            // 3. Handle Regular Links (Now safe for TypeScript)
+            return (
+              <NavLink
+                key={item.href || `link-${index}`}
+                item={item}
+                badges={{ "/orders/order": activeOrderCount }}
+              />
+            );
+          })}
+        </nav>
       </nav>
 
       {/* Support link */}
