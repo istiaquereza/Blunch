@@ -753,7 +753,7 @@ export default function OrderDetailsPage() {
     <>
       <Header title="Order Details" />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
 
         {/* ── Tabs ── */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
@@ -771,7 +771,7 @@ export default function OrderDetailsPage() {
         </div>
 
         {/* ── Toolbar ── */}
-        <div className="shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto bg-white border border-border rounded-xl">
+        <div className="shrink-0 flex flex-wrap items-center px-4 md:px-6 gap-3 md:gap-4 py-2.5 md:h-[62px] md:py-0 bg-white border border-border rounded-xl">
           {/* Date preset pills */}
           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
             {(["today", "week", "month", "all_time", "custom"] as DatePreset[]).map((p) => (

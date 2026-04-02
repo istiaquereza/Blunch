@@ -1471,7 +1471,7 @@ export default function NewOrderPage() {
       <div className="flex flex-col h-[calc(100vh-62px)] overflow-hidden p-4 gap-4 bg-[#FAFAFA]">
 
         {/* ── Toolbar card ── */}
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-[14px] gap-3 py-2.5 md:h-[62px] md:py-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-700">Active Orders</span>
             <span className="bg-orange-100 text-orange-600 text-xs font-bold px-2 py-0.5 rounded-full">

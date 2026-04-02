@@ -753,9 +753,9 @@ export default function IncomeExpensesPage() {
     <>
       <Header title="Income & Expenses" />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* ── Toolbar ── */}
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-4 md:px-6 gap-3 md:gap-4 py-2.5 md:h-[62px] md:py-0">
           <div className="flex flex-wrap items-center gap-2 w-full">
 
             {/* Date range dropdown */}
@@ -838,7 +838,7 @@ export default function IncomeExpensesPage() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-[18px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-[18px]">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
@@ -886,7 +886,7 @@ export default function IncomeExpensesPage() {
         </div>
 
         {/* ── Category breakdown cards ── */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Income Summary */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-2.5 px-5 py-4 border-b border-gray-100">

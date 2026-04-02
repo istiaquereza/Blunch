@@ -935,7 +935,7 @@ export default function BazarRequestsPage() {
 
   if (!rid) return (
     <div><Header title="Bazar Requests" />
-      <div className="p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
+      <div className="p-4 md:p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
         <ShoppingCart size={40} className="text-gray-200 mx-auto mb-3" />
         <p className="font-medium text-gray-500">No restaurant selected</p>
         <p className="text-sm text-gray-400 mt-1">Go to <strong>Settings</strong> to add a restaurant first</p>
@@ -946,9 +946,9 @@ export default function BazarRequestsPage() {
   return (
     <div>
       <Header title="Bazar Requests" />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* ── Toolbar — above the cards ── */}
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-4 md:px-6 gap-3 md:gap-4 py-2.5 md:h-[62px] md:py-0">
             {/* Status */}
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
               className="h-9 px-[14px] rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">

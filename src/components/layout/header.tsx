@@ -160,7 +160,7 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-11 w-80 bg-white rounded-xl border border-border shadow-xl z-50 overflow-hidden">
+            <div className="absolute right-0 top-11 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-border shadow-xl z-50 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <p className="text-sm font-semibold text-gray-900">Alerts</p>
                 {alertCount > 0 && (

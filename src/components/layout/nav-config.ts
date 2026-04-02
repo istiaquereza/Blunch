@@ -24,16 +24,16 @@ import {
   Truck,
   QrCode,
   Smartphone,
+  HeartHandshake,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type NavItem = {
-  title: string;
-  href: string;
-  icon: LucideIcon;
-  children?: NavItem[];
-  badge?: number;
-};
+export type LinkNavItem = { kind?: "link"; title: string; href: string; icon: LucideIcon; children?: LinkNavItem[]; badge?: number };
+
+export type NavItem =
+  | LinkNavItem
+  | { kind: "divider" }
+  | { kind: "section"; label: string };
 
 export const navItems: NavItem[] = [
   {
@@ -62,11 +62,7 @@ export const navItems: NavItem[] = [
       { title: "Inventory History", href: "/inventory/history", icon: History },
     ],
   },
-  {
-    title: "CRM",
-    href: "/crm",
-    icon: Users,
-  },
+  { kind: "divider" },
   {
     title: "Sells & Expenses",
     href: "/sells-expenses",
@@ -83,9 +79,13 @@ export const navItems: NavItem[] = [
     children: [
       { title: "New Order", href: "/orders/order", icon: ShoppingCart },
       { title: "Order Details", href: "/orders/order-details", icon: ClipboardList },
-      { title: "Customer Order", href: "/customer-order", icon: QrCode },
-      { title: "Remote Order", href: "/orders/remote-order", icon: Smartphone },
     ],
+  },
+  { kind: "divider" },
+  {
+    title: "CRM",
+    href: "/crm",
+    icon: Users,
   },
   {
     title: "Staff Management",
@@ -98,6 +98,7 @@ export const navItems: NavItem[] = [
       { title: "Vendors", href: "/staff/vendors", icon: Truck },
     ],
   },
+  { kind: "divider" },
   {
     title: "User Access",
     href: "/user-access",
@@ -116,4 +117,10 @@ export const navItems: NavItem[] = [
     href: "/settings",
     icon: Settings,
   },
+  { kind: "divider" },
+  { kind: "section", label: "Remote Access" },
+  { kind: "link", title: "Remote Order", href: "/orders/remote-order", icon: Smartphone },
+  { kind: "link", title: "Customer Order", href: "/customer-order", icon: QrCode },
+  { kind: "link", title: "Daily Bazar", href: "/orders/daily-bazar", icon: ShoppingBag },
+  { kind: "link", title: "Staff Support", href: "/orders/staff-support", icon: HeartHandshake },
 ];

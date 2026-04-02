@@ -31,19 +31,35 @@ export function Dialog({
         <RadixDialog.Overlay className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <RadixDialog.Content
           className={cn(
-            "fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50",
-            "bg-white rounded-2xl shadow-xl w-full mx-4 sm:mx-0",
-            maxWidth ?? "max-w-lg",
-            "max-h-[90vh] flex flex-col",
+            // Mobile: bottom sheet
+            "fixed bottom-0 left-0 right-0 z-50",
+            "md:top-1/2 md:left-1/2 md:bottom-auto md:right-auto",
+            "md:-translate-x-1/2 md:-translate-y-1/2",
+            "bg-white",
+            "rounded-t-2xl md:rounded-2xl",
+            "shadow-xl w-full",
+            "md:mx-0",
+            maxWidth ? `md:${maxWidth}` : "md:max-w-lg",
+            // Mobile: up to 90vh from bottom; desktop: max-h-[90vh]
+            "max-h-[92vh] md:max-h-[90vh]",
+            "flex flex-col",
+            // Animations — mobile: slide up; desktop: zoom
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-            "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+            "data-[state=open]:slide-in-from-bottom md:data-[state=open]:slide-in-from-bottom-0",
+            "data-[state=closed]:slide-out-to-bottom md:data-[state=closed]:slide-out-to-bottom-0",
+            "md:data-[state=closed]:zoom-out-95 md:data-[state=open]:zoom-in-95",
             "focus:outline-none",
             className
           )}
         >
+          {/* Drag handle — mobile only */}
+          <div className="md:hidden flex justify-center pt-3 pb-1 shrink-0">
+            <div className="w-10 h-1 rounded-full bg-gray-200" />
+          </div>
+
           {/* Header */}
-          <div className="flex items-start justify-between p-5 border-b border-gray-100 shrink-0">
+          <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
             <div>
               <RadixDialog.Title className="text-base font-semibold text-gray-900">
                 {title}
@@ -64,7 +80,7 @@ export function Dialog({
 
           {/* Footer */}
           {footer && (
-            <div className="border-t border-gray-100 p-5 shrink-0 flex items-center justify-end gap-2">
+            <div className="border-t border-gray-100 p-4 md:p-5 shrink-0 flex items-center justify-end gap-2 pb-safe">
               {footer}
             </div>
           )}

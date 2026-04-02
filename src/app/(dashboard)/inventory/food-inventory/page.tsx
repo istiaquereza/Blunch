@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,10 +16,27 @@ import { useRestockTransactions } from "@/hooks/use-restock-transactions";
 import { usePaymentMethods } from "@/hooks/use-payment-methods";
 import { useVendors } from "@/hooks/use-vendors";
 import { useTransactions, useExpenseCategories } from "@/hooks/use-transactions";
-import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus, Printer } from "lucide-react";
+import { Select } from "@/components/ui/select";
+import { Layers, Search, Plus, AlertTriangle, CheckCircle2, XCircle, History, PackagePlus, Printer, Pencil, RefreshCcw, MoreVertical, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import type { FoodStock } from "@/types";
+
+const UNIT_OPTIONS: Record<string, string[]> = {
+  weight: ["mg", "g", "lb", "kg"],
+  volume: ["ml", "l", "cup", "tbsp"],
+  unit: ["cm", "m", "inch", "ft"],
+  quantity: ["pc", "dozen", "pack"],
+};
+const UNIT_TYPES = [
+  { value: "weight", label: "Weight" },
+  { value: "volume", label: "Volume" },
+  { value: "unit", label: "Unit (Length)" },
+  { value: "quantity", label: "Quantity" },
+];
+
+
+interface IngForm { name: string; unit_type: string; default_unit: string; unit_price: string; inventory_group_id: string; }
 
 const LOW_THRESHOLD = 5;
 const EMPTY_THRESHOLD = 0;
@@ -97,13 +115,13 @@ export default function FoodInventoryPage() {
   const { activeRestaurant } = useRestaurant();
   const rid = activeRestaurant?.id;
   const { stock, loading, upsert } = useFoodStock(rid);
-  const { ingredients } = useIngredients(rid);
+  const { ingredients, update: updateIngredient } = useIngredients(rid);
   const { groups } = useInventoryGroups(rid);
   // Movements: food_stock_logs (both in/out from orders + manual)
   const { logs: movementLogs, loading: movementsLoading, fetchLogs: fetchMovements, createLog, clearLogs: clearMovements } = useFoodStockLogs(rid);
   const orderDrivenLogs = movementLogs.filter((l) => l.reason !== "manual_restock" && l.quantity_change < 0);
   // Stock In Summary: transactions table (source of truth for all restocks including older ones)
-  const { entries: stockInEntries, loading: stockInLoading, fetchEntries: fetchStockIn, clear: clearStockIn } = useRestockTransactions(rid);
+  const { entries: stockInEntries, loading: stockInLoading, fetchEntries: fetchStockIn, updateEntry: updateRestockEntry, deleteEntry: deleteRestockEntry, clear: clearStockIn } = useRestockTransactions(rid);
   const { methods: paymentMethods } = usePaymentMethods(rid);
   const { vendors } = useVendors();
   const { create: createTransaction } = useTransactions(rid);
@@ -123,6 +141,20 @@ export default function FoodInventoryPage() {
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "due">("paid");
   const [restockVendorId, setRestockVendorId] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Edit restock entry
+  const [editRestockOpen, setEditRestockOpen] = useState(false);
+  const [editRestockEntry, setEditRestockEntry] = useState<import("@/hooks/use-restock-transactions").RestockEntry | null>(null);
+  const [editRestockQty, setEditRestockQty] = useState("");
+  const [editRestockDate, setEditRestockDate] = useState("");
+  const [editRestockSaving, setEditRestockSaving] = useState(false);
+  const [restockMenuOpenId, setRestockMenuOpenId] = useState<string | null>(null);
+
+  // Edit ingredient dialog
+  const [editIngOpen, setEditIngOpen] = useState(false);
+  const [editIngTarget, setEditIngTarget] = useState<{ id: string; current_qty: number; old_unit: string; old_unit_type: string; old_unit_price: number; old_name: string } | null>(null);
+  const [editIngForm, setEditIngForm] = useState<IngForm>({ name: "", unit_type: "weight", default_unit: "g", unit_price: "", inventory_group_id: "" });
+  const [editIngSaving, setEditIngSaving] = useState(false);
 
   // Stock Movements dialog
   const [movementsOpen, setMovementsOpen] = useState(false);
@@ -183,6 +215,176 @@ export default function FoodInventoryPage() {
     setPaymentStatus("paid");
     setRestockVendorId("");
     setAdjustOpen(true);
+  };
+
+  const openEditIngredient = (ingredient: (typeof ingredients)[0], currentQty: number) => {
+    setEditIngTarget({ id: ingredient.id, current_qty: currentQty, old_unit: ingredient.default_unit, old_unit_type: ingredient.unit_type, old_unit_price: ingredient.unit_price, old_name: ingredient.name });
+    setEditIngForm({ name: ingredient.name, unit_type: ingredient.unit_type, default_unit: ingredient.default_unit, unit_price: String(ingredient.unit_price), inventory_group_id: ingredient.inventory_group_id ?? "" });
+    setEditIngOpen(true);
+  };
+
+  const handleSaveIngredient = async () => {
+    if (!editIngTarget || !rid) return;
+    if (!editIngForm.name.trim()) { toast.error("Name required"); return; }
+    const newPrice = parseFloat(editIngForm.unit_price);
+    if (isNaN(newPrice) || newPrice < 0) { toast.error("Valid unit price required"); return; }
+    setEditIngSaving(true);
+
+    const { error } = await updateIngredient(editIngTarget.id, {
+      name: editIngForm.name.trim(),
+      unit_type: editIngForm.unit_type as "weight" | "volume" | "unit" | "quantity",
+      default_unit: editIngForm.default_unit,
+      unit_price: newPrice,
+      inventory_group_id: editIngForm.inventory_group_id || undefined,
+    });
+    if (error) { toast.error(error.message); setEditIngSaving(false); return; }
+
+    // Reconcile past restock transactions: keep the qty number as-is (the user's intended amount),
+    // update the unit label in the description and recalculate the amount with the new price.
+    // This fixes cases where the ingredient was set up with wrong unit/price (e.g. "g"/1.4 instead of "kg"/1400).
+    const unitChanged = editIngTarget.old_unit !== editIngForm.default_unit;
+    const priceChanged = editIngTarget.old_unit_price !== newPrice;
+    if ((unitChanged || priceChanged) && rid) {
+      const supabase = createClient();
+      const safeName = editIngTarget.old_name.replace(/[%_]/g, "\\$&");
+      const { data: txRows } = await supabase
+        .from("transactions")
+        .select("id, description")
+        .eq("restaurant_id", rid)
+        .eq("type", "expense")
+        .ilike("description", `Stock restock: ${safeName} +%`);
+
+      let updatedCount = 0;
+      for (const tx of txRows ?? []) {
+        const match = tx.description?.match(/\+([0-9.]+)/);
+        if (!match) continue;
+        const qty = parseFloat(match[1]);
+        if (isNaN(qty)) continue;
+        const newAmount = parseFloat((qty * newPrice).toFixed(2));
+        const newDesc = tx.description.replace(
+          /\+[0-9.]+\s*\S*$/,
+          `+${qty.toFixed(2)} ${editIngForm.default_unit}`
+        );
+        await supabase.from("transactions").update({ amount: newAmount, description: newDesc }).eq("id", tx.id);
+        updatedCount++;
+      }
+      if (updatedCount > 0) {
+        toast.success(`Ingredient updated! ${updatedCount} past transaction${updatedCount > 1 ? "s" : ""} recalculated.`);
+      } else {
+        toast.success("Ingredient updated!");
+      }
+    } else {
+      toast.success("Ingredient updated!");
+    }
+
+    setEditIngOpen(false);
+    setEditIngSaving(false);
+  };
+
+  const openEditRestock = (entry: import("@/hooks/use-restock-transactions").RestockEntry) => {
+    setEditRestockEntry(entry);
+    setEditRestockQty(String(entry.qty));
+    setEditRestockDate(entry.date);
+    setRestockMenuOpenId(null);
+    setEditRestockOpen(true);
+  };
+
+  const handleSaveRestock = async () => {
+    if (!editRestockEntry || !rid) return;
+    const newQty = parseFloat(editRestockQty);
+    if (isNaN(newQty) || newQty <= 0) { toast.error("Enter a valid quantity"); return; }
+    if (!editRestockDate) { toast.error("Date is required"); return; }
+    setEditRestockSaving(true);
+
+    const ingredient = ingredients.find((i) => i.name === stockInIngredientName);
+    const unitPrice = ingredient?.unit_price ?? stockInUnitPrice;
+    const unit = ingredient?.default_unit ?? stockInUnit;
+
+    const { error, oldQty, newQty: savedQty } = await updateRestockEntry(
+      editRestockEntry, newQty, editRestockDate, stockInIngredientName, unitPrice, unit
+    );
+    if (error) { toast.error((error as Error).message); setEditRestockSaving(false); return; }
+
+    // Adjust food_stock: remove old qty, add new qty
+    const delta = savedQty - oldQty;
+    if (delta !== 0 && ingredient) {
+      const stockItem = stock.find((s) => s.ingredient_id === ingredient.id);
+      const currentQty = stockItem?.quantity ?? 0;
+      await upsert(ingredient.id, Math.max(0, currentQty + delta));
+    }
+
+    await fetchStockIn(stockInIngredientName);
+    toast.success("Restock entry updated.");
+    setEditRestockOpen(false);
+    setEditRestockSaving(false);
+  };
+
+  const handleDeleteRestock = async (entry: import("@/hooks/use-restock-transactions").RestockEntry) => {
+    if (!rid) return;
+    setRestockMenuOpenId(null);
+    const ingredient = ingredients.find((i) => i.name === stockInIngredientName);
+    const { error } = await deleteRestockEntry(entry.id);
+    if (error) { toast.error((error as Error).message); return; }
+
+    // Subtract deleted qty from food_stock
+    if (ingredient) {
+      const stockItem = stock.find((s) => s.ingredient_id === ingredient.id);
+      const currentQty = stockItem?.quantity ?? 0;
+      await upsert(ingredient.id, Math.max(0, currentQty - entry.qty));
+    }
+
+    await fetchStockIn(stockInIngredientName);
+    toast.success("Restock entry deleted.");
+  };
+
+  const [reconciling, setReconciling] = useState(false);
+
+  // Reconcile ALL restock transactions for ALL ingredients:
+  // For each ingredient, find every "Stock restock: {name} +{qty}" transaction and
+  // rewrite the amount as qty × current_unit_price and fix the unit label.
+  const handleReconcileAll = async () => {
+    if (!rid || ingredients.length === 0) return;
+    setReconciling(true);
+    const supabase = createClient();
+    let totalFixed = 0;
+
+    for (const ing of ingredients) {
+      const safeName = ing.name.replace(/[%_]/g, "\\$&");
+      const { data: txRows } = await supabase
+        .from("transactions")
+        .select("id, description, amount")
+        .eq("restaurant_id", rid)
+        .eq("type", "expense")
+        .ilike("description", `Stock restock: ${safeName} +%`);
+
+      for (const tx of txRows ?? []) {
+        const match = tx.description?.match(/\+([0-9.]+)/);
+        if (!match) continue;
+        const qty = parseFloat(match[1]);
+        if (isNaN(qty)) continue;
+        const correctAmount = parseFloat((qty * ing.unit_price).toFixed(2));
+        // Fix description: replace "+{old_qty} {old_unit}" with "+{qty} {current_unit}"
+        const newDesc = (tx.description as string).replace(
+          /\+[0-9.]+\s*\S*$/,
+          `+${qty.toFixed(2)} ${ing.default_unit}`
+        );
+        const amountWrong = Math.abs(tx.amount - correctAmount) > 0.001;
+        const descWrong = tx.description !== newDesc;
+        if (amountWrong || descWrong) {
+          await supabase.from("transactions")
+            .update({ amount: correctAmount, description: newDesc })
+            .eq("id", tx.id);
+          totalFixed++;
+        }
+      }
+    }
+
+    setReconciling(false);
+    if (totalFixed > 0) {
+      toast.success(`Fixed ${totalFixed} transaction${totalFixed > 1 ? "s" : ""}. Reload Income & Expenses to see updated values.`);
+    } else {
+      toast.info("All restock transactions are already correct.");
+    }
   };
 
   const openMovements = (ingredientId: string, ingredientName: string) => {
@@ -330,7 +532,7 @@ export default function FoodInventoryPage() {
 
   if (!rid) return (
     <div><Header title="Food Inventory" />
-      <div className="p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
+      <div className="p-4 md:p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
         <Layers size={40} className="text-gray-200 mx-auto mb-3" />
         <p className="font-medium text-gray-500">No restaurant selected</p>
         <p className="text-sm text-gray-400 mt-1">Go to <strong>Settings</strong> to add a restaurant first</p>
@@ -351,10 +553,10 @@ export default function FoodInventoryPage() {
   return (
     <div>
       <Header title="Food Inventory" />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 flex flex-wrap items-center px-4 md:px-6 gap-3 md:gap-4 py-2.5 md:h-[62px] md:py-0">
             <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
               className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">All Groups</option>
@@ -368,6 +570,9 @@ export default function FoodInventoryPage() {
               <option value="sufficient">Sufficient</option>
             </select>
           <div className="flex-1" />
+          <Button variant="outline" size="sm" onClick={handleReconcileAll} loading={reconciling} title="Recalculate all restock transaction costs from current ingredient prices">
+            <RefreshCcw size={13} /> Reconcile Costs
+          </Button>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ingredients..."
@@ -376,7 +581,7 @@ export default function FoodInventoryPage() {
         </div>
 
         {/* ── Summary Cards ── */}
-        <div className="grid grid-cols-4 gap-x-4 gap-y-[18px]">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-[18px]">
           {[
             { label: "Total Ingredients", value: items.length, sub: "tracked", color: "text-gray-900" },
             { label: "Total Stock Value", value: `৳${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, sub: "estimated", color: "text-gray-900" },
@@ -633,23 +838,48 @@ export default function FoodInventoryPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Date & Time</th>
+                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Date</th>
                         <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Qty Added</th>
                         <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Cost</th>
-                        <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2">Reason</th>
+                        <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide pb-2"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {stockInEntries.map((entry) => (
-                        <tr key={entry.id}>
-                          <td className="py-2.5 pr-3 text-gray-400 text-xs whitespace-nowrap">{format(new Date(entry.createdAt), "dd MMM yyyy, HH:mm")}</td>
+                        <tr key={entry.id} className="hover:bg-gray-50/50">
+                          <td className="py-2.5 pr-3 text-gray-500 text-xs whitespace-nowrap">{format(new Date(entry.date + "T12:00:00"), "dd MMM yyyy")}</td>
                           <td className="py-2.5 pr-3 text-right font-semibold text-xs text-green-600">
                             +{entry.qty.toFixed(2)} {stockInUnit}
                           </td>
                           <td className="py-2.5 pr-3 text-right text-xs text-gray-700 font-medium">
                             ৳{entry.amount.toFixed(2)}
                           </td>
-                          <td className="py-2.5 text-gray-400 text-xs">Manual restock</td>
+                          <td className="py-2.5 text-right">
+                            <div className="relative inline-block">
+                              <button
+                                onClick={() => setRestockMenuOpenId(restockMenuOpenId === entry.id ? null : entry.id)}
+                                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                              >
+                                <MoreVertical size={13} />
+                              </button>
+                              {restockMenuOpenId === entry.id && (
+                                <div className="absolute right-0 top-6 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
+                                  <button
+                                    onClick={() => openEditRestock(entry)}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                                  >
+                                    <Pencil size={11} /> Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteRestock(entry)}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                                  >
+                                    <Trash2 size={11} /> Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -658,6 +888,99 @@ export default function FoodInventoryPage() {
               )}
             </>
           )}
+        </div>
+      </Dialog>
+
+      {/* ── Edit Restock Entry Dialog ── */}
+      <Dialog
+        open={editRestockOpen}
+        onOpenChange={setEditRestockOpen}
+        title="Edit Restock Entry"
+        footer={
+          <><Button variant="outline" onClick={() => setEditRestockOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveRestock} loading={editRestockSaving}>Save Changes</Button></>
+        }
+      >
+        {editRestockEntry && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg px-4 py-3">
+              <p className="font-medium text-gray-800">{stockInIngredientName}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Unit price: <strong>৳{stockInUnitPrice} / {stockInUnit}</strong>
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-gray-700">Date</label>
+              <input
+                type="date"
+                value={editRestockDate}
+                max={(() => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; })()}
+                onChange={(e) => setEditRestockDate(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            </div>
+            <Input
+              label={`Quantity (${stockInUnit})`}
+              type="number" min="0.01" step="0.01"
+              value={editRestockQty}
+              onChange={(e) => setEditRestockQty(e.target.value)}
+            />
+            {parseFloat(editRestockQty) > 0 && !isNaN(parseFloat(editRestockQty)) && (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 space-y-1">
+                <p className="text-xs text-blue-700">
+                  New cost: <strong>৳{(parseFloat(editRestockQty) * stockInUnitPrice).toFixed(2)}</strong>
+                </p>
+                {parseFloat(editRestockQty) !== editRestockEntry.qty && (
+                  <p className="text-xs text-blue-500">
+                    Stock will adjust by <strong>{(parseFloat(editRestockQty) - editRestockEntry.qty) > 0 ? "+" : ""}{(parseFloat(editRestockQty) - editRestockEntry.qty).toFixed(2)} {stockInUnit}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </Dialog>
+
+      {/* ── Edit Ingredient Dialog ── */}
+      <Dialog
+        open={editIngOpen}
+        onOpenChange={setEditIngOpen}
+        title="Edit Ingredient"
+        footer={
+          <><Button variant="outline" onClick={() => setEditIngOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveIngredient} loading={editIngSaving}>Save Changes</Button></>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Ingredient Name" value={editIngForm.name} onChange={(e) => setEditIngForm(p => ({ ...p, name: e.target.value }))} />
+          <Select label="Unit Type" value={editIngForm.unit_type}
+            onChange={(e) => setEditIngForm(p => ({ ...p, unit_type: e.target.value, default_unit: UNIT_OPTIONS[e.target.value]?.[0] ?? "" }))}
+            options={UNIT_TYPES}
+          />
+          <Select label="Default Unit" value={editIngForm.default_unit}
+            onChange={(e) => setEditIngForm(p => ({ ...p, default_unit: e.target.value }))}
+            options={(UNIT_OPTIONS[editIngForm.unit_type] ?? []).map(u => ({ value: u, label: u }))}
+          />
+          <Input label={`Unit Price (৳ per ${editIngForm.default_unit})`} type="number" min="0" step="0.01" placeholder="0.00"
+            value={editIngForm.unit_price} onChange={(e) => setEditIngForm(p => ({ ...p, unit_price: e.target.value }))}
+          />
+          {editIngTarget && (editIngTarget.old_unit !== editIngForm.default_unit || editIngTarget.old_unit_price !== parseFloat(editIngForm.unit_price || "0")) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-700 space-y-1">
+              <p className="font-semibold">Past transactions will be recalculated</p>
+              <p>All <em>Stock restock</em> entries for this ingredient will be updated — the quantity number stays the same but the unit label and cost will reflect the new settings.</p>
+              {editIngTarget.old_unit !== editIngForm.default_unit && (
+                <p>Example: <strong>+105.00 {editIngTarget.old_unit}</strong> → <strong>+105.00 {editIngForm.default_unit || "…"}</strong> at ৳{editIngForm.unit_price || "0"}/{editIngForm.default_unit || "…"} = ৳{(105 * parseFloat(editIngForm.unit_price || "0")).toLocaleString()}</p>
+              )}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-700">Inventory Group</label>
+            <select value={editIngForm.inventory_group_id} onChange={(e) => setEditIngForm(p => ({ ...p, inventory_group_id: e.target.value }))}
+              className="w-full h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+              <option value="">No group</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
         </div>
       </Dialog>
 

@@ -750,7 +750,7 @@ export default function DashboardPage() {
       />
 
       {/* ── Filter Bar ────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto mx-6 mt-6">
+      <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-[14px] gap-3 overflow-x-auto mx-4 md:mx-6 mt-4 md:mt-6 py-2.5 md:h-[62px] md:py-0">
         {/* Restaurant */}
         <div className="relative shrink-0">
           <Store size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -796,10 +796,10 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Scrollable content ────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-y-[18px]">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 flex flex-col gap-y-[18px]">
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-x-4 gap-y-[18px] shrink-0">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-x-4 gap-y-[18px] shrink-0">
           <StatCard title="Total Revenue"   icon={DollarSign}   color="bg-green-50 text-green-600"   curr={stats.revenue}      prev={stats.pRevenue}      />
           <StatCard title="Total Expenses"  icon={TrendingDown} color="bg-red-50 text-red-600"       curr={stats.expenses}     prev={stats.pExpenses}     inverse />
           <StatCard title="Net Profit"      icon={TrendingUp}   color="bg-blue-50 text-blue-600"     curr={stats.revenue - stats.expenses} prev={stats.pRevenue - stats.pExpenses} />
@@ -874,7 +874,7 @@ export default function DashboardPage() {
         <div className="flex-1 min-h-0 flex flex-col gap-y-[18px]">
 
           {/* Row A: Revenue | Expenses by Category | Orders by Hour | Payment Methods */}
-          <div className="flex-1 min-h-0 grid grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-[18px]">
+          <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-[18px]">
 
             {/* Revenue chart */}
             <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">

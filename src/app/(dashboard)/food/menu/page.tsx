@@ -350,7 +350,7 @@ export default function FoodMenuPage() {
 
   if (!rid) return (
     <div><Header title="Food Menu" />
-      <div className="p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
+      <div className="p-4 md:p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
         <ChefHat size={40} className="text-gray-200 mx-auto mb-3" />
         <p className="font-medium text-gray-500">No restaurant selected</p>
       </div></div>
@@ -360,8 +360,8 @@ export default function FoodMenuPage() {
   return (
     <div>
       <Header title="Food Menu" />
-      <div className="p-6 space-y-4">
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
+      <div className="p-4 md:p-6 space-y-4">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-[14px] gap-3 overflow-x-auto py-2.5 md:h-[62px] md:py-0">
           <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
             {/* Status tabs */}
             <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1 shrink-0">
@@ -407,7 +407,7 @@ export default function FoodMenuPage() {
             <p className="text-sm text-gray-400">{search || filterStatus || filterCat ? "No results" : "No food items yet"}</p>
           </div>
         ) : view === "grid" ? (
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 sm:gap-y-[18px]">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-x-4 sm:gap-y-[18px]">
             {filtered.map((item) => (
               <FoodCard key={item.id} item={item} onEdit={openEdit}
                 onDelete={async (i) => { if (!confirm(`Delete "${i.name}"?`)) return; const { error } = await remove(i.id); if (error) toast.error(error.message); else toast.success("Deleted"); }}
@@ -418,6 +418,7 @@ export default function FoodMenuPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-gray-50/60">
@@ -501,6 +502,7 @@ export default function FoodMenuPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
