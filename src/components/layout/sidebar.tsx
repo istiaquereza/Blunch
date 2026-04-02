@@ -206,14 +206,27 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
           }
 
           // Otherwise, render the NavLink and use a fallback for the key
-          return (
-            <NavLink
-              key={item.href || `item-${index}`}
-              item={item}
-              badges={{ "/orders/order": activeOrderCount }}
-            />
-          );
-        })}
+          {
+            navItems.map((item, index) => {
+              // 1. Check if it's a section or divider first
+              if (item.kind === 'section') {
+                return <div key={`section-${index}`} className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">{item.label}</div>;
+              }
+
+              if (item.kind === 'divider') {
+                return <hr key={`divider-${index}`} className="my-2" />;
+              }
+
+              // 2. Now TypeScript knows 'item' MUST be a link, so 'item.href' is safe to use
+              return (
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  badges={{ "/orders/order": activeOrderCount }}
+                />
+              );
+            })
+          }
       </nav>
 
       {/* Support link */}
