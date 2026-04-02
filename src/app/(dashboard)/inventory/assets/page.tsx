@@ -172,7 +172,7 @@ export default function AssetsPage() {
 
   if (!rid) return (
     <div><Header title="Asset Inventory" />
-      <div className="p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
+      <div className="p-4 md:p-6"><div className="bg-white rounded-xl border border-border shadow-sm p-12 text-center">
         <Package size={40} className="text-gray-200 mx-auto mb-3" />
         <p className="font-medium text-gray-500">No restaurant selected</p>
         <p className="text-sm text-gray-400 mt-1">Go to <strong>Settings</strong> to add a restaurant first</p>
@@ -183,9 +183,9 @@ export default function AssetsPage() {
   return (
     <div>
       <Header title="Asset Inventory" />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* Toolbar */}
-        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 flex flex-wrap items-center px-6 gap-4 py-2.5 md:h-[62px] md:py-0 overflow-x-auto">
             <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}
               className="h-9 px-3 rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
               <option value="">All Groups</option>
@@ -209,7 +209,7 @@ export default function AssetsPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-4 gap-x-4 gap-y-[18px]">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-[18px]">
           {[
             { label: "Total Assets", value: assets.length, sub: "items tracked" },
             { label: "Total Value", value: `৳${assets.reduce((s, a) => s + a.price * a.quantity, 0).toLocaleString()}`, sub: "current value" },

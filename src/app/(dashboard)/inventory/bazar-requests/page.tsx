@@ -1000,7 +1000,7 @@ export default function BazarRequestsPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-4 gap-x-4 gap-y-[18px]">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-[18px]">
           {[
             { label: "Total Requests", value: requisitions.length, sub: "all time" },
             { label: "Pending Review", value: pendingCount, sub: pendingCount > 0 ? "needs action" : "all clear", highlight: pendingCount > 0 },
@@ -1523,7 +1523,7 @@ export default function BazarRequestsPage() {
             </div>
           }>
           <div className="space-y-4">
-            <div className="grid grid-cols-4 gap-3 text-sm">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
               <div>
                 <p className="text-xs text-gray-400 uppercase mb-1">Req ID</p>
                 <p className="font-mono font-semibold text-gray-600">{shortReqId(viewReq.id)}</p>
@@ -1571,6 +1571,7 @@ export default function BazarRequestsPage() {
                 <Eye size={14} /> View Bazar Memo
               </a>
             )}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase">
@@ -1593,6 +1594,7 @@ export default function BazarRequestsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </Dialog>
       )}

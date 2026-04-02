@@ -478,10 +478,10 @@ export default function AnalyticsPage() {
     <>
       <Header title="Analytics" />
 
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-5">
 
         {/* ── Filter bar ── */}
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-[14px] gap-3 overflow-x-auto py-2.5 md:h-[62px] md:py-0">
             {/* Restaurant selector */}
             {restaurants.length > 1 && (
               <select

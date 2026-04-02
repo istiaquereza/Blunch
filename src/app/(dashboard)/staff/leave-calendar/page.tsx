@@ -499,7 +499,7 @@ export default function LeaveCalendarPage() {
 
         {/* ── WEEK VIEW ── */}
         {view === "week" && (
-          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
             <div className="grid grid-cols-8 border-b border-border">
               <div className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/60 border-r border-border">Staff</div>
               {weekDays.map((d, i) => {
@@ -537,7 +537,7 @@ export default function LeaveCalendarPage() {
 
         {/* ── MONTH VIEW ── */}
         {view === "month" && (
-          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden overflow-x-auto">
             <div className="grid grid-cols-7 border-b border-border">
               {DAYS.map((d) => (
                 <div key={d} className="py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50/60 border-r border-border last:border-0">{d}</div>

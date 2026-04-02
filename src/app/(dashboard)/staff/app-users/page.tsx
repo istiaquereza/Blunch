@@ -204,7 +204,7 @@ function TableSetupView({ isRLS, showSQL, setShowSQL, showRLSFix, setShowRLSFix,
   return (
     <div className="flex flex-col h-full bg-background">
       <Header title="Roles &amp; Access" />
-      <div className="flex-1 p-6 max-w-3xl mx-auto w-full space-y-4">
+      <div className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full space-y-4">
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-4">
           <div className="flex items-start gap-3">
             <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
@@ -595,10 +595,10 @@ export default function AppUsersPage() {
     <div className="flex flex-col h-full bg-background">
       <Header title="Roles & Access" hideRestaurantSelector />
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto justify-between">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 flex flex-wrap items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto justify-between py-2.5 md:h-[62px] md:py-0">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
               <button onClick={() => setRoleFilter("")} className={`h-7 px-3 rounded-md text-xs font-medium transition-all ${roleFilter === "" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>All</button>

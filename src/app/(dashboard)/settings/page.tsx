@@ -1037,10 +1037,10 @@ export default function SettingsPage() {
   return (
     <div>
       <Header title="Settings" hideRestaurantSelector />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* Tab bar card */}
         <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-          <div className="bg-white border border-border rounded-xl shadow-sm p-3 flex items-center gap-3">
+          <div className="bg-white border border-border rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-3">
             <Tabs.List className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-1 overflow-x-auto">
               {TABS.map(({ id, label, icon: Icon }) => (
                 <Tabs.Trigger key={id} value={id}
@@ -1054,7 +1054,7 @@ export default function SettingsPage() {
               ))}
             </Tabs.List>
             {/* Search */}
-            <div className="relative shrink-0 ml-[150px]">
+            <div className="relative shrink-0 ml-0 md:ml-[150px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 value={tabSearch}

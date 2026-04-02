@@ -199,32 +199,19 @@ function SidebarContent({ showClose = false }: { showClose?: boolean }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-          {navItems.map((item, index) => {
-            // 1. Handle Section headers
-            if (item.kind === 'section') {
-              return (
-                <div key={`section-${index}`} className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
-                  {item.label}
-                </div>
-              );
-            }
-
-            // 2. Handle Divider lines
-            if (item.kind === 'divider') {
-              return <hr key={`divider-${index}`} className="my-2 border-gray-200" />;
-            }
-
-            // 3. Handle Regular Links (Now safe for TypeScript)
+        {navItems.map((item, i) => {
+          if (item.kind === "divider") {
+            return <div key={`divider-${i}`} className="mx-3 border-t border-sidebar-border/50" style={{ marginTop: 18, marginBottom: 18 }} />;
+          }
+          if (item.kind === "section") {
             return (
-              <NavLink
-                key={item.href || `link-${index}`}
-                item={item}
-                badges={{ "/orders/order": activeOrderCount }}
-              />
+              <p key={`section-${i}`} className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/30">
+                {item.label}
+              </p>
             );
-          })}
-        </nav>
+          }
+          return <NavLink key={(item as any).href} item={item as any} badges={{ "/orders/order": activeOrderCount }} />;
+        })}
       </nav>
 
       {/* Support link */}

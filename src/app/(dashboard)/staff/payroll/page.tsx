@@ -743,10 +743,10 @@ export default function StaffPayrollPage() {
     <>
       <Header title="Staff Payroll" />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
 
         {/* ── Month Selector & Filters ── */}
-        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 flex flex-wrap items-center px-6 border-b border-gray-100 gap-4 py-2.5 md:h-[62px] md:py-0 overflow-x-auto">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <input
               type="month"

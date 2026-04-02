@@ -227,10 +227,10 @@ export default function VendorsPage() {
   return (
     <div>
       <Header title="Vendor Management" hideRestaurantSelector />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
 
         {/* Toolbar */}
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-[14px] gap-3 py-2.5 md:h-[62px] md:py-0 overflow-x-auto">
           {/* Tab group */}
           <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1 shrink-0">
             {([

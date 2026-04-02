@@ -743,7 +743,7 @@ export default function FoodInventoryPage() {
               fetchMovements(movementsIngredientId, from, to);
             }}
           />
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[400px] overflow-y-auto overflow-x-auto">
             {movementsLoading ? (
               <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
             ) : movementLogs.length === 0 ? (
@@ -834,7 +834,7 @@ export default function FoodInventoryPage() {
                   <p className="text-sm text-gray-400">No stock added in this period.</p>
                 </div>
               ) : (
-                <div className="max-h-[300px] overflow-y-auto">
+                <div className="max-h-[300px] overflow-y-auto overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
