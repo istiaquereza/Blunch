@@ -323,10 +323,10 @@ export default function DailySellsPage() {
     <>
       <Header title="Daily Sells Report" />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
 
         {/* ── Toolbar ── */}
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-6 gap-4 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-4 md:px-6 gap-4 overflow-x-auto py-2.5 md:h-[62px] md:py-0">
           <div className="flex items-center gap-2 flex-wrap w-full">
             {/* Preset */}
             <select
@@ -501,7 +501,7 @@ export default function DailySellsPage() {
 
         {/* Best / Worst */}
         {dayGroups.length >= 2 && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-[18px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-[18px]">
             {bestDay && (
               <div className="bg-green-50 rounded-xl p-4 border border-green-100 shadow-sm">
                 <p className="text-xs font-semibold text-green-700 mb-1">Best Day</p>

@@ -9,23 +9,22 @@ export function useInventoryGroups(restaurantId?: string) {
   const [loading, setLoading] = useState(true);
 
   const fetch = useCallback(async () => {
-    if (!restaurantId) { setGroups([]); setLoading(false); return; }
     setLoading(true);
     const supabase = createClient();
     const { data } = await supabase
       .from("inventory_groups")
       .select("*")
-      .eq("restaurant_id", restaurantId)
       .order("name");
     if (data) setGroups(data);
     setLoading(false);
-  }, [restaurantId]);
+  }, []);
 
   const create = async (name: string) => {
     const supabase = createClient();
+    // No restaurant_id — inventory groups are universal
     const { error } = await supabase
       .from("inventory_groups")
-      .insert({ name, restaurant_id: restaurantId });
+      .insert({ name });
     if (!error) await fetch();
     return { error };
   };

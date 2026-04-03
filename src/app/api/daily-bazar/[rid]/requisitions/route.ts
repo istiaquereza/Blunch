@@ -17,7 +17,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
 
   const { data, error } = await supabase
     .from("product_requisitions")
-    .select(`*, product_requisition_items(*, ingredients(id, name, default_unit, unit_price))`)
+    .select(`
+      *,
+      vendors(id, name),
+      payment_methods(id, name),
+      bazar_categories(id, name),
+      product_requisition_items(*, ingredients(id, name, default_unit, unit_price))
+    `)
     .eq("restaurant_id", rid)
     .order("created_at", { ascending: false });
 
@@ -29,7 +35,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ rid: st
   const { rid } = await params;
   const supabase = createAdmin();
   const body = await req.json();
-  const { notes, items, submitter_name } = body;
+  const {
+    notes,
+    items,
+    submitter_name,
+    vendor_id,
+    payment_method_id,
+    bazar_category_id,
+    payment_status,
+    requisition_date,
+  } = body;
 
   if (!items?.length) return NextResponse.json({ error: "No items" }, { status: 400 });
 
@@ -39,10 +54,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ rid: st
   let req_row: Record<string, unknown> | null = null;
   const basePayload: Record<string, unknown> = {
     restaurant_id: rid,
-    requisition_date: today,
+    requisition_date: requisition_date ?? today,
     notes: notes ?? null,
     status: "submitted",
-    payment_status: "due",
+    payment_status: payment_status ?? "due",
+    ...(vendor_id ? { vendor_id } : {}),
+    ...(payment_method_id ? { payment_method_id } : {}),
+    ...(bazar_category_id ? { bazar_category_id } : {}),
   };
 
   const { data: withExtra, error: extraErr } = await supabase

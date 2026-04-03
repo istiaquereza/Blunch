@@ -248,6 +248,7 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
         <div className="border-t border-gray-100 bg-gray-50 rounded-b-xl">
           <div className="px-4 py-3">
             <p className="text-xs font-semibold text-gray-500 mb-2">Order Items</p>
+            <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-gray-400">
@@ -268,6 +269,7 @@ function OrderRow({ order, isDeleted, onComplete, onCancel, onDelete }: OrderRow
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           {(order.vat_amount > 0 || order.service_charge > 0 || order.discount_amount > 0) && (

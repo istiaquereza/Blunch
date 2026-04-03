@@ -5,8 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 
 export interface RestockEntry {
   id: string;
-  date: string; // transaction_date YYYY-MM-DD
-  createdAt: string; // created_at ISO timestamp for accurate time display
+  date: string;
+  createdAt: string;
   qty: number;
   amount: number;
   description: string;
@@ -18,47 +18,35 @@ export function useRestockTransactions(restaurantId?: string) {
   const supabase = createClient();
 
   const fetchEntries = useCallback(
-    async (ingredientName: string, dateFrom?: string, dateTo?: string) => {
-      if (!restaurantId) return;
+    async (ingredientId: string, ingredientName: string, unitPrice: number, dateFrom?: string, dateTo?: string) => {
       setLoading(true);
 
-      const safeName = ingredientName.replace(/[%_]/g, "\\$&");
-
-      let q = supabase
-        .from("transactions")
-        .select("id, transaction_date, created_at, amount, description")
-        .eq("restaurant_id", restaurantId)
-        .eq("type", "expense")
-        .ilike("description", `Stock restock: ${safeName}%`)
-        .order("transaction_date", { ascending: false });
-
-      if (dateFrom) q = q.gte("transaction_date", dateFrom.split("T")[0]);
-      if (dateTo) q = q.lte("transaction_date", dateTo.split("T")[0]);
-
-      const { data } = await q;
-
-      const parsed: RestockEntry[] = (data ?? []).map((tx: Record<string, unknown>) => {
-        const desc = (tx.description as string) ?? "";
-        const match = desc.match(/\+([0-9.]+)/);
-        const qty = match ? parseFloat(match[1]) : 0;
-        return {
-          id: tx.id as string,
-          date: tx.transaction_date as string,
-          createdAt: tx.created_at as string,
-          qty,
-          amount: tx.amount as number,
-          description: desc,
-        };
+      const params = new URLSearchParams({
+        ingredient_id: ingredientId,
+        unit_price: String(unitPrice),
       });
+      if (dateFrom) params.set("from", dateFrom.split("T")[0]);
+      if (dateTo) params.set("to", dateTo.split("T")[0]);
+
+      const res = await fetch(`/api/restock-transactions?${params}`);
+      const json = await res.json();
+      const data = json.entries ?? [];
+
+      const parsed: RestockEntry[] = data.map((tx: Record<string, unknown>) => ({
+        id: tx.id as string,
+        date: tx.transaction_date as string,
+        createdAt: tx.created_at as string,
+        qty: tx.quantity_change as number,
+        amount: tx.amount as number,
+        description: tx.description as string,
+      }));
 
       setEntries(parsed);
       setLoading(false);
     },
-    [restaurantId]
+    []
   );
 
-  // Update a restock transaction: new qty and/or new date
-  // ingredientName and unitPrice are used to recalculate description + amount
   const updateEntry = async (
     entry: RestockEntry,
     newQty: number,
@@ -67,17 +55,17 @@ export function useRestockTransactions(restaurantId?: string) {
     unitPrice: number,
     unit: string
   ) => {
+    const newCreatedAt = new Date(newDate + "T12:00:00").toISOString();
     const newAmount = parseFloat((newQty * unitPrice).toFixed(2));
-    const newDesc = `Stock restock: ${ingredientName} +${newQty.toFixed(2)} ${unit}`;
     const { error } = await supabase
-      .from("transactions")
-      .update({ amount: newAmount, description: newDesc, transaction_date: newDate })
+      .from("food_stock_logs")
+      .update({ quantity_change: newQty, created_at: newCreatedAt })
       .eq("id", entry.id);
     return { error, oldQty: entry.qty, newQty, newAmount };
   };
 
   const deleteEntry = async (id: string) => {
-    const { error } = await supabase.from("transactions").delete().eq("id", id);
+    const { error } = await supabase.from("food_stock_logs").delete().eq("id", id);
     return { error };
   };
 

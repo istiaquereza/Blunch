@@ -45,7 +45,7 @@ export default function DailyBazarAdminPage() {
   return (
     <>
       <Header title="Daily Bazar" />
-      <div className="p-6 max-w-2xl mx-auto space-y-6">
+      <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
         {/* QR Card */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col items-center gap-5 shadow-sm">
           <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">

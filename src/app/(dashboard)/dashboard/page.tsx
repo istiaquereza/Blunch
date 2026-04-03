@@ -6,7 +6,6 @@ import { useRestaurant } from "@/contexts/restaurant-context";
 import { createClient } from "@/lib/supabase/client";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, ShoppingCart, DollarSign,
@@ -387,7 +386,10 @@ export default function DashboardPage() {
     });
   }, []);
 
-  const [alertDismissed, setAlertDismissed] = useState(false);
+  const [alertDismissed, setAlertDismissed] = useState(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("dashAlertDismissed") === "1";
+    return false;
+  });
 
   // ── Data state ──
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -414,6 +416,12 @@ export default function DashboardPage() {
 
   // Transactions chip filter
   const [txChip, setTxChip] = useState<"all" | "income" | "expense">("all");
+  const [chartTab, setChartTab] = useState<"revenue" | "orders">("revenue");
+  const [revenueSubTab, setRevenueSubTab] = useState<"hour" | "day">("hour");
+  const [ordersSubTab, setOrdersSubTab] = useState<"hour" | "day">("hour");
+  const [catTab, setCatTab] = useState<"expenses" | "income">("expenses");
+  const [topTab, setTopTab] = useState<"items" | "categories">("items");
+  const [pmTab, setPmTab] = useState<"pct" | "amount">("pct");
 
   // Ingredient cost map for Food Cost %
   const [ingredientCostMap, setIngredientCostMap] = useState<Map<string, number>>(new Map());
@@ -447,7 +455,7 @@ export default function DashboardPage() {
     if (from) txQ = txQ.gte("transaction_date", from).lte("transaction_date", to);
 
     let orderQ = supabase.from("orders")
-      .select("*, order_items(*, food_items(id,name,sell_price))")
+      .select("*, order_items(*, food_items(id,name,sell_price,food_categories(id,name)))")
       .in("restaurant_id", rIds)
       .eq("status", "completed")
       .order("created_at", { ascending: false });
@@ -689,6 +697,19 @@ export default function DashboardPage() {
       .sort((a, b) => b.amount - a.amount);
   }, [filteredTx]);
 
+  // ── Income by category ──
+  const incomeCats = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredTx.filter(t => t.type === "income").forEach(t => {
+      const name = t.expense_categories?.name ?? "Uncategorized";
+      map.set(name, (map.get(name) ?? 0) + t.amount);
+    });
+    const total = Array.from(map.values()).reduce((s, v) => s + v, 0);
+    return Array.from(map.entries())
+      .map(([name, amount]) => ({ name, amount, pct: total > 0 ? (amount / total) * 100 : 0 }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [filteredTx]);
+
   // ── Orders by hour ──
   const ordersByHour = useMemo(() => {
     const map = new Map<number, number>();
@@ -702,6 +723,47 @@ export default function DashboardPage() {
       orders: map.get(h) ?? 0,
     }));
   }, [filteredOrders]);
+
+  // ── Orders by day ──
+  const ordersByDay = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredOrders.forEach(o => {
+      const ds = isoDate(new Date(o.created_at));
+      map.set(ds, (map.get(ds) ?? 0) + 1);
+    });
+    if (!map.size) return [];
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([ds, orders]) => ({
+      label: new Date(ds + "T12:00:00").toLocaleDateString("en-BD", { day: "numeric", month: "short" }),
+      orders,
+    }));
+  }, [filteredOrders]);
+
+  // ── Revenue by hour (from orders) ──
+  const revenueByHour = useMemo(() => {
+    const map = new Map<number, number>();
+    filteredOrders.forEach(o => {
+      const h = new Date(o.created_at).getHours();
+      map.set(h, (map.get(h) ?? 0) + (o.total ?? 0));
+    });
+    if (!map.size) return [];
+    return Array.from(map.keys()).sort((a, b) => a - b).map(h => ({
+      label: `${h === 0 ? 12 : h > 12 ? h - 12 : h}${h < 12 ? "am" : "pm"}`,
+      revenue: map.get(h) ?? 0,
+    }));
+  }, [filteredOrders]);
+
+  // ── Revenue by day (from transactions) ──
+  const revenueByDay = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredTx.filter(t => t.type === "income").forEach(t => {
+      map.set(t.transaction_date, (map.get(t.transaction_date) ?? 0) + t.amount);
+    });
+    if (!map.size) return [];
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([ds, revenue]) => ({
+      label: new Date(ds + "T12:00:00").toLocaleDateString("en-BD", { day: "numeric", month: "short" }),
+      revenue,
+    }));
+  }, [filteredTx]);
 
   // ── Top selling items ──
   const topItems = useMemo(() => {
@@ -720,6 +782,21 @@ export default function DashboardPage() {
   }, [filteredOrders]);
 
   const maxQty = topItems[0]?.qty ?? 1;
+
+  // ── Top selling categories ──
+  const topCategories = useMemo(() => {
+    const map = new Map<string, { name: string; qty: number; revenue: number }>();
+    filteredOrders.forEach(o => {
+      (o.order_items ?? []).forEach((item: any) => {
+        const name = item.food_items?.food_categories?.name ?? "Uncategorized";
+        const e = map.get(name) ?? { name, qty: 0, revenue: 0 };
+        map.set(name, { name, qty: e.qty + item.quantity, revenue: e.revenue + item.unit_price * item.quantity });
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => b.qty - a.qty).slice(0, 5);
+  }, [filteredOrders]);
+
+  const maxCatQty = topCategories[0]?.qty ?? 1;
 
   // ── Period label ──
   const [from, to] = getRange(filters.preset, filters.customFrom, filters.customTo);
@@ -796,25 +873,66 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Scrollable content ────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 flex flex-col gap-y-[18px]">
+      <div className="flex-1 min-h-0 overflow-hidden p-4 md:p-6 flex flex-col gap-y-[18px]">
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-x-4 gap-y-[18px] shrink-0">
-          <StatCard title="Total Revenue"   icon={DollarSign}   color="bg-green-50 text-green-600"   curr={stats.revenue}      prev={stats.pRevenue}      />
-          <StatCard title="Total Expenses"  icon={TrendingDown} color="bg-red-50 text-red-600"       curr={stats.expenses}     prev={stats.pExpenses}     inverse />
-          <StatCard title="Net Profit"      icon={TrendingUp}   color="bg-blue-50 text-blue-600"     curr={stats.revenue - stats.expenses} prev={stats.pRevenue - stats.pExpenses} />
-          <StatCard title="Total Orders"    icon={ShoppingCart} color="bg-orange-50 text-orange-600" curr={stats.totalOrders}  prev={stats.pTotalOrders}  isCount />
-          <StatCard title="Avg Order Value" icon={BarChart3}    color="bg-purple-50 text-purple-600" curr={stats.avg}          prev={stats.pAvg}          />
-          <div className="bg-white rounded-xl border border-border shadow-sm p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground font-medium leading-tight">Food Cost %</p>
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-amber-50 text-amber-600"><Tag size={14} /></div>
-            </div>
-            <p className="text-xl font-bold text-gray-900">{foodCostPct.toFixed(1)}%</p>
-            <p className={`text-xs font-medium ${foodCostPct > 35 ? "text-red-500" : foodCostPct > 25 ? "text-amber-500" : "text-green-600"}`}>
-              {foodCostPct > 35 ? "High — review costs" : foodCostPct > 25 ? "Moderate" : foodCostPct === 0 ? "No data" : "Healthy"}
-            </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-[18px] shrink-0">
+
+          {/* Group 1: Revenue · Expenses · Net Profit */}
+          <div className="bg-white rounded-xl border border-border shadow-sm flex divide-x divide-gray-100">
+            {[
+              { title: "Total Revenue",  icon: DollarSign,  color: "bg-green-50 text-green-600",  curr: stats.revenue,   prev: stats.pRevenue,   inverse: false, isCount: false },
+              { title: "Total Expenses", icon: TrendingDown, color: "bg-red-50 text-red-600",      curr: stats.expenses,  prev: stats.pExpenses,  inverse: true,  isCount: false },
+              { title: "Net Profit",     icon: TrendingUp,  color: "bg-blue-50 text-blue-600",    curr: stats.revenue - stats.expenses, prev: stats.pRevenue - stats.pExpenses, inverse: false, isCount: false },
+            ].map(({ title, icon: Icon, color, curr, prev, inverse, isCount }) => {
+              const pct = prev === 0 ? (curr > 0 ? 100 : 0) : ((curr - prev) / prev) * 100;
+              const up = pct >= 0;
+              const good = inverse ? !up : up;
+              return (
+                <div key={title} className="flex-1 p-4 md:p-5 space-y-2 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground font-medium leading-tight">{title}</p>
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${color}`}><Icon size={14} /></div>
+                  </div>
+                  <p className="text-xl font-bold text-gray-900 truncate">{isCount ? curr : fmt(curr)}</p>
+                  <p className={`text-xs font-medium ${good ? "text-green-600" : "text-red-500"}`}>{up ? "+" : ""}{pct.toFixed(1)}% vs prev</p>
+                </div>
+              );
+            })}
           </div>
+
+          {/* Group 2: Orders · Avg Order · Food Cost */}
+          <div className="bg-white rounded-xl border border-border shadow-sm flex divide-x divide-gray-100">
+            {[
+              { title: "Total Orders",    icon: ShoppingCart, color: "bg-orange-50 text-orange-600", curr: stats.totalOrders, prev: stats.pTotalOrders, inverse: false, isCount: true },
+              { title: "Avg Order Value", icon: BarChart3,    color: "bg-purple-50 text-purple-600", curr: stats.avg,         prev: stats.pAvg,         inverse: false, isCount: false },
+            ].map(({ title, icon: Icon, color, curr, prev, inverse, isCount }) => {
+              const pct = prev === 0 ? (curr > 0 ? 100 : 0) : ((curr - prev) / prev) * 100;
+              const up = pct >= 0;
+              const good = inverse ? !up : up;
+              return (
+                <div key={title} className="flex-1 p-4 md:p-5 space-y-2 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground font-medium leading-tight">{title}</p>
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${color}`}><Icon size={14} /></div>
+                  </div>
+                  <p className="text-xl font-bold text-gray-900 truncate">{isCount ? curr : fmt(curr)}</p>
+                  <p className={`text-xs font-medium ${good ? "text-green-600" : "text-red-500"}`}>{up ? "+" : ""}{pct.toFixed(1)}% vs prev</p>
+                </div>
+              );
+            })}
+            <div className="flex-1 p-4 md:p-5 space-y-2 min-w-0">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground font-medium leading-tight">Food Cost %</p>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-amber-50 text-amber-600"><Tag size={14} /></div>
+              </div>
+              <p className="text-xl font-bold text-gray-900">{foodCostPct.toFixed(1)}%</p>
+              <p className={`text-xs font-medium ${foodCostPct > 35 ? "text-red-500" : foodCostPct > 25 ? "text-amber-500" : "text-green-600"}`}>
+                {foodCostPct > 35 ? "High — review costs" : foodCostPct > 25 ? "Moderate" : foodCostPct === 0 ? "No data" : "Healthy"}
+              </p>
+            </div>
+          </div>
+
         </div>
 
         {/* Alerts */}
@@ -826,7 +944,7 @@ export default function DashboardPage() {
               <span className="text-xs font-bold bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">
                 {lowStockItems.length + lowStockIngredients.length + (dueTx.length > 0 ? 1 : 0)}
               </span>
-              <button onClick={() => setAlertDismissed(true)} className="ml-auto w-6 h-6 rounded-lg flex items-center justify-center text-amber-600 hover:bg-amber-200 transition-colors">
+              <button onClick={() => { setAlertDismissed(true); sessionStorage.setItem("dashAlertDismissed", "1"); }} className="ml-auto w-6 h-6 rounded-lg flex items-center justify-center text-amber-600 hover:bg-amber-200 transition-colors">
                 <X size={13} />
               </button>
             </div>
@@ -873,101 +991,134 @@ export default function DashboardPage() {
         {/* ── Data rows — fill remaining height ─────────────────────────── */}
         <div className="flex-1 min-h-0 flex flex-col gap-y-[18px]">
 
-          {/* Row A: Revenue | Expenses by Category | Orders by Hour | Payment Methods */}
-          <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-[18px]">
+          {/* Row A: Revenue | Expenses by Category | Payment Methods */}
+          <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-[18px]">
 
-            {/* Revenue chart */}
-            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+            {/* Revenue + Orders merged */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden h-full">
+              <div className="px-5 h-[61px] border-b border-gray-100 shrink-0 flex items-center justify-between">
                 <h3 className="text-gray-700 text-sm">
-                  {(() => {
-                    if (filters.preset === "today") return "Revenue by Hour";
-                    if (filters.preset === "all_time") return "Revenue by Year";
-                    const [f, t] = getRange(filters.preset, filters.customFrom, filters.customTo);
-                    const span = f && t ? Math.ceil((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1 : 0;
-                    return span > 30 ? "Revenue by Month" : "Revenue by Day";
-                  })()}
+                  {chartTab === "revenue"
+                    ? (revenueSubTab === "hour" ? "Revenue by Hour" : "Revenue by Day")
+                    : (ordersSubTab === "hour" ? "Orders by Hour" : "Orders by Day")}
                 </h3>
-                <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full shrink-0">{selectedRestaurantName}</span>
-              </div>
-              <div className="flex-1 min-h-0 p-4">
-                {revenueChart.length === 0 || revenueChart.every(d => d.revenue === 0) ? (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-300">No revenue data</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={revenueChart} barSize={(() => {
-                      if (filters.preset === "all_time") return 40;
-                      if (filters.preset === "today") return 28;
-                      const [f, t] = getRange(filters.preset, filters.customFrom, filters.customTo);
-                      const span = f && t ? Math.ceil((new Date(t).getTime() - new Date(f).getTime()) / 86400000) + 1 : 0;
-                      if (span > 30) return 22; if (span > 7) return 14; return 28;
-                    })()}>
-                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={v => `৳${v}`} width={55} />
-                      <Tooltip content={<RevTooltip />} cursor={{ fill: "#fff7ed" }} />
-                      <Bar dataKey="revenue" fill="#f97316" radius={[5, 5, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-
-            {/* Expenses by Category */}
-            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
-                <h3 className="text-gray-700 text-sm">Expenses by Category</h3>
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto p-4">
-                {expenseCats.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-300">No expenses</div>
-                ) : (
-                  <div className="space-y-3">
-                    {expenseCats.map((cat, i) => (
-                      <div key={cat.name}>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="font-medium text-gray-700 truncate max-w-[60%]">{cat.name}</span>
-                          <span className="text-gray-500 font-semibold shrink-0">{fmt(cat.amount)}</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-gray-100 rounded-full">
-                          <div className="h-1.5 rounded-full" style={{ width: `${cat.pct}%`, background: COLORS[i % COLORS.length] }} />
-                        </div>
-                      </div>
+                <div className="flex items-center gap-2">
+                  {/* Revenue/Orders switcher */}
+                  <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                    {(["revenue", "orders"] as const).map(tab => (
+                      <button key={tab} onClick={() => setChartTab(tab)}
+                        className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${chartTab === tab ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                        {tab === "revenue" ? "Revenue" : "Orders"}
+                      </button>
                     ))}
                   </div>
+                  {/* Hour/Day sub-switcher */}
+                  <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                    {(["hour", "day"] as const).map(sub => {
+                      const active = chartTab === "revenue" ? revenueSubTab : ordersSubTab;
+                      const setter = chartTab === "revenue" ? setRevenueSubTab : setOrdersSubTab;
+                      return (
+                        <button key={sub} onClick={() => setter(sub)}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${active === sub ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                          {sub === "hour" ? "Hour" : "Day"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 p-4">
+                {chartTab === "revenue" ? (
+                  (() => {
+                    const data = revenueSubTab === "hour" ? revenueByHour : revenueByDay;
+                    return data.length === 0 || data.every(d => d.revenue === 0) ? (
+                      <div className="h-full flex items-center justify-center text-sm text-gray-300">No revenue data</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data} barSize={revenueSubTab === "hour" ? 28 : Math.max(8, Math.min(28, Math.floor(400 / data.length)))}>
+                          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={v => `৳${v}`} width={55} />
+                          <Tooltip content={<RevTooltip />} cursor={{ fill: "#fff7ed" }} />
+                          <Bar dataKey="revenue" fill="#f97316" radius={[5, 5, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    );
+                  })()
+                ) : (
+                  (() => {
+                    const data = ordersSubTab === "hour" ? ordersByHour : ordersByDay;
+                    return data.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-sm text-gray-300">No orders</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data} barSize={ordersSubTab === "hour" ? 20 : Math.max(8, Math.min(20, Math.floor(400 / data.length)))}>
+                          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={24} />
+                          <Tooltip cursor={{ fill: "#fff7ed" }} formatter={(v: number) => [v, "orders"]} />
+                          <Bar dataKey="orders" fill="#fb923c" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    );
+                  })()
                 )}
               </div>
             </div>
 
-            {/* Orders by Hour */}
-            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
-                <h3 className="text-gray-700 text-sm">Orders by Hour</h3>
+            {/* Expenses / Income by Category */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden h-full">
+              <div className="px-5 h-[61px] border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <h3 className="text-gray-700 text-sm">{catTab === "expenses" ? "Expenses by Category" : "Income by Category"}</h3>
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                  {(["expenses", "income"] as const).map(tab => (
+                    <button key={tab} onClick={() => setCatTab(tab)}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${catTab === tab ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                      {tab === "expenses" ? "Expenses" : "Income"}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex-1 min-h-0 p-4">
-                {ordersByHour.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-300">No orders</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={ordersByHour} barSize={20}>
-                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={24} />
-                      <Tooltip cursor={{ fill: "#fff7ed" }} formatter={(v: number) => [v, "orders"]} />
-                      <Bar dataKey="orders" fill="#fb923c" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
+              <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                {(() => {
+                  const cats = catTab === "expenses" ? expenseCats : incomeCats;
+                  return cats.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-sm text-gray-300">
+                      {catTab === "expenses" ? "No expenses" : "No income"}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {cats.map((cat, i) => (
+                        <div key={cat.name}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="font-medium text-gray-700 truncate max-w-[60%]">{cat.name}</span>
+                            <span className="text-gray-500 font-semibold shrink-0">{fmt(cat.amount)}</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-gray-100 rounded-full">
+                            <div className="h-1.5 rounded-full" style={{ width: `${cat.pct}%`, background: COLORS[i % COLORS.length] }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
             {/* Payment Methods */}
-            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden h-full">
+              <div className="px-5 h-[61px] border-b border-gray-100 shrink-0 flex items-center justify-between">
                 <h3 className="text-gray-700 text-sm">Payment Methods</h3>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setShowTransfer(true)} className="flex items-center gap-1.5 h-6 px-2.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 text-[10px] font-semibold transition-colors">
+                  <button onClick={() => setShowTransfer(true)} className="flex items-center gap-1.5 h-6 px-2.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs font-semibold transition-colors">
                     <ArrowLeftRight size={11} />Transfer
                   </button>
-                  <CreditCard size={14} className="text-muted-foreground" />
+                  <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                    {(["pct", "amount"] as const).map(tab => (
+                      <button key={tab} onClick={() => setPmTab(tab)}
+                        className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${pmTab === tab ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                        {tab === "pct" ? "%" : "Amount"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="flex-1 min-h-0 p-4 overflow-y-auto">
@@ -975,17 +1126,7 @@ export default function DashboardPage() {
                   <div className="h-full flex items-center justify-center text-sm text-gray-300">No payment data</div>
                 ) : (
                   <div className="flex flex-col gap-3 h-full">
-                    <div className="h-24 shrink-0">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={paymentData} cx="50%" cy="50%" innerRadius={28} outerRadius={44} dataKey="value" paddingAngle={3}>
-                            {paymentData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                          </Pie>
-                          <Tooltip formatter={(v: number) => fmt(v)} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex-1 overflow-y-auto space-y-2">
+                    <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-2 content-start">
                       {paymentData.map((p, i) => {
                         const total = paymentData.reduce((s, x) => s + x.value, 0);
                         const pct = total > 0 ? (p.value / total) * 100 : 0;
@@ -997,7 +1138,9 @@ export default function DashboardPage() {
                                 <span className="truncate">{p.name}</span>
                                 {p.restaurantName && <span className="shrink-0 text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{p.restaurantName}</span>}
                               </span>
-                              <span className="text-gray-500 shrink-0 ml-1">{pct.toFixed(0)}%</span>
+                              <span className="text-gray-500 shrink-0 ml-1">
+                                {pmTab === "pct" ? `${pct.toFixed(0)}%` : fmt(p.value)}
+                              </span>
                             </div>
                             <div className="w-full h-1.5 bg-gray-100 rounded-full">
                               <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: COLORS[i % COLORS.length] }} />
@@ -1015,38 +1158,50 @@ export default function DashboardPage() {
           {/* Row B: Top Selling Items | Due Payments | Transactions */}
           <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-x-4 gap-y-[18px]">
 
-            {/* Top Selling Items */}
-            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
-                <h3 className="text-gray-700 text-sm">Top Selling Items</h3>
+            {/* Top Selling Items / Categories */}
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden h-full">
+              <div className="px-5 h-[61px] border-b border-gray-100 shrink-0 flex items-center justify-between">
+                <h3 className="text-gray-700 text-sm">{topTab === "items" ? "Top Selling Items" : "Top Selling Categories"}</h3>
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                  {(["items", "categories"] as const).map(tab => (
+                    <button key={tab} onClick={() => setTopTab(tab)}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${topTab === tab ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                      {tab === "items" ? "Items" : "Categories"}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto p-4">
-                {topItems.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-300">No sales data</div>
-                ) : (
-                  <div className="space-y-3">
-                    {topItems.map((item, i) => (
-                      <div key={item.name} className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-gray-300 w-4 shrink-0">#{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between text-xs mb-0.5">
-                            <span className="font-medium text-gray-700 truncate">{item.name}</span>
-                            <span className="text-orange-500 font-semibold shrink-0 ml-1">{item.qty}×</span>
-                          </div>
-                          <div className="w-full h-1.5 bg-gray-100 rounded-full">
-                            <div className="h-1.5 rounded-full bg-orange-400" style={{ width: `${(item.qty / maxQty) * 100}%` }} />
+                {(() => {
+                  const list = topTab === "items" ? topItems : topCategories;
+                  const maxQ = topTab === "items" ? maxQty : maxCatQty;
+                  return list.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-sm text-gray-300">No sales data</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {list.map((item, i) => (
+                        <div key={item.name} className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-gray-300 w-4 shrink-0">#{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between text-xs mb-0.5">
+                              <span className="font-medium text-gray-700 truncate">{item.name}</span>
+                              <span className="text-orange-500 font-semibold shrink-0 ml-1">{item.qty}×</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-gray-100 rounded-full">
+                              <div className="h-1.5 rounded-full bg-orange-400" style={{ width: `${(item.qty / maxQ) * 100}%` }} />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
             {/* Due Payments */}
-            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden h-full">
+              <div className="px-5 h-[61px] border-b border-gray-100 shrink-0 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <AlertCircle size={15} className="text-amber-500" />
                   <h3 className="text-gray-700 text-sm">Due Payments</h3>
@@ -1098,16 +1253,16 @@ export default function DashboardPage() {
             </div>
 
             {/* Transactions */}
-            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+            <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col overflow-hidden h-full">
+              <div className="px-5 h-[61px] border-b border-gray-100 shrink-0 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <h3 className="text-gray-700 text-sm">Transactions</h3>
                   <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{filteredTx.length}</span>
                 </div>
-                <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
                   {(["all", "income", "expense"] as const).map(chip => (
                     <button key={chip} onClick={() => setTxChip(chip)}
-                      className={`px-3 h-9 font-medium transition-colors ${txChip === chip ? "bg-[#111827] text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${txChip === chip ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
                       {chip === "all" ? "All" : chip === "income" ? "Income" : "Expense"}
                     </button>
                   ))}

@@ -13,6 +13,7 @@ interface DialogProps {
   className?: string;
   footer?: React.ReactNode;
   maxWidth?: string;
+  fitContent?: boolean;
 }
 
 export function Dialog({
@@ -24,6 +25,7 @@ export function Dialog({
   className,
   footer,
   maxWidth,
+  fitContent = false,
 }: DialogProps) {
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -39,9 +41,9 @@ export function Dialog({
             "rounded-t-2xl md:rounded-2xl",
             "shadow-xl w-full",
             "md:mx-0",
-            maxWidth ? `md:${maxWidth}` : "md:max-w-lg",
+            maxWidth ? `md:${maxWidth}` : "md:w-[512px]",
             // Mobile: up to 90vh from bottom; desktop: max-h-[90vh]
-            "max-h-[92vh] md:max-h-[90vh]",
+            fitContent ? "max-h-[92vh] md:max-h-none" : "max-h-[92vh] md:max-h-[90vh]",
             "flex flex-col",
             // Animations — mobile: slide up; desktop: zoom
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
@@ -76,7 +78,7 @@ export function Dialog({
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-5">{children}</div>
+          <div className={fitContent ? "overflow-y-auto p-5" : "flex-1 overflow-y-auto p-5"}>{children}</div>
 
           {/* Footer */}
           {footer && (

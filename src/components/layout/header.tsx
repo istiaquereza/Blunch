@@ -6,6 +6,7 @@ import { useSidebar } from "@/contexts/sidebar-context";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 
 interface HeaderProps {
   title: string;
@@ -15,6 +16,54 @@ interface HeaderProps {
 
 const fmt = (n: number) =>
   "৳" + n.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function AlertsList({ alerts, fmt }: { alerts: { lowStock: any[]; dueTx: any[] }; fmt: (n: number) => string }) {
+  const alertCount = alerts.lowStock.length + alerts.dueTx.length;
+  if (alertCount === 0) {
+    return (
+      <div className="py-10 text-center">
+        <p className="text-sm text-gray-400">No alerts right now</p>
+        <p className="text-xs text-gray-300 mt-1">All stock and payments are on track</p>
+      </div>
+    );
+  }
+  return (
+    <div className="divide-y divide-gray-50">
+      {alerts.lowStock.map((stock) => {
+        const qty = stock.quantity ?? 0;
+        const isEmpty = qty <= 0;
+        return (
+          <div key={stock.id} className="flex items-center gap-3 px-4 py-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isEmpty ? "bg-red-500/10" : "bg-amber-500/10"}`}>
+              <Package size={14} className={isEmpty ? "text-red-500" : "text-amber-600"} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800 truncate">{stock.ingredients?.name}</p>
+              <p className={`text-xs mt-0.5 ${isEmpty ? "text-red-500" : "text-amber-600"}`}>
+                {isEmpty ? "Out of stock" : `Low — ${qty} ${stock.ingredients?.default_unit ?? ""} left`}
+              </p>
+            </div>
+            <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isEmpty ? "bg-red-500/10 text-red-600" : "bg-amber-500/10 text-amber-700"}`}>
+              {isEmpty ? "Empty" : "Low"}
+            </span>
+          </div>
+        );
+      })}
+      {alerts.dueTx.map((tx) => (
+        <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
+          <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+            <AlertCircle size={14} className="text-purple-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-800 truncate">{tx.description || "Due payment"}</p>
+            <p className="text-xs text-purple-600 mt-0.5">{fmt(tx.amount)} due</p>
+          </div>
+          <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-600">Due</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function Header({ title, rightContent, hideRestaurantSelector = false }: HeaderProps) {
   const { restaurants, activeRestaurant, setActiveRestaurant, loading } = useRestaurant();
@@ -159,58 +208,24 @@ export function Header({ title, rightContent, hideRestaurantSelector = false }: 
             )}
           </button>
 
+          {/* Desktop dropdown */}
           {notifOpen && (
-            <div className="absolute right-0 top-11 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-border shadow-xl z-50 overflow-hidden">
+            <div className="hidden md:block absolute right-0 top-11 w-80 bg-white rounded-xl border border-border shadow-xl z-50 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <p className="text-sm font-semibold text-gray-900">Alerts</p>
                 {alertCount > 0 && (
                   <span className="text-xs font-bold bg-red-500/10 text-red-600 px-2 py-0.5 rounded-full">{alertCount}</span>
                 )}
               </div>
-              {alertCount === 0 ? (
-                <div className="py-10 text-center">
-                  <p className="text-sm text-gray-400">No alerts right now</p>
-                  <p className="text-xs text-gray-300 mt-1">All stock and payments are on track</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-                  {alerts.lowStock.map((stock) => {
-                    const qty = stock.quantity ?? 0;
-                    const isEmpty = qty <= 0;
-                    return (
-                      <div key={stock.id} className="flex items-center gap-3 px-4 py-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isEmpty ? "bg-red-500/10" : "bg-amber-500/10"}`}>
-                          <Package size={14} className={isEmpty ? "text-red-500" : "text-amber-600"} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{stock.ingredients?.name}</p>
-                          <p className={`text-xs mt-0.5 ${isEmpty ? "text-red-500" : "text-amber-600"}`}>
-                            {isEmpty ? "Out of stock" : `Low — ${qty} ${stock.ingredients?.default_unit ?? ""} left`}
-                          </p>
-                        </div>
-                        <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isEmpty ? "bg-red-500/10 text-red-600" : "bg-amber-500/10 text-amber-700"}`}>
-                          {isEmpty ? "Empty" : "Low"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {alerts.dueTx.map((tx) => (
-                    <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
-                        <AlertCircle size={14} className="text-purple-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{tx.description || "Due payment"}</p>
-                        <p className="text-xs text-purple-600 mt-0.5">{fmt(tx.amount)} due</p>
-                      </div>
-                      <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-600">Due</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <AlertsList alerts={alerts} fmt={fmt} />
             </div>
           )}
         </div>
+
+        {/* Mobile alerts bottom sheet */}
+        <BottomSheet open={notifOpen} onClose={() => setNotifOpen(false)} title={`Alerts${alertCount > 0 ? ` (${alertCount})` : ""}`} className="md:hidden">
+          <AlertsList alerts={alerts} fmt={fmt} />
+        </BottomSheet>
 
       </div>
     </header>

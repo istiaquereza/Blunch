@@ -313,7 +313,7 @@ export default function FoodInventoryPage() {
       await upsert(ingredient.id, Math.max(0, currentQty + delta));
     }
 
-    await fetchStockIn(stockInIngredientName);
+    await fetchStockIn(stockInIngredientId, stockInIngredientName, stockInUnitPrice);
     toast.success("Restock entry updated.");
     setEditRestockOpen(false);
     setEditRestockSaving(false);
@@ -333,7 +333,7 @@ export default function FoodInventoryPage() {
       await upsert(ingredient.id, Math.max(0, currentQty - entry.qty));
     }
 
-    await fetchStockIn(stockInIngredientName);
+    await fetchStockIn(stockInIngredientId, stockInIngredientName, stockInUnitPrice);
     toast.success("Restock entry deleted.");
   };
 
@@ -449,7 +449,7 @@ export default function FoodInventoryPage() {
     setStockInPreset("all");
     setStockInCustomFrom("");
     setStockInCustomTo("");
-    fetchStockIn(ingredientName); // fetch all-time by default
+    fetchStockIn(ingredientId, ingredientName, unitPrice); // fetch all-time by default
     setStockInOpen(true);
   };
 
@@ -457,7 +457,7 @@ export default function FoodInventoryPage() {
     setStockInPreset(preset);
     if (preset !== "custom") {
       const { from, to } = getDateRange(preset, stockInCustomFrom, stockInCustomTo);
-      fetchStockIn(stockInIngredientName, from, to);
+      fetchStockIn(stockInIngredientId, stockInIngredientName, stockInUnitPrice, from, to);
     }
   };
 
@@ -743,7 +743,7 @@ export default function FoodInventoryPage() {
               fetchMovements(movementsIngredientId, from, to);
             }}
           />
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[400px] overflow-y-auto overflow-x-auto">
             {movementsLoading ? (
               <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
             ) : movementLogs.length === 0 ? (
@@ -805,7 +805,7 @@ export default function FoodInventoryPage() {
             customTo={stockInCustomTo} setCustomTo={setStockInCustomTo}
             onApplyCustom={() => {
               const { from, to } = getDateRange("custom", stockInCustomFrom, stockInCustomTo);
-              fetchStockIn(stockInIngredientName, from, to);
+              fetchStockIn(stockInIngredientId, stockInIngredientName, stockInUnitPrice, from, to);
             }}
           />
 
@@ -834,7 +834,7 @@ export default function FoodInventoryPage() {
                   <p className="text-sm text-gray-400">No stock added in this period.</p>
                 </div>
               ) : (
-                <div className="max-h-[300px] overflow-y-auto">
+                <div className="max-h-[300px] overflow-y-auto overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
@@ -855,29 +855,21 @@ export default function FoodInventoryPage() {
                             ৳{entry.amount.toFixed(2)}
                           </td>
                           <td className="py-2.5 text-right">
-                            <div className="relative inline-block">
+                            <div className="flex items-center justify-end gap-1">
                               <button
-                                onClick={() => setRestockMenuOpenId(restockMenuOpenId === entry.id ? null : entry.id)}
-                                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                                onClick={() => openEditRestock(entry)}
+                                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                                title="Edit"
                               >
-                                <MoreVertical size={13} />
+                                <Pencil size={12} />
                               </button>
-                              {restockMenuOpenId === entry.id && (
-                                <div className="absolute right-0 top-6 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
-                                  <button
-                                    onClick={() => openEditRestock(entry)}
-                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                                  >
-                                    <Pencil size={11} /> Edit
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteRestock(entry)}
-                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
-                                  >
-                                    <Trash2 size={11} /> Delete
-                                  </button>
-                                </div>
-                              )}
+                              <button
+                                onClick={() => handleDeleteRestock(entry)}
+                                className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 size={12} />
+                              </button>
                             </div>
                           </td>
                         </tr>

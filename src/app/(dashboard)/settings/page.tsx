@@ -1009,12 +1009,122 @@ function TeamTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid: 
   );
 }
 
+// ── Data Tab ───────────────────────────────────────────────────────────────────
+function DataTab({ restaurants }: { restaurants: Restaurant[] }) {
+  const [selectedRid, setSelectedRid] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const selectedRestaurant = restaurants.find((r) => r.id === selectedRid);
+
+  const handleDelete = async () => {
+    if (!selectedRid) return;
+    setDeleting(true);
+    const supabase = createClient();
+
+    const { error: ingError } = await supabase
+      .from("ingredients")
+      .delete()
+      .eq("restaurant_id", selectedRid);
+
+    if (ingError) { toast.error("Failed to delete ingredients: " + ingError.message); setDeleting(false); return; }
+
+    const { error: grpError } = await supabase
+      .from("inventory_groups")
+      .delete()
+      .eq("restaurant_id", selectedRid);
+
+    if (grpError) { toast.error("Failed to delete groups: " + grpError.message); setDeleting(false); return; }
+
+    toast.success(`All ingredients & groups deleted for ${selectedRestaurant?.name}`);
+    setDeleting(false);
+    setConfirmOpen(false);
+    setConfirmText("");
+    setSelectedRid("");
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-border rounded-xl shadow-sm p-6 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Delete Ingredients & Groups</h3>
+          <p className="text-xs text-gray-500 mt-1">Permanently remove all ingredients and inventory groups for a specific restaurant. This cannot be undone.</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="block text-xs font-medium text-gray-700">Select Restaurant</label>
+          <select
+            value={selectedRid}
+            onChange={(e) => setSelectedRid(e.target.value)}
+            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+          >
+            <option value="">— Choose a restaurant —</option>
+            {restaurants.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="pt-2 border-t border-red-100">
+          <button
+            disabled={!selectedRid}
+            onClick={() => setConfirmOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-red-200"
+          >
+            <Trash2 size={14} />
+            Delete All Ingredients & Groups
+          </button>
+        </div>
+      </div>
+
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(o) => { setConfirmOpen(o); if (!o) setConfirmText(""); }}
+        title="Confirm Deletion"
+        fitContent
+        footer={
+          <div className="flex gap-2 justify-end w-full">
+            <Button variant="outline" onClick={() => { setConfirmOpen(false); setConfirmText(""); }}>Cancel</Button>
+            <Button
+              disabled={confirmText !== selectedRestaurant?.name || deleting}
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? <><Loader2 size={13} className="animate-spin" /> Deleting…</> : "Yes, Delete All"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+            This will permanently delete <strong>all ingredients and inventory groups</strong> for <strong>{selectedRestaurant?.name}</strong>. This action cannot be undone.
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-gray-700">
+              Type <span className="font-mono font-bold text-gray-900">{selectedRestaurant?.name}</span> to confirm
+            </label>
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={selectedRestaurant?.name}
+              className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+        </div>
+      </Dialog>
+    </div>
+  );
+}
+
 const TABS = [
   { id: "restaurants", label: "Restaurants", icon: Building2 },
   { id: "payments",    label: "Payments",    icon: CreditCard },
   { id: "billing",     label: "Billing",     icon: Receipt },
   { id: "tables",      label: "Table Management", icon: LayoutGrid },
   { id: "print",       label: "Print",       icon: Printer },
+  { id: "data",        label: "Data",        icon: Trash2 },
 ];
 
 export default function SettingsPage() {
@@ -1037,10 +1147,10 @@ export default function SettingsPage() {
   return (
     <div>
       <Header title="Settings" hideRestaurantSelector />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* Tab bar card */}
         <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-          <div className="bg-white border border-border rounded-xl shadow-sm p-3 flex items-center gap-3">
+          <div className="bg-white border border-border rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-3">
             <Tabs.List className="flex gap-1 bg-gray-100 rounded-lg p-1 flex-1 overflow-x-auto">
               {TABS.map(({ id, label, icon: Icon }) => (
                 <Tabs.Trigger key={id} value={id}
@@ -1054,7 +1164,7 @@ export default function SettingsPage() {
               ))}
             </Tabs.List>
             {/* Search */}
-            <div className="relative shrink-0 ml-[150px]">
+            <div className="relative shrink-0 ml-0 md:ml-[150px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 value={tabSearch}
@@ -1071,6 +1181,7 @@ export default function SettingsPage() {
           <Tabs.Content value="billing"     className="mt-4"><BillingTab rid={activeRid} onChangeRid={handleChangeRid} restaurants={allRestaurants} /></Tabs.Content>
           <Tabs.Content value="tables"      className="mt-4"><TablesTab rid={activeRid} onChangeRid={handleChangeRid} restaurants={allRestaurants} /></Tabs.Content>
           <Tabs.Content value="print"       className="mt-4"><PrintTab rid={activeRid} onChangeRid={handleChangeRid} restaurants={allRestaurants} /></Tabs.Content>
+          <Tabs.Content value="data"        className="mt-4"><DataTab restaurants={allRestaurants} /></Tabs.Content>
         </Tabs.Root>
       </div>
     </div>

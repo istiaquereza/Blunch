@@ -22,7 +22,7 @@ export default function StaffSupportAdminPage() {
   return (
     <>
       <Header title="Staff Support" />
-      <div className="p-6 max-w-lg mx-auto space-y-6">
+      <div className="p-4 md:p-6 max-w-lg mx-auto space-y-6">
         <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col items-center gap-5 shadow-sm">
           <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
             <HeartHandshake size={24} className="text-purple-500" />

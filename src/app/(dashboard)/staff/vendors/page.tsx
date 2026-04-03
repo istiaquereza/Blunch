@@ -8,16 +8,31 @@ import { Dialog } from "@/components/ui/dialog";
 import { useVendors, useVendorRequisitions } from "@/hooks/use-vendors";
 import {
   Plus, Edit2, Trash2, Search, Truck, Phone, MapPin,
-  ChevronDown, ChevronUp, Package, CheckCircle, XCircle, Clock,
+  ChevronDown, ChevronUp, Package, CheckCircle, XCircle, Clock, CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks } from "date-fns";
 import type { Vendor } from "@/types";
 import type { VendorRequisition } from "@/hooks/use-vendors";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 type Tab = "vendors" | "requests";
+type DatePreset = "today" | "last_week" | "this_month" | "all_time" | "custom";
+
+function getDateRange(preset: DatePreset, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
+  const now = new Date();
+  switch (preset) {
+    case "today":      return { from: startOfDay(now), to: endOfDay(now) };
+    case "last_week":  return { from: startOfWeek(subWeeks(now, 1)), to: endOfWeek(subWeeks(now, 1)) };
+    case "this_month": return { from: startOfMonth(now), to: endOfMonth(now) };
+    case "all_time":   return { from: null, to: null };
+    case "custom":     return {
+      from: customFrom ? startOfDay(new Date(customFrom)) : null,
+      to:   customTo   ? endOfDay(new Date(customTo))   : null,
+    };
+  }
+}
 
 function shortReqId(id: string) {
   return "REQ-" + id.replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -152,6 +167,11 @@ export default function VendorsPage() {
   const [search, setSearch] = useState("");
   const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
 
+  // Date filter for requests tab
+  const [datePreset, setDatePreset] = useState<DatePreset>("today");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
   // Vendor Names tab state
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
@@ -170,18 +190,34 @@ export default function VendorsPage() {
     ), [vendors, search]);
 
   const filteredGroups = useMemo(() => {
-    if (!search.trim()) return groups;
+    const { from, to } = getDateRange(datePreset, customFrom, customTo);
+
+    let result = groups.map((g) => {
+      // Filter requisitions by date range
+      const reqs = from || to
+        ? g.requisitions.filter((r) => {
+            const d = new Date(r.requisition_date + "T12:00:00");
+            if (from && d < from) return false;
+            if (to && d > to) return false;
+            return true;
+          })
+        : g.requisitions;
+      const totalSpend = reqs.reduce((s, r) =>
+        s + (r.product_requisition_items?.reduce((a, i) => a + i.total_price, 0) ?? 0), 0);
+      return { ...g, requisitions: reqs, totalSpend };
+    }).filter((g) => g.requisitions.length > 0);
+
+    if (!search.trim()) return result;
     const q = search.toLowerCase();
-    return groups
-      .filter((g) =>
-        g.vendor.name.toLowerCase().includes(q) ||
-        g.requisitions.some((r) =>
-          r.product_requisition_items?.some((i) =>
-            i.ingredients?.name?.toLowerCase().includes(q)
-          ) || shortReqId(r.id).toLowerCase().includes(q)
-        )
-      );
-  }, [groups, search]);
+    return result.filter((g) =>
+      g.vendor.name.toLowerCase().includes(q) ||
+      g.requisitions.some((r) =>
+        r.product_requisition_items?.some((i) =>
+          i.ingredients?.name?.toLowerCase().includes(q)
+        ) || shortReqId(r.id).toLowerCase().includes(q)
+      )
+    );
+  }, [groups, search, datePreset, customFrom, customTo]);
 
   // ── Vendor form handlers ───────────────────────────────────────────────────
 
@@ -227,10 +263,10 @@ export default function VendorsPage() {
   return (
     <div>
       <Header title="Vendor Management" hideRestaurantSelector />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
 
         {/* Toolbar */}
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 h-[62px] flex items-center px-[14px] gap-3 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-[14px] gap-3 py-2.5 md:h-[62px] md:py-0 overflow-x-auto">
           {/* Tab group */}
           <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1 shrink-0">
             {([
@@ -336,6 +372,49 @@ export default function VendorsPage() {
         {/* ── Vendor Items Request tab ──────────────────────────────────────── */}
         {tab === "requests" && (
           <div className="space-y-3">
+            {/* Date filter */}
+            <div className="bg-white rounded-xl border border-border shadow-sm px-4 py-3 flex flex-wrap items-center gap-2">
+              <CalendarDays size={14} className="text-gray-400 shrink-0" />
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { value: "today",      label: "Today" },
+                  { value: "last_week",  label: "Last Week" },
+                  { value: "this_month", label: "This Month" },
+                  { value: "all_time",   label: "All Time" },
+                  { value: "custom",     label: "Custom" },
+                ] as { value: DatePreset; label: string }[]).map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setDatePreset(p.value)}
+                    className={`h-7 px-3 rounded-lg text-xs font-medium transition-colors ${
+                      datePreset === p.value
+                        ? "bg-orange-500 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              {datePreset === "custom" && (
+                <div className="flex items-center gap-2 ml-1 flex-wrap">
+                  <input
+                    type="date"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="h-7 px-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-400"
+                  />
+                  <span className="text-xs text-gray-400">—</span>
+                  <input
+                    type="date"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="h-7 px-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-400"
+                  />
+                </div>
+              )}
+            </div>
+
             {reqLoading ? (
               <div className="bg-white rounded-xl border border-border shadow-sm p-8 text-center text-sm text-gray-400">
                 Loading requisitions…

@@ -585,6 +585,7 @@ export default function StaffPayrollPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "partial" | "unpaid">("all");
   const [payrollData, setPayrollData] = useState<Map<string, number>>(new Map());
+  const [hasAnyPayment, setHasAnyPayment] = useState<Set<string>>(new Set());
   const [loadingPayroll, setLoadingPayroll] = useState(false);
   const [payTarget, setPayTarget] = useState<PayrollRow | null>(null);
   const [bonusTarget, setBonusTarget] = useState<PayrollRow | null>(null);
@@ -613,13 +614,16 @@ export default function StaffPayrollPage() {
       .lte("payroll_month", monthEnd);
 
     const map = new Map<string, number>();
+    const anySet = new Set<string>();
     (data ?? []).forEach((r: any) => {
+      if (r.staff_id) anySet.add(r.staff_id);
       // Only salary payments count towards due calculation
       if (r.staff_id && isSalaryTx(r.description)) {
         map.set(r.staff_id, (map.get(r.staff_id) ?? 0) + r.amount);
       }
     });
     setPayrollData(map);
+    setHasAnyPayment(anySet);
     setLoadingPayroll(false);
   }, [restaurantIds, month]);
 
@@ -743,10 +747,10 @@ export default function StaffPayrollPage() {
     <>
       <Header title="Staff Payroll" />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
 
         {/* ── Month Selector & Filters ── */}
-        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 h-[62px] flex items-center px-6 border-b border-gray-100 gap-4 overflow-x-auto">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 flex flex-wrap items-center px-6 border-b border-gray-100 gap-4 py-2.5 md:h-[62px] md:py-0 overflow-x-auto">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <input
               type="month"
@@ -932,7 +936,7 @@ export default function StaffPayrollPage() {
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
-                        {row.paid > 0 && (
+                        {(row.paid > 0 || hasAnyPayment.has(row.staffId)) && (
                           <button
                             onClick={async () => {
                               setHistoryTarget(row);
@@ -987,7 +991,7 @@ export default function StaffPayrollPage() {
           open={!!payTarget}
           onOpenChange={(o) => !o && setPayTarget(null)}
           title={`Pay Salary — ${payTarget.name}`}
-          maxWidth="max-w-md"
+          fitContent
         >
           <PayDialog
             row={payTarget}
@@ -1006,7 +1010,7 @@ export default function StaffPayrollPage() {
           open={!!bonusTarget}
           onOpenChange={(o) => !o && setBonusTarget(null)}
           title={`Add Benefit — ${bonusTarget.name}`}
-          maxWidth="max-w-md"
+          fitContent
         >
           <BonusDialog
             row={bonusTarget}
@@ -1025,7 +1029,7 @@ export default function StaffPayrollPage() {
           open={!!historyTarget}
           onOpenChange={(o) => { if (!o) { setHistoryTarget(null); setHistoryRecords([]); } }}
           title={`Payment History — ${historyTarget.name}`}
-          maxWidth="max-w-md"
+          fitContent
         >
           <div className="space-y-3">
             <div className="flex items-center justify-between">
