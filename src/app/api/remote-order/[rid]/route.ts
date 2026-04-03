@@ -11,6 +11,14 @@ function sb() {
   );
 }
 
+async function signedLogoUrl(supabase: any, rawUrl?: string | null): Promise<string | null> {
+  if (!rawUrl) return null;
+  const m = rawUrl.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/?]+)\/(.+?)(?:\?.*)?$/);
+  if (!m) return rawUrl;
+  const { data } = await supabase.storage.from(m[1]).createSignedUrl(decodeURIComponent(m[2]), 86400);
+  return data?.signedUrl ?? rawUrl;
+}
+
 export async function GET(_req: Request, { params }: { params: Promise<{ rid: string }> }) {
   const { rid } = await params;
   const supabase = sb();
@@ -62,7 +70,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
   }
 
   return NextResponse.json({
-    restaurant,
+    restaurant: { ...restaurant, logo_url: await signedLogoUrl(supabase, (restaurant as any).logo_url) },
     items: (items ?? []).map((i: any) => ({
       id: i.id, name: i.name, sell_price: i.sell_price,
       description: i.notes, image_url: i.image_url, category_id: i.food_category_id,

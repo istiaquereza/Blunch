@@ -46,7 +46,7 @@ export interface Ingredient {
   default_unit: string;
   unit_price: number;
   inventory_group_id?: string;
-  restaurant_id: string;
+  restaurant_id?: string | null;
   created_at: string;
   inventory_groups?: { id: string; name: string } | null;
 }

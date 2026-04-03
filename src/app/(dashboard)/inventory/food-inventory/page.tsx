@@ -323,7 +323,7 @@ export default function FoodInventoryPage() {
     if (!rid) return;
     setRestockMenuOpenId(null);
     const ingredient = ingredients.find((i) => i.name === stockInIngredientName);
-    const { error } = await deleteRestockEntry(entry.id);
+    const { error } = await deleteRestockEntry(entry, stockInIngredientName);
     if (error) { toast.error((error as Error).message); return; }
 
     // Subtract deleted qty from food_stock

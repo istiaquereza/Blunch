@@ -23,7 +23,7 @@ import {
   Pencil, X, Check, ImagePlus, Loader2, Search,
   Globe, Instagram, Facebook, Twitter, Youtube, Link2, ChevronRight, ChevronDown,
   Users, Crown, Briefcase, ShoppingCart, Eye, ShieldCheck, UserPlus, KeyRound,
-  ToggleLeft, ToggleRight,
+  ToggleLeft, ToggleRight, RotateCcw,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -1010,54 +1010,119 @@ function TeamTab({ rid, onChangeRid, restaurants }: { rid: string; onChangeRid: 
 }
 
 // ── Data Tab ───────────────────────────────────────────────────────────────────
+const RESET_CATEGORIES = [
+  {
+    key: "orders",
+    label: "Orders & Sales",
+    description: "All orders, order items and sales history",
+    icon: "🧾",
+  },
+  {
+    key: "stock",
+    label: "Stock Data",
+    description: "Current stock levels and all stock movement logs",
+    icon: "📦",
+  },
+  {
+    key: "transactions",
+    label: "Transactions & Expenses",
+    description: "All income and expense records",
+    icon: "💳",
+  },
+  {
+    key: "leaves",
+    label: "Staff Leaves",
+    description: "All staff leave records",
+    icon: "📅",
+  },
+  {
+    key: "customers",
+    label: "Customers",
+    description: "All customer records",
+    icon: "👥",
+  },
+  {
+    key: "requisitions",
+    label: "Product Requisitions",
+    description: "All purchase requisitions and items",
+    icon: "📋",
+  },
+  {
+    key: "assetCheckins",
+    label: "Asset Check-ins",
+    description: "All asset check-in/check-out history",
+    icon: "🔧",
+  },
+] as const;
+
+type ResetKey = typeof RESET_CATEGORIES[number]["key"];
+
 function DataTab({ restaurants }: { restaurants: Restaurant[] }) {
   const [selectedRid, setSelectedRid] = useState("");
+  const [scope, setScope] = useState<Record<ResetKey, boolean>>({
+    orders: true,
+    stock: true,
+    transactions: true,
+    leaves: true,
+    customers: false,
+    requisitions: false,
+    assetCheckins: false,
+  });
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
-  const [deleting, setDeleting] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [results, setResults] = useState<Record<string, string> | null>(null);
 
   const selectedRestaurant = restaurants.find((r) => r.id === selectedRid);
+  const selectedCount = Object.values(scope).filter(Boolean).length;
 
-  const handleDelete = async () => {
+  const toggleAll = (val: boolean) =>
+    setScope(Object.fromEntries(RESET_CATEGORIES.map((c) => [c.key, val])) as Record<ResetKey, boolean>);
+
+  const handleReset = async () => {
     if (!selectedRid) return;
-    setDeleting(true);
-    const supabase = createClient();
+    setResetting(true);
+    setResults(null);
 
-    const { error: ingError } = await supabase
-      .from("ingredients")
-      .delete()
-      .eq("restaurant_id", selectedRid);
+    const res = await fetch("/api/reset-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restaurant_id: selectedRid, scope }),
+    });
+    const json = await res.json();
+    setResetting(false);
 
-    if (ingError) { toast.error("Failed to delete ingredients: " + ingError.message); setDeleting(false); return; }
-
-    const { error: grpError } = await supabase
-      .from("inventory_groups")
-      .delete()
-      .eq("restaurant_id", selectedRid);
-
-    if (grpError) { toast.error("Failed to delete groups: " + grpError.message); setDeleting(false); return; }
-
-    toast.success(`All ingredients & groups deleted for ${selectedRestaurant?.name}`);
-    setDeleting(false);
-    setConfirmOpen(false);
-    setConfirmText("");
-    setSelectedRid("");
+    if (json.ok) {
+      setResults(json.results);
+      toast.success(`Reset complete for ${selectedRestaurant?.name}`);
+      setConfirmOpen(false);
+      setConfirmText("");
+    } else {
+      setResults(json.results);
+      toast.error("Some items failed to reset. See details below.");
+      setConfirmOpen(false);
+    }
   };
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-border rounded-xl shadow-sm p-6 space-y-4">
+      {/* Header warning */}
+      <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3">
+        <span className="text-red-500 text-lg shrink-0">⚠️</span>
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">Delete Ingredients & Groups</h3>
-          <p className="text-xs text-gray-500 mt-1">Permanently remove all ingredients and inventory groups for a specific restaurant. This cannot be undone.</p>
+          <p className="text-sm font-semibold text-red-800">Danger Zone — Irreversible Actions</p>
+          <p className="text-xs text-red-600 mt-0.5">Resetting data is permanent and cannot be undone. Make sure you have exported any data you need before proceeding.</p>
         </div>
+      </div>
 
+      <div className="bg-white border border-border rounded-xl shadow-sm p-6 space-y-5">
+        {/* Restaurant selector */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-medium text-gray-700">Select Restaurant</label>
+          <label className="block text-xs font-medium text-gray-700">Select Restaurant to Reset</label>
           <select
             value={selectedRid}
-            onChange={(e) => setSelectedRid(e.target.value)}
-            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+            onChange={(e) => { setSelectedRid(e.target.value); setResults(null); }}
+            className="w-full max-w-sm h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
           >
             <option value="">— Choose a restaurant —</option>
             {restaurants.map((r) => (
@@ -1066,40 +1131,105 @@ function DataTab({ restaurants }: { restaurants: Restaurant[] }) {
           </select>
         </div>
 
+        {/* Category checkboxes */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-medium text-gray-700">What to Reset</label>
+            <div className="flex gap-3 text-xs">
+              <button onClick={() => toggleAll(true)} className="text-orange-600 hover:underline font-medium">Select all</button>
+              <button onClick={() => toggleAll(false)} className="text-gray-400 hover:underline">Clear all</button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {RESET_CATEGORIES.map((cat) => (
+              <label
+                key={cat.key}
+                className={cn(
+                  "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors select-none",
+                  scope[cat.key]
+                    ? "border-red-200 bg-red-50"
+                    : "border-gray-200 bg-gray-50 hover:border-gray-300"
+                )}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-red-500"
+                  checked={scope[cat.key]}
+                  onChange={(e) => setScope((p) => ({ ...p, [cat.key]: e.target.checked }))}
+                />
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm">{cat.icon}</span>
+                    <span className="text-xs font-semibold text-gray-800">{cat.label}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{cat.description}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-400 pt-1">
+            ✅ Keeps: Menu items, staff, payment methods, tables, inventory groups, print settings — everything that's <em>configuration</em>, not data.
+          </p>
+        </div>
+
+        {/* Reset button */}
         <div className="pt-2 border-t border-red-100">
           <button
-            disabled={!selectedRid}
+            disabled={!selectedRid || selectedCount === 0}
             onClick={() => setConfirmOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-red-200"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
           >
             <Trash2 size={14} />
-            Delete All Ingredients & Groups
+            Reset {selectedCount} Categor{selectedCount === 1 ? "y" : "ies"} for {selectedRestaurant?.name ?? "Restaurant"}
           </button>
         </div>
       </div>
+
+      {/* Results */}
+      {results && (
+        <div className="bg-white border border-border rounded-xl shadow-sm p-5 space-y-2">
+          <p className="text-xs font-semibold text-gray-700">Reset Results</p>
+          {Object.entries(results).map(([key, status]) => {
+            const cat = RESET_CATEGORIES.find((c) => c.key === key);
+            const ok = status === "OK";
+            return (
+              <div key={key} className={cn("flex items-center gap-2 text-xs px-3 py-2 rounded-lg", ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700")}>
+                <span>{ok ? "✓" : "✗"}</span>
+                <span className="font-medium">{cat?.label ?? key}:</span>
+                <span>{ok ? "Cleared successfully" : status}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Confirmation Dialog */}
       <Dialog
         open={confirmOpen}
         onOpenChange={(o) => { setConfirmOpen(o); if (!o) setConfirmText(""); }}
-        title="Confirm Deletion"
+        title="Confirm Data Reset"
         fitContent
         footer={
           <div className="flex gap-2 justify-end w-full">
             <Button variant="outline" onClick={() => { setConfirmOpen(false); setConfirmText(""); }}>Cancel</Button>
             <Button
-              disabled={confirmText !== selectedRestaurant?.name || deleting}
-              onClick={handleDelete}
+              disabled={confirmText !== selectedRestaurant?.name || resetting}
+              onClick={handleReset}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {deleting ? <><Loader2 size={13} className="animate-spin" /> Deleting…</> : "Yes, Delete All"}
+              {resetting ? <><Loader2 size={13} className="animate-spin" /> Resetting…</> : "Yes, Reset Data"}
             </Button>
           </div>
         }
       >
-        <div className="space-y-3">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-            This will permanently delete <strong>all ingredients and inventory groups</strong> for <strong>{selectedRestaurant?.name}</strong>. This action cannot be undone.
+        <div className="space-y-3 max-w-sm">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 space-y-1">
+            <p>This will permanently delete the following for <strong>{selectedRestaurant?.name}</strong>:</p>
+            <ul className="list-disc list-inside space-y-0.5 text-xs mt-1">
+              {RESET_CATEGORIES.filter((c) => scope[c.key]).map((c) => (
+                <li key={c.key}>{c.label}</li>
+              ))}
+            </ul>
           </div>
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-gray-700">
@@ -1124,7 +1254,7 @@ const TABS = [
   { id: "billing",     label: "Billing",     icon: Receipt },
   { id: "tables",      label: "Table Management", icon: LayoutGrid },
   { id: "print",       label: "Print",       icon: Printer },
-  { id: "data",        label: "Data",        icon: Trash2 },
+  { id: "data",        label: "Reset Data",   icon: RotateCcw },
 ];
 
 export default function SettingsPage() {
