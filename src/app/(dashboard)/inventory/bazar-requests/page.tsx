@@ -723,6 +723,8 @@ export default function BazarRequestsPage() {
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterVendor, setFilterVendor] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -771,6 +773,8 @@ export default function BazarRequestsPage() {
     const range = getDateRange(datePreset, customFrom, customTo);
     return requisitions.filter((r) => {
       if (filterStatus && r.status !== filterStatus) return false;
+      if (filterCategory && r.bazar_category_id !== filterCategory) return false;
+      if (filterVendor && r.vendor_id !== filterVendor) return false;
       if (search) {
         const q = search.toLowerCase();
         const matches =
@@ -786,7 +790,7 @@ export default function BazarRequestsPage() {
       }
       return true;
     });
-  }, [requisitions, search, filterStatus, datePreset, customFrom, customTo]);
+  }, [requisitions, search, filterStatus, filterCategory, filterVendor, datePreset, customFrom, customTo]);
 
   // Stats
   const pendingCount = requisitions.filter((r) => r.status === "submitted").length;
@@ -955,7 +959,7 @@ export default function BazarRequestsPage() {
       <Header title="Bazar Requests" />
       <div className="p-4 md:p-6 space-y-4">
         {/* ── Toolbar — above the cards ── */}
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-4 md:px-6 gap-3 md:gap-4 py-2.5 md:h-[62px] md:py-0">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-[14px] gap-3 md:gap-4 py-2.5 md:h-[62px] md:py-0">
             {/* Status */}
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
               className="h-9 px-[14px] rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
@@ -963,6 +967,24 @@ export default function BazarRequestsPage() {
               <option value="submitted">Under Review</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
+            </select>
+
+            {/* Category */}
+            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
+              className="h-9 px-[14px] rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+              <option value="">All Categories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+
+            {/* Vendor */}
+            <select value={filterVendor} onChange={(e) => setFilterVendor(e.target.value)}
+              className="h-9 px-[14px] rounded-md bg-white shadow-sm border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+              <option value="">All Vendors</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
             </select>
 
             {/* Date preset */}

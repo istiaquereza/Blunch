@@ -58,3 +58,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ rid: st
 
   return NextResponse.json({ success: true }, { status: 201 });
 }
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ rid: string }> }) {
+  const { rid } = await params;
+  const supabase = createAdmin();
+  const url = new URL(req.url);
+  const leaveId = url.searchParams.get("leave_id");
+
+  if (!leaveId) return NextResponse.json({ error: "leave_id required" }, { status: 400 });
+
+  const { error } = await supabase
+    .from("staff_leaves")
+    .delete()
+    .eq("id", leaveId)
+    .eq("restaurant_id", rid);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}

@@ -576,9 +576,9 @@ function BonusDialog({
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function StaffPayrollPage() {
-  const { restaurants, activeRestaurant } = useRestaurant();
-  const restaurantIds = useMemo(() => restaurants.map(r => r.id), [restaurants]);
-  const { staff, loading: staffLoading } = useAllStaff(restaurantIds);
+  const { activeRestaurant } = useRestaurant();
+  const activeRestaurantIds = useMemo(() => activeRestaurant ? [activeRestaurant.id] : [], [activeRestaurant]);
+  const { staff, loading: staffLoading } = useAllStaff(activeRestaurantIds);
   const { methods: paymentMethods } = usePaymentMethods(activeRestaurant?.id);
 
   const [month, setMonth] = useState(getCurrentYM());
@@ -595,7 +595,7 @@ export default function StaffPayrollPage() {
 
   // Fetch payroll SALARY payments for the selected month (bonuses excluded from due calc)
   const fetchPayroll = useCallback(async () => {
-    if (!restaurantIds.length || !month) return;
+    if (!activeRestaurant?.id || !month) return;
     setLoadingPayroll(true);
     const supabase = createClient();
     const monthStart = `${month}-01`;
@@ -606,7 +606,7 @@ export default function StaffPayrollPage() {
     const { data } = await supabase
       .from("transactions")
       .select("staff_id, amount, description")
-      .in("restaurant_id", restaurantIds)
+      .eq("restaurant_id", activeRestaurant.id)
       .eq("type", "expense")
       .eq("status", "paid")
       .not("staff_id", "is", null)
@@ -625,7 +625,7 @@ export default function StaffPayrollPage() {
     setPayrollData(map);
     setHasAnyPayment(anySet);
     setLoadingPayroll(false);
-  }, [restaurantIds, month]);
+  }, [activeRestaurant?.id, month]);
 
   useEffect(() => { fetchPayroll(); }, [fetchPayroll]);
 
@@ -750,8 +750,8 @@ export default function StaffPayrollPage() {
       <div className="p-4 md:p-6 space-y-4">
 
         {/* ── Month Selector & Filters ── */}
-        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 flex flex-wrap items-center px-6 border-b border-gray-100 gap-4 py-2.5 md:h-[62px] md:py-0 overflow-x-auto">
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
+        <div className="bg-white border border-border rounded-xl shadow-sm shrink-0 flex items-center px-4 md:px-6 gap-3 md:gap-4 h-[62px] min-h-[62px] overflow-x-auto">
+          <div className="flex items-center gap-2 flex-1">
             <input
               type="month"
               value={month}

@@ -79,16 +79,20 @@ const PRESETS: { value: Preset; label: string }[] = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-async function getOrCreateSalaryCategory(supabase: ReturnType<typeof createClient>): Promise<string | null> {
+async function getOrCreateSalaryCategory(supabase: ReturnType<typeof createClient>, restaurantId?: string): Promise<string | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: existing } = await supabase
+    let q = supabase
       .from("expense_categories").select("id")
-      .eq("user_id", user.id).eq("name", "Salary").eq("type", "expense").limit(1).single();
+      .eq("user_id", user.id).eq("name", "Salary").eq("type", "expense");
+    if (restaurantId) q = q.eq("restaurant_id", restaurantId);
+    const { data: existing } = await q.limit(1).single();
     if (existing) return existing.id;
+    const payload: Record<string, unknown> = { name: "Salary", type: "expense", user_id: user.id };
+    if (restaurantId) payload.restaurant_id = restaurantId;
     const { data: created } = await supabase
-      .from("expense_categories").insert({ name: "Salary", type: "expense", user_id: user.id })
+      .from("expense_categories").insert(payload)
       .select("id").single();
     return created?.id ?? null;
   } catch { return null; }
@@ -178,7 +182,7 @@ function PayrollForm({
     const monthLabel = new Date(`${payrollMonth}-01`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
     const desc = description || `Salary — ${selectedStaff?.name ?? ""} (${monthLabel})`;
     const supabase = createClient();
-    const salaryCategoryId = await getOrCreateSalaryCategory(supabase);
+    const salaryCategoryId = await getOrCreateSalaryCategory(supabase, restaurantId);
     const { error: err } = await onSave({
       restaurant_id: restaurantId,
       type: "expense",
@@ -616,12 +620,19 @@ function TxForm({ initial, categories, paymentMethods, restaurantId, restaurantI
 interface CategoryManagerProps {
   categories: ExpenseCategory[];
   onCreate: (name: string, type: "expense" | "income") => Promise<{ error: unknown }>;
+  onUpdate: (id: string, name: string, type: "expense" | "income") => Promise<{ error: unknown }>;
   onRemove: (id: string) => Promise<{ error: unknown }>;
 }
-function CategoryManager({ categories, onCreate, onRemove }: CategoryManagerProps) {
+function CategoryManager({ categories, onCreate, onUpdate, onRemove }: CategoryManagerProps) {
   const [name, setName] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState<"expense" | "income">("expense");
+  const [editSaving, setEditSaving] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const handleAdd = async () => {
     if (!name.trim()) return;
@@ -631,11 +642,38 @@ function CategoryManager({ categories, onCreate, onRemove }: CategoryManagerProp
     setName("");
   };
 
+  const startEdit = (c: ExpenseCategory) => {
+    setEditingId(c.id);
+    setEditName(c.name);
+    setEditType(c.type);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+  };
+
+  const handleUpdate = async () => {
+    if (!editingId || !editName.trim()) return;
+    setEditSaving(true);
+    await onUpdate(editingId, editName.trim(), editType);
+    setEditSaving(false);
+    setEditingId(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeleteLoading(true);
+    await onRemove(id);
+    setDeleteLoading(false);
+    setDeleteConfirmId(null);
+  };
+
   const incomes = categories.filter((c) => c.type === "income");
   const expenses = categories.filter((c) => c.type === "expense");
 
   return (
     <div className="space-y-4">
+      {/* Add new */}
       <div className="flex gap-2">
         <input
           value={name}
@@ -657,20 +695,79 @@ function CategoryManager({ categories, onCreate, onRemove }: CategoryManagerProp
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto">
-        {[{ label: "Income", items: incomes, color: "bg-green-50 text-green-700" }, { label: "Expense", items: expenses, color: "bg-red-50 text-red-700" }].map(({ label, items, color }) => (
+      {/* List */}
+      <div className="grid grid-cols-2 gap-3 max-h-72 overflow-y-auto">
+        {[{ label: "Income", items: incomes, color: "bg-green-50 text-green-700 border border-green-100" }, { label: "Expense", items: expenses, color: "bg-red-50 text-red-600 border border-red-100" }].map(({ label, items, color }) => (
           <div key={label}>
-            <p className="text-xs font-semibold text-gray-500 mb-2">{label}</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{label}</p>
             {items.length === 0 ? (
               <p className="text-xs text-gray-300 italic">None yet</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-1.5">
                 {items.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${color}`}>{c.name}</span>
-                    <button onClick={() => onRemove(c.id)} className="p-0.5 text-gray-300 hover:text-red-400 transition-colors">
-                      <Trash2 size={12} />
-                    </button>
+                  <li key={c.id}>
+                    {editingId === c.id ? (
+                      /* Inline edit row */
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          autoFocus
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleUpdate(); if (e.key === "Escape") cancelEdit(); }}
+                          className="flex-1 h-7 px-2 rounded-md border border-orange-300 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                        <select
+                          value={editType}
+                          onChange={(e) => setEditType(e.target.value as "expense" | "income")}
+                          className="h-7 px-1 rounded-md border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
+                        >
+                          <option value="expense">Exp</option>
+                          <option value="income">Inc</option>
+                        </select>
+                        <button
+                          onClick={handleUpdate}
+                          disabled={editSaving || !editName.trim()}
+                          className="h-7 px-2 rounded-md bg-orange-500 text-white text-xs font-medium hover:bg-orange-600 disabled:opacity-40 transition-colors"
+                        >
+                          {editSaving ? "…" : "Save"}
+                        </button>
+                        <button onClick={cancelEdit} className="h-7 px-1.5 rounded-md border border-gray-200 text-gray-400 text-xs hover:bg-gray-50 transition-colors">✕</button>
+                      </div>
+                    ) : deleteConfirmId === c.id ? (
+                      /* Delete confirm row */
+                      <div className="flex items-center gap-1.5 bg-red-50 rounded-lg px-2 py-1">
+                        <span className="text-xs text-red-600 flex-1 truncate">Delete "{c.name}"?</span>
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          disabled={deleteLoading}
+                          className="h-6 px-2 rounded-md bg-red-500 text-white text-xs font-medium hover:bg-red-600 disabled:opacity-40 transition-colors"
+                        >
+                          {deleteLoading ? "…" : "Yes"}
+                        </button>
+                        <button onClick={() => setDeleteConfirmId(null)} className="h-6 px-1.5 rounded-md border border-gray-200 text-gray-400 text-xs hover:bg-gray-100 transition-colors">No</button>
+                      </div>
+                    ) : (
+                      /* Default row */
+                      <div className="flex items-center justify-between gap-1.5 group">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium truncate max-w-[100px] ${color}`}>{c.name}</span>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => startEdit(c)}
+                            className="p-1 text-gray-300 hover:text-orange-500 transition-colors"
+                            title="Edit"
+                          >
+                            <Pencil size={11} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(c.id)}
+                            className="p-1 text-gray-300 hover:text-red-400 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -692,7 +789,7 @@ export default function IncomeExpensesPage() {
     dateFrom || undefined,
     dateTo || undefined
   );
-  const { categories, create: createCat, remove: removeCat } = useExpenseCategories();
+  const { categories, create: createCat, update: updateCat, remove: removeCat } = useExpenseCategories(activeRestaurant?.id);
   const { methods: paymentMethods } = usePaymentMethods(activeRestaurant?.id);
 
   const [preset, setPreset] = useState<Preset>("today");
@@ -755,7 +852,7 @@ export default function IncomeExpensesPage() {
 
       <div className="p-4 md:p-6 space-y-4">
         {/* ── Toolbar ── */}
-        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-4 md:px-6 gap-3 md:gap-4 py-2.5 md:h-[62px] md:py-0">
+        <div className="bg-white rounded-xl border border-border shadow-sm shrink-0 flex flex-wrap items-center px-[14px] gap-3 md:gap-4 py-2.5 md:h-[62px] md:py-0">
           <div className="flex flex-wrap items-center gap-2 w-full">
 
             {/* Date range dropdown */}
@@ -1243,7 +1340,7 @@ export default function IncomeExpensesPage() {
       })()}
 
       {/* Add Dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen} title="Add Transaction" maxWidth="max-w-lg">
+      <Dialog open={addOpen} onOpenChange={setAddOpen} title="Add Transaction">
         {activeRestaurant && (
           <TxForm
             categories={categories}
@@ -1258,7 +1355,7 @@ export default function IncomeExpensesPage() {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)} title="Edit Transaction" maxWidth="max-w-lg">
+      <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)} title="Edit Transaction">
         {editTarget && activeRestaurant && (
           <TxForm
             initial={editTarget}
@@ -1342,6 +1439,7 @@ export default function IncomeExpensesPage() {
         <CategoryManager
           categories={categories}
           onCreate={createCat}
+          onUpdate={updateCat}
           onRemove={removeCat}
         />
       </Dialog>

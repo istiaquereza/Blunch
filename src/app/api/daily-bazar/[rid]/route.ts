@@ -11,6 +11,14 @@ function createAdmin() {
   );
 }
 
+async function signedLogoUrl(supabase: any, rawUrl?: string | null): Promise<string | null> {
+  if (!rawUrl) return null;
+  const m = rawUrl.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/?]+)\/(.+?)(?:\?.*)?$/);
+  if (!m) return rawUrl;
+  const { data } = await supabase.storage.from(m[1]).createSignedUrl(decodeURIComponent(m[2]), 86400);
+  return data?.signedUrl ?? rawUrl;
+}
+
 export async function GET(_req: Request, { params }: { params: Promise<{ rid: string }> }) {
   const { rid } = await params;
   const supabase = createAdmin();
@@ -33,7 +41,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rid: st
   if (!restaurant) return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
 
   return NextResponse.json({
-    restaurant,
+    restaurant: { ...restaurant, logo_url: await signedLogoUrl(supabase, restaurant.logo_url) },
     ingredients: ingredients ?? [],
     vendors: vendors ?? [],
     paymentMethods: paymentMethods ?? [],

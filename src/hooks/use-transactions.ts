@@ -8,6 +8,7 @@ export interface ExpenseCategory {
   name: string;
   type: "expense" | "income";
   user_id: string;
+  restaurant_id?: string | null;
   created_at: string;
 }
 
@@ -30,38 +31,55 @@ export interface Transaction {
   staff?: { id: string; name: string; salary: number } | null;
 }
 
-export function useExpenseCategories() {
+export function useExpenseCategories(restaurantId?: string) {
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const supabase = createClient();
 
-  const fetch = useCallback(async () => {
+  const loadCategories = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase
+    let q = supabase
       .from("expense_categories")
       .select("*")
       .eq("user_id", user.id)
       .order("name");
+    // Include categories for this restaurant AND legacy categories (restaurant_id IS NULL)
+    // so old transactions retain their category labels and old categories appear in the modal
+    if (restaurantId) {
+      q = q.or(`restaurant_id.eq.${restaurantId},restaurant_id.is.null`);
+    }
+    const { data } = await q;
     setCategories(data ?? []);
-  }, []);
+  }, [restaurantId]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { loadCategories(); }, [loadCategories]);
 
   const create = async (name: string, type: "expense" | "income") => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: new Error("Not authenticated") };
-    const { error } = await supabase.from("expense_categories").insert({ name, type, user_id: user.id });
-    if (!error) fetch();
+    const payload: Record<string, unknown> = { name, type, user_id: user.id };
+    if (restaurantId) payload.restaurant_id = restaurantId;
+    const { error } = await supabase.from("expense_categories").insert(payload);
+    if (!error) loadCategories();
+    return { error };
+  };
+
+  const update = async (id: string, name: string, type: "expense" | "income") => {
+    // Also assign restaurant_id if this is a legacy NULL category being edited
+    const payload: Record<string, unknown> = { name, type };
+    if (restaurantId) payload.restaurant_id = restaurantId;
+    const { error } = await supabase.from("expense_categories").update(payload).eq("id", id);
+    if (!error) loadCategories();
     return { error };
   };
 
   const remove = async (id: string) => {
     const { error } = await supabase.from("expense_categories").delete().eq("id", id);
-    if (!error) fetch();
+    if (!error) loadCategories();
     return { error };
   };
 
-  return { categories, create, remove, refresh: fetch };
+  return { categories, create, update, remove, refresh: loadCategories };
 }
 
 export function useTransactions(restaurantId?: string, dateFrom?: string, dateTo?: string) {

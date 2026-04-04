@@ -14,11 +14,10 @@ export async function GET(
     return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
   }
 
-  // Use anon key — this is a public route, no auth needed
-  // If your RLS blocks anon reads on food_items/restaurants, add SUPABASE_SERVICE_ROLE_KEY to Vercel and swap below
   const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
   // Fetch restaurant, tables, billing settings, discounts, and payment methods in parallel
@@ -76,8 +75,16 @@ export async function GET(
     name: t.name ?? t.table_number ?? "",
   }));
 
+  const signedLogo = async (rawUrl?: string | null) => {
+    if (!rawUrl) return null;
+    const m = rawUrl.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/?]+)\/(.+?)(?:\?.*)?$/);
+    if (!m) return rawUrl;
+    const { data } = await supabase.storage.from(m[1]).createSignedUrl(decodeURIComponent(m[2]), 86400);
+    return data?.signedUrl ?? rawUrl;
+  };
+
   return NextResponse.json({
-    restaurant,
+    restaurant: { ...restaurant, logo_url: await signedLogo((restaurant as any).logo_url) },
     items: cleanItems,
     categories,
     tables: cleanTables,
